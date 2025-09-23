@@ -1,0 +1,116 @@
+@extends('layout')
+@section('title', 'Login')
+@section('page','loginRegister')
+@php($showHeader = false)
+@section('content')
+<div class="min-vh-100 d-flex align-items-center justify-content-center">
+	<div class="login-container">
+		<div class="box">
+			<!-- FORMULARIO LOGIN -->
+			<div class="form sign_in">
+				<h3>Iniciar Sesión</h3>
+				<form action="{{ route('login') }}" method="POST" id="login_form">
+					@csrf
+					<div class="field">
+						<label for="login_email" class="field-label">Email</label>
+						<div class="type">
+							<input type="email" name="email" placeholder="Email" id="login_email" />
+						</div>
+					</div>
+					<div class="field">
+						<label for="login_password" class="field-label">Contraseña</label>
+						<div class="type">
+							<input type="password" name="password" placeholder="Contraseña" id="login_password" />
+						</div>
+					</div>
+					<div class="forgot">
+						<span>¿Olvidaste tu contraseña?</span>
+					</div>
+					<button class="btn bkg" type="submit">Iniciar Sesión</button>
+				</form>
+			</div>
+
+			<!-- FORMULARIO REGISTRO -->
+			<div class="form sign_up">
+				<h3>Regístrate</h3>
+				<form action="{{ route('register') }}" method="POST" id="register_form" enctype="multipart/form-data" novalidate>
+					@csrf
+					<div class="field">
+						<label for="reg_type" class="field-label">Tipo de usuario</label>
+						<div class="type">
+							<select id="reg_type" name="reg_type" class="form-select bg-transparent border-0" aria-label="Tipo de registro"></select>
+						</div>
+					</div>
+					<div class="field">
+						<label for="reg_name" class="field-label">Nombre</label>
+						<div class="type">
+							<input type="text" placeholder="Nombre" id="reg_name" name="reg_name" />
+						</div>
+					</div>
+					<div class="field">
+						<label for="reg_email" class="field-label">Email</label>
+						<div class="type">
+							<input type="email" placeholder="Email" id="reg_email" name="reg_email" />
+						</div>
+					</div>
+					<div class="field">
+						<label for="reg_password" class="field-label">Contraseña</label>
+						<div class="type">
+							<input type="password" placeholder="Contraseña" id="reg_password" name="reg_password" />
+						</div>
+						<small class="field-help">Mínimo 6 caracteres. Usa letras y números para mayor seguridad.</small>
+					</div>
+					<div class="field">
+						<label for="reg_password_confirm" class="field-label">Confirmar Contraseña</label>
+						<div class="type">
+							<input type="password" placeholder="Confirmar Contraseña" id="reg_password_confirm" name="reg_password_confirmation" />
+						</div>
+					</div>
+					<div class="field professional-only d-none">
+						<label for="reg_titulo" class="field-label">Título profesional (escaneado)</label>
+						<div class="type">
+							<input type="file" id="reg_titulo" name="reg_titulo" accept=".pdf,.jpg,.jpeg,.png" />
+						</div>
+					</div>
+					<div class="field professional-only d-none">
+						<label for="reg_cedula" class="field-label">Cédula de identidad (escaneada)</label>
+						<div class="type">
+							<input type="file" id="reg_cedula" name="reg_cedula" accept=".pdf,.jpg,.jpeg,.png" />
+						</div>
+					</div>
+					<button class="btn bkg" type="submit">Registrarte</button>
+				</form>
+			</div>
+		</div>
+
+		<div class="overlay">
+			<div class="page page_signIn">
+				<h3>¡Bienvenido de vuelta!</h3>
+				<p>Si aun no tienes una cuenta con nosotros, puedes:</p>
+				<button class="btn btnSign-in">Registrarte <i class="bi bi-arrow-right"></i></button>
+			</div>
+
+			<div class="page page_signUp">
+				<h3>¡Hola amigo!</h3>
+				<p>Si ya tienes una cuenta, puedes:</p>
+				<button class="btn btnSign-up"><i class="bi bi-arrow-left"></i> Iniciar Sesión</button>
+			</div>
+		</div>
+	</div>
+</div>
+@endsection
+
+@if(session('success') || $errors->any())
+	<script>
+		window.__flash = {
+			success: @json(session('success')),
+			errors: @json($errors->all())
+		};
+	</script>
+@endif
+
+@if(isset($signupRoles))
+<script>
+  window.__signupRoles = @json($signupRoles);
+</script>
+@endif

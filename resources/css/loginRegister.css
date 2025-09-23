@@ -1,0 +1,297 @@
+/* Reset mínimo para este componente */
+.login-container * {
+	box-sizing: border-box;
+}
+
+:root {
+	--pg-pink: #f58198;
+	--pg-pink-hover: #d75a6f;
+	--pg-shadow: rgba(0, 0, 0, 0.25) 0 14px 28px, rgba(0, 0, 0, 0.22) 0 10px 10px;
+	--pg-radius: 10px;
+	--pg-w: min(1100px, 70vw);
+	--pg-h: 650px;
+	--pg-ease: cubic-bezier(.22, .61, .36, 1);
+	--pg-fast: .5s;
+	--pg-slow: 1.15s;
+}
+
+.login-container {
+	width: var(--pg-w);
+	display: flex;
+	height: var(--pg-h);
+	box-shadow: var(--pg-shadow);
+	border-radius: var(--pg-radius);
+	overflow: hidden;
+}
+
+.login-container .box {
+	position: relative;
+	display: flex;
+	height: 100%;
+	width: 50%;
+	transition: transform var(--pg-fast) var(--pg-ease);
+	transform: translateX(0);
+	background-color: #fff;
+	z-index: 1;
+	overflow: hidden;
+}
+
+.login-container.active .box {
+	transform: translateX(100%);
+}
+
+.login-container .box .form {
+	position: absolute;
+	height: 100%;
+	min-width: 100%;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+	text-align: center;
+	background-color: #fff;
+	padding: 12px 0 20px;
+	overflow-y: auto;
+	overflow-x: hidden;
+}
+
+.login-container .box .form.sign_up {
+	transition: opacity var(--pg-slow) var(--pg-ease);
+	z-index: 1;
+	opacity: 0;
+	justify-content: flex-start; /* alinear arriba para evitar cortes del título */
+	padding-top: 24px; /* separa el título del borde superior */
+}
+
+.login-container .box .form.sign_in {
+	transition: opacity var(--pg-slow) var(--pg-ease);
+	z-index: 5;
+	opacity: 1;
+}
+
+.login-container.active .box .form.sign_in {
+	z-index: 1;
+	opacity: 0;
+}
+
+.login-container.active .box .form.sign_up {
+	z-index: 5;
+	opacity: 1;
+}
+
+.login-container .overlay {
+	display: flex;
+	height: 100%;
+	width: 50%;
+	transition: transform var(--pg-fast) var(--pg-ease), opacity var(--pg-fast) var(--pg-ease);
+	transform: translateX(0);
+	background-color: var(--pg-pink);
+	z-index: 5;
+	overflow: hidden;
+	opacity: 1;
+}
+
+.login-container.active .overlay {
+	transform: translateX(-100%);
+}
+
+.login-container .overlay .page {
+	height: 100%;
+	min-width: 100%;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+	text-align: center;
+	transition: opacity .5s var(--pg-ease), margin-left .5s var(--pg-ease);
+	opacity: 1;
+	color: #fff;
+	padding: 0 24px;
+}
+
+.login-container.active .overlay .page.page_signIn {
+	opacity: 0;
+	margin-left: -100%;
+}
+
+.login-container.active .overlay .page.page_signUp {
+	margin-left: 0%;
+}
+
+.login-container .overlay .page h3 {
+	font-size: 40px;
+	margin-bottom: 15px;
+}
+
+.login-container .overlay .page p {
+	font-weight: 600;
+	margin-bottom: 20px;
+	font-size: 17px;
+}
+
+.login-container .btn {
+	display: inline-block;
+	outline: none;
+	color: #fff;
+	text-transform: uppercase;
+	font-size: 15px;
+	font-weight: 550;
+	background-color: transparent;
+	padding: 12px 45px;
+	border-radius: 22px;
+	border: 1.5px solid #fff;
+	cursor: pointer;
+}
+
+.login-container .bkg {
+	background-color: var(--pg-pink);
+	color: #fff;
+	border: none;
+	transition: background-color .3s ease;
+}
+
+.login-container .bkg:hover {
+	background-color: var(--pg-pink-hover);
+}
+
+/* Inputs según el diseño original */
+.login-container .box .form .type {
+	width: 330px;
+	height: 48px;
+	background-color: #EEEDEF;
+	margin: 30px 0;
+	display: flex;
+	align-items: center;
+	padding: 0 10px;
+	border-radius: 5px;
+}
+
+.login-container .box .form .type input {
+	width: 100%;
+	height: 100%;
+	padding: 0 10px;
+	font-size: 16px;
+	border: none;
+	outline: none;
+	background-color: transparent;
+	color: #222;
+}
+
+.login-container .box .form .type select {
+	width: 100%;
+	height: 100%;
+	padding: 0 10px;
+	font-size: 16px;
+	border: none;
+	outline: none;
+	background-color: transparent;
+	color: #222;
+	appearance: none;
+}
+/* Tom Select dentro de .type */
+.login-container .box .form .type .ts-wrapper { width: 100%; height: 100%; border: none; background: transparent; }
+.login-container .box .form .type .ts-control { background: transparent; border: none; box-shadow: none; height: 100%; display: flex; align-items: center; padding: 0 4px; }
+.login-container .box .form .type .ts-control input { width: 0 !important; padding: 0; margin: 0; }
+.login-container .box .form .type .ts-dropdown { border-radius: 6px; }
+
+/* Tom Select dentro de .type */
+.login-container .box .form .type .ts-wrapper {
+	width: 100%;
+	border: none;
+	background: transparent;
+}
+.login-container .box .form .type .ts-control {
+	background: transparent;
+	border: none;
+	box-shadow: none;
+	height: 100%;
+	display: flex;
+	align-items: center;
+	padding: 0 4px;
+}
+.login-container .box .form .type .ts-dropdown {
+	border-radius: 6px;
+}
+
+.login-container .box .form .type input::placeholder {
+	color: #A9A8A9;
+}
+
+/* Estados de validación */
+.login-container .box .form .type.is-valid {
+	border: 1.5px solid #28a745;
+}
+.login-container .box .form .type.is-invalid {
+	border: 1.5px solid #dc3545;
+}
+
+.login-container .box .form .forgot {
+	margin-bottom: 20px;
+	font-weight: 500;
+}
+
+.login-container .box .form h3 {
+	color: #222;
+	font-size: 40px;
+}
+
+.login-container .box .form span {
+	color: #3a3838;
+}
+
+/* Título no fijo: deja que se oculte al hacer scroll */
+
+/* Campos con etiqueta */
+.login-container .box .form .field {
+	width: 100%;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+}
+
+.login-container .box .form .field + .field {
+	margin-top: 14px;
+}
+
+.login-container .box .form .field .field-label {
+	width: 330px;
+	text-align: left;
+	font-size: 14px;
+	color: #555;
+}
+
+.login-container .box .form .field .type {
+	margin: 6px 0 4px;
+}
+
+.login-container .box .form .field .field-help {
+	width: 330px;
+	text-align: left;
+	font-size: 12px;
+	color: #6c757d;
+	margin-top: -20px;
+}
+
+/* Espaciado ligeramente más compacto en sign_up para reducir scroll */
+.login-container .box .form.sign_up .type { margin: 22px 0; }
+
+/* Responsivo: evita cortes en pantallas medianas/pequeñas */
+@media (max-width: 992px) {
+	.login-container {
+		width: 92% !important;
+		height: 90vh !important;
+	}
+}
+
+@media (max-width: 576px) {
+	.login-container {
+		width: 96% !important;
+		height: 92vh !important;
+	}
+	.login-container .box .form h3 { font-size: 32px; }
+	.login-container .box .form .type { width: 300px; margin: 22px 0; }
+	.login-container .box .form .field .field-label { width: 300px; }
+	.login-container .box .form .field .field-help { width: 300px; }
+	.login-container .box .form .field + .field { margin-top: 16px; }
+	.login-container .box .form .field .type { margin: 8px 0 4px; }
+}

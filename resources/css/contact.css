@@ -1,0 +1,3 @@
+/* Contact page styles */
+.contact-hero { background: linear-gradient(180deg, #ffe6ed 0%, #fff 100%); }
+.contact-card { border-radius: 1rem; box-shadow: 0 0.25rem 1rem rgba(183, 58, 86, 0.12); }
