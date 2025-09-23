@@ -6,10 +6,8 @@ use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
-class CheckPermission
-{
-	public function handle(Request $request, Closure $next, string $permissionSlug = null)
-	{
+class CheckPermission {
+	public function handle(Request $request, Closure $next, string $permissionSlug = null) {
 		$user = $request->user();
 		if (!$user) {
 			return redirect()->guest('/welcome');
