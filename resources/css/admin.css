@@ -1,0 +1,21 @@
+/* Admin theme: SB Admin 2 assets (imported from bundled template) */
+@import "../vendor/fontawesome-free/css/all.min.css";
+
+/* Small overrides to align with our layout */
+.sidebar { min-width: 220px; }
+.topbar { z-index: 50; }
+
+/* Left menu tweaks */
+#left-menu .card-body { padding: 1rem; }
+#left-menu .nav-link { color: #333; padding: .5rem .75rem; border-radius: .375rem; }
+#left-menu .nav-link.active, #left-menu .nav-link:hover { background-color: rgba(0,0,0,0.04); color: #000; }
+#left-menu .badge { font-size: .7rem; }
+
+/* Make left menu occupy full height between header and footer */
+body > header.site-header { z-index: 60; }
+#left-menu { position: sticky; top: 88px; align-self: start; }
+@media (min-width: 992px){
+	html, body { height: 100%; }
+	#left-menu .card { height: calc(100vh - 160px); }
+}
+

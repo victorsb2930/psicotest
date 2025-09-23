@@ -3,7 +3,7 @@
 @section('page','admin.roles')
 @section('content')
 <div class="container py-4" data-page="admin.roles">
-	@include('admin._nav')
+
 	<h1 class="mb-3">Roles</h1>
 	@include('admin._flash')
 	<div class="row g-4">

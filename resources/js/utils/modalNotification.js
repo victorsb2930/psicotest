@@ -1,12 +1,14 @@
-// modalNotification: Crea una alerta tipo toast apilable (arriba-derecha) con variantes Bootstrap 5.3 e íconos de Bootstrap Icons.
+// modalNotification: crea una alerta tipo toast apilable (arriba-derecha) con variantes y estilo mejorado.
 // Usa jQuery global y clases de Bootstrap; no importa Bootstrap internamente.
 const ModalNotificationDefaults = {
 	template: 'warning',
 	delayAutoClose: 5000,
 	zIndex: 1080,
-	gap: 8,
-	topOffset: 8,
-	alignClasses: 'end-0 me-3'
+	gap: 10,
+	topOffset: 12,
+	alignClasses: 'end-0 me-3',
+	// Opacidad base para el fondo/gradiente de la notificación (0..1). Aumenta para menos transparencia.
+	bgOpacity: 0.95
 };
 
 export function modalNotification(
@@ -17,20 +19,71 @@ export function modalNotification(
 	detailConfig = {}
 ) {
 	const opts = { ...ModalNotificationDefaults, ...options };
-	const { variant, icon } = mapVariant(opts.template);
+	const { variant, icon, leftClass, bgRgb } = mapVariant(opts.template);
 
-	// Construir alerta
+	// Construir alerta con background rgba y border-left según template
 	const id = `notif-${(window.uuidv7 ? window.uuidv7() : `${Date.now()}-${Math.floor(Math.random() * 1000)}`)}`;
+	// Asegurar que description pueda incluir HTML cuando ya venga escapado por el llamador
+	const descHtml = (typeof description === 'string') ? description : String(description);
+
+	// helper to make rgba from rgb string like 'rgb(r,g,b)'
+	const rgbToRgba = (rgb, a) => {
+		const m = String(rgb).match(/(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+		if (!m) return `rgba(0,0,0,${a})`;
+		return `rgba(${m[1]},${m[2]},${m[3]},${a})`;
+	};
+
+	// Parse rgb string into numeric components
+	const getRgbComponents = (rgb) => {
+		const m = String(rgb).match(/(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+		if (!m) return { r: 0, g: 0, b: 0 };
+		return { r: Number(m[1]), g: Number(m[2]), b: Number(m[3]) };
+	};
+
+	// Compute perceived brightness (0-255)
+	const perceivedBrightness = (rgb) => {
+		const { r, g, b } = getRgbComponents(rgb);
+		return (r * 299 + g * 587 + b * 114) / 1000;
+	};
+
+	// Convert hex color or rgb numbers to rgba string with alpha
+	const makeRgbaFromRgb = (rgbObj, alpha) => {
+		return `rgba(${rgbObj.r},${rgbObj.g},${rgbObj.b},${alpha})`;
+	};
+
+	// Determine readable text/icon color based on template brightness
+	const brightness = perceivedBrightness(bgRgb);
+	const textColor = brightness > 160 ? '#212529' : '#ffffff';
+	const iconFg = textColor;
+	// Create a gradient using the template color: use configured opacity to make backgrounds less transparent
+	// Create a pleasing gradient using multiple alpha stops based on bgOpacity
+	const rgbObj = getRgbComponents(bgRgb);
+	const clamp = (v) => Math.max(0, Math.min(1, v));
+	const startColor = makeRgbaFromRgb(rgbObj, clamp(opts.bgOpacity));
+	const midColor = makeRgbaFromRgb(rgbObj, clamp(opts.bgOpacity * 0.7));
+	const endColor = makeRgbaFromRgb(rgbObj, clamp(opts.bgOpacity * 0.35));
+	const bodyBg = `linear-gradient(90deg, ${startColor} 0%, ${midColor} 45%, ${endColor} 100%)`;
+
+	const iconBg = makeRgbaFromRgb(rgbObj, clamp(opts.bgOpacity * 1.0));
+	// Secondary text should be more opaque when bgOpacity is high
+	const secondaryText = textColor === '#ffffff' ? 'rgba(255,255,255,0.95)' : 'rgba(0,0,0,0.85)';
 	const $el = $(
-		`<div id="${id}" class="alert alert-${variant} position-fixed ${opts.alignClasses}" role="alert" data-notification="true" style="z-index:${opts.zIndex}; min-width:260px;">
-				<div class="d-flex align-items-start gap-2">
-					<i class="bi ${icon} fs-5 mt-1 flex-shrink-0"></i>
-					<div class="flex-grow-1">
-						<div class="d-flex justify-content-between align-items-start">
-							<strong class="me-2">${window.escapeHtml(title)}</strong>
-							<button type="button" class="btn-close" aria-label="Close"></button>
+		`<div id="${id}" class="toast-notif position-fixed ${opts.alignClasses} d-flex align-items-stretch" role="alert" data-notification="true" style="z-index:${opts.zIndex}; min-width:320px; box-shadow:0 12px 32px rgba(0,0,0,0.12); border-radius:8px; overflow:hidden;">
+			<div class="notif-left" style="width:0;border-left:8px solid ${bgRgb};"></div>
+				<div class="notif-body p-3 flex-grow-1" style="background: ${bodyBg};">
+					<div class="d-flex align-items-start gap-3">
+						<span class="notif-icon d-inline-flex align-items-center justify-content-center rounded-circle" style="width:40px;height:40px;background:${iconBg};color:${iconFg};flex-shrink:0;">
+							<i class="bi ${icon} fs-5"></i>
+						</span>
+						<div class="flex-grow-1">
+							<div class="d-flex justify-content-between align-items-start">
+								<div class="me-2">
+									<strong style="color:${textColor};">${window.escapeHtml(title)}</strong>
+									<div class="small mt-1" style="color:${secondaryText};">${descHtml}</div>
+								</div>
+								<button type="button" class="btn-close" aria-label="Close"></button>
+							</div>
 						</div>
-						<div class="mt-1">${description}</div>
 					</div>
 				</div>
 		</div>`
@@ -77,7 +130,19 @@ function mapVariant(template) {
 		light: 'bi-info-circle',
 		dark: 'bi-exclamation-diamond'
 	};
-	return { variant: safeVariant, icon: iconMap[safeVariant] };
+	const rgbMap = {
+		primary: 'rgb(13,110,253)',
+		secondary: 'rgb(108,117,125)',
+		success: 'rgb(25,135,84)',
+		danger: 'rgb(220,53,69)',
+		warning: 'rgb(255,193,7)',
+		info: 'rgb(13,202,240)',
+		light: 'rgb(248,249,250)',
+		dark: 'rgb(33,37,41)'
+	};
+	// Use standard Bootstrap utilities: border-start + border-<variant> for the colored stripe
+	const leftClass = `border-start border-${safeVariant}`;
+	return { variant: safeVariant, icon: iconMap[safeVariant], leftClass, bgRgb: (rgbMap[safeVariant] || rgbMap.warning) };
 }
 
 // Reposiciona todas las notificaciones (stack top-right)

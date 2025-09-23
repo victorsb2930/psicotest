@@ -63,6 +63,22 @@ docker-compose exec app npm install
 docker-compose exec app npm run dev
 ```
 
+Nota importante (assets & iconos)
+
+- Este proyecto usa un generador local para crear la lista de iconos de Bootstrap Icons usada por los pickers del frontend.
+- Antes de ejecutar `npm run dev`, si es la primera vez o si has actualizado dependencias, ejecuta:
+```pwsh
+npm run generate-icons
+```
+Esto crea `public/bootstrap-icons-list.json`. Si `npm run dev` falla con errores relacionados a iconos o CSS, ejecutar el comando anterior suele resolverlo.
+
+Si `npm run dev` sigue fallando con Exit Code 1, intenta construir para producción y revisar la salida:
+```pwsh
+npm run generate-icons
+npm run build
+```
+y revisa la salida de la terminal para el error concreto; copia el texto y pégalo en la issue o en la conversación para ayuda.
+
 6. Generar clave de la aplicación (si aún no está)
 
 ```bash

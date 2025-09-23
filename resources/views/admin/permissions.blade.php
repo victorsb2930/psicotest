@@ -2,7 +2,7 @@
 @section('title','Permisos')
 @section('content')
 <div class="container py-4">
-	@include('admin._nav')
+
 	<h1 class="mb-3">Permisos</h1>
 	@include('admin._flash')
 	<div class="row g-4">

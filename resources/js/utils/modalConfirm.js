@@ -12,7 +12,7 @@ const ModalLocalDefaults = {
 	dialogClasses: '',
 	contentClasses: '',
 	bodyClasses: '',
-	draggable: false
+	draggable: true
 };
 
 export function modalConfirm(bodyHtml, modalType = 'normal', options = {}) {
@@ -38,13 +38,15 @@ export function modalConfirm(bodyHtml, modalType = 'normal', options = {}) {
 			: '';
 
 		const iconHtml = iconClass
-			? `<i class="fa ${iconClass} fa-lg me-2" ${iconColor ? `style="color:${iconColor}"` : ''}></i>`
+			? `<span class="modal-icon bg-white rounded-circle d-inline-flex align-items-center justify-content-center me-3" style="width:56px;height:56px;box-shadow:0 6px 18px rgba(0,0,0,0.06);border:1px solid rgba(0,0,0,0.06);">
+					<i class="fa ${iconClass} fa-2x" ${iconColor ? `style="color:${iconColor}"` : ''}></i>
+			   </span>`
 			: '';
 
 		const footerHtml = modalType === 'normal'
-			? `<div class="modal-footer">
-					<button type="button" class="btn btn-danger" data-bs-dismiss="modal">${labels[0]}</button>
-					<button type="button" class="btn btn-success" id="modalConfirmBtn_${modalId}">${labels[1]}</button>
+			? `<div class="modal-footer border-0 pt-0">
+					<button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">${labels[0]}</button>
+					<button type="button" class="btn btn-primary" id="modalConfirmBtn_${modalId}">${labels[1]}</button>
 			</div>`
 			: '';
 
@@ -57,21 +59,23 @@ export function modalConfirm(bodyHtml, modalType = 'normal', options = {}) {
 			opts.dialogClasses || ''
 		].filter(Boolean).join(' ');
 
-		const contentCls = ['modal-content', opts.contentClasses || ''].filter(Boolean).join(' ');
-		const bodyCls = ['modal-body', opts.bodyClasses || ''].filter(Boolean).join(' ');
+	const contentCls = ['modal-content shadow-lg rounded-4', opts.contentClasses || ''].filter(Boolean).join(' ');
+	const bodyCls = ['modal-body py-4 px-5', opts.bodyClasses || ''].filter(Boolean).join(' ');
 
 		const template = `
 			<div class="modal fade" id="${modalId}" tabindex="-1" aria-hidden="true" role="dialog">
 				<div class="${dialogCls}" role="document">
 				<div class="${contentCls}">
-				<div class="modal-header">
-					<h5 class="modal-title d-flex align-items-center">
-						${iconHtml}<span id="modalTitle${modalId}">${window.escapeHtml(titleText)}</span>
-					</h5>
-					${closeBtnHtml}
+				<div class="modal-header border-0 d-flex align-items-center" style="padding:1rem 1.25rem;">
+					${iconHtml}
+					<div class="d-flex flex-column">
+						<h5 class="modal-title mb-0" id="modalTitle${modalId}" style="font-weight:600; font-size:1.05rem;">${window.escapeHtml(titleText)}</h5>
+						<small class="text-muted">${window.escapeHtml(bodyHtml.subtitle || '')}</small>
+					</div>
+					<div class="ms-auto">${closeBtnHtml}</div>
 				</div>
 				<div class="${bodyCls}" id="modalBody${modalId}">${bodyContent}</div>
-				${footerHtml}
+				<div class="px-4 pb-4 d-flex justify-content-end">${footerHtml}</div>
 				</div>
 			</div>
 			</div>`;
@@ -92,6 +96,11 @@ export function modalConfirm(bodyHtml, modalType = 'normal', options = {}) {
 		$modal.find(`#modalBody${modalId}`).html(bodyContent);
 	}
 
+	// Small DOM fixes: ensure close button has visible contrast and confirm button will be focused
+	$modal.find('.btn-close').attr('aria-label', 'Cerrar');
+	// Place footer buttons to the right
+	$modal.find('.modal-footer').addClass('justify-content-end');
+
 	// Reasignar handler del botón Confirmar (si existe)
 	const $confirmBtn = $modal.find(`#modalConfirmBtn_${modalId}`);
 	$confirmBtn.off('click').on('click', function () {
@@ -111,6 +120,14 @@ export function modalConfirm(bodyHtml, modalType = 'normal', options = {}) {
 	const bsModal = bootstrap.Modal.getOrCreateInstance($modal[0], {
 		backdrop: opts.backdrop,
 		keyboard: opts.keyboard
+	});
+
+	// Focus confirm button when modal shown
+	$modal.off('shown.bs.modal.focus').on('shown.bs.modal.focus', function () {
+		const $btn = $modal.find(`#modalConfirmBtn_${modalId}`);
+		if ($btn.length) {
+			$btn.trigger('focus');
+		}
 	});
 
 	// Habilitar arrastre opcional del modal por la cabecera
@@ -214,3 +231,74 @@ function closeAllModals() {
 
 // Defaults accesibles/modificables
 modalConfirm.defaults = ModalLocalDefaults;
+
+// Defaults para flujos secuenciales (Opción B puede depender de estos)
+modalConfirm.sequenceDefaults = {
+	defaultB: {}, // valores por defecto que se mezclarán con bodyHtml de la Opción B
+};
+
+/**
+ * Muestra dos modales en secuencia: primero la `optionA` y si el usuario confirma, muestra la `optionB`.
+ * La `optionB` puede ser un objeto `bodyHtml` o una función que reciba los `defaultB` y devuelva un objeto `bodyHtml`.
+ * Retorna una Promise que resuelve con un objeto: { confirmedA: boolean, confirmedB: boolean }
+ */
+export function modalConfirmSequence(optionA, optionBOrFactory, sequenceOpts = {}) {
+	const defaults = { ...modalConfirm.sequenceDefaults, ...sequenceOpts };
+	return new Promise((resolve) => {
+		const modalIdA = optionA.modalId || `modal-seq-a-${Date.now()}`;
+		let confirmedA = false;
+
+		const bodyA = { ...optionA, modalId: modalIdA };
+
+		// Interceptar confirm de A
+		bodyA.onClickYes = () => {
+			confirmedA = true;
+			// Cerrar modal A y abrir B después de un pequeño delay para permitir la animación
+			closeAllModals();
+			setTimeout(() => {
+				// Construir body para B usando defaults.defaultB
+				let bodyB = {};
+				if (typeof optionBOrFactory === 'function') {
+					bodyB = optionBOrFactory(defaults.defaultB || {});
+				} else {
+					bodyB = { ...optionBOrFactory };
+				}
+				// Mezclar defaults: los valores de bodyB deben sobreescribir los defaults
+				bodyB = { ...(defaults.defaultB || {}), ...bodyB };
+				const modalIdB = bodyB.modalId || `modal-seq-b-${Date.now()}`;
+				let confirmedB = false;
+				bodyB.modalId = modalIdB;
+
+				bodyB.onClickYes = () => {
+					confirmedB = true;
+					closeAllModals();
+					resolve({ confirmedA: true, confirmedB: true });
+				};
+
+				// Si se cierra B sin confirmar, resolver con confirmedB = false
+				// Registramos un listener una sola vez
+				const $onceB = $(() => {
+					const $modalB = $(`#${modalIdB}`);
+					$modalB.one('hidden.bs.modal', function () {
+						if (!confirmedB) {
+							resolve({ confirmedA: true, confirmedB: false });
+						}
+					});
+				});
+
+				modalConfirm(bodyB, 'normal', defaults);
+			}, 260);
+		};
+
+		// Mostrar modal A
+		modalConfirm(bodyA, 'normal', defaults);
+
+		// Si se cierra A sin confirmar, resolver con falses (attach after creation)
+		const $modalA = $(`#${modalIdA}`);
+		$modalA.one('hidden.bs.modal', function () {
+			if (!confirmedA) {
+				resolve({ confirmedA: false, confirmedB: false });
+			}
+		});
+	});
+}

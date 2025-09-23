@@ -78,7 +78,7 @@ $(function() {
         },
         closeClick: false
       };
-      window.modalConfirm(bodyHtml, 'normal', { centered: true, scrollable: false, size: '', draggable: true });
+      window.modalConfirm(bodyHtml, 'normal', { centered: true, scrollable: false, size: '' });
       setTimeout(() => document.getElementById('quick_email')?.focus(), 150);
     }
   });

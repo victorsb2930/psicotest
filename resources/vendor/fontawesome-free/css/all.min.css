@@ -1,0 +1,3 @@
+/* minimal placeholder for FontAwesome used by SB Admin */
+@font-face{font-family: 'Font Awesome 5 Free'; src: url('../webfonts/fa-solid-900.woff2') format('woff2');}
+.fa{display:inline-block}

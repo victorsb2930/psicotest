@@ -3,16 +3,12 @@
 @section('page','admin-professional-apps')
 @section('content')
 <div class="container py-4">
-  @include('admin._nav')
+
   <h1 class="mb-3">Solicitudes de Profesionales</h1>
   @include('admin._flash')
 
   <div class="d-flex justify-content-between align-items-center mb-2">
     <div class="text-muted small">Usa el filtro para buscar y revisar.</div>
-    <form method="POST" action="{{ route('admin.profapps.demo') }}">
-      @csrf
-      <button class="btn btn-sm btn-outline-dark" type="submit">Crear demo pendiente</button>
-    </form>
   </div>
 
   <form method="GET" class="row g-2 align-items-end mb-3">
@@ -59,7 +55,21 @@
               @endif
             </td>
             <td>
-              @php($badge = match($a->status){'pending'=>'bg-warning text-dark','approved'=>'bg-success','rejected'=>'bg-danger'})
+        @php
+          switch($a->status) {
+            case 'pending':
+              $badge = 'bg-warning text-dark';
+              break;
+            case 'approved':
+              $badge = 'bg-success';
+              break;
+            case 'rejected':
+              $badge = 'bg-danger';
+              break;
+            default:
+              $badge = '';
+          }
+        @endphp
               <span class="badge {{$badge}}">{{$a->status}}</span>
             </td>
             <td>

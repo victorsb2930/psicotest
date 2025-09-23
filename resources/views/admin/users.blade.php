@@ -5,7 +5,7 @@
 
 @section('content')
 <div class="container py-4">
-	@include('admin._nav')
+
 	<h1 class="mb-3 d-flex align-items-center gap-3">
 		<span>Gestión de usuarios</span>
 		<span class="ms-auto d-flex gap-2">
@@ -62,31 +62,41 @@
 				@endphp
 				<tr>
 					<th>
-						@php($qs_id = array_merge($qs, ['sort'=>'id','dir'=>($sort==='id'?$nextDir:'asc')]))
+						@php
+							$qs_id = array_merge($qs, ['sort'=>'id','dir'=>($sort==='id'?$nextDir:'asc')]);
+						@endphp
 						<a href="{{ route('admin.users', $qs_id) }}" class="text-decoration-none">
 							ID @if(($sort ?? '')==='id')<span>{{ ($dir ?? 'asc')==='asc'?'▲':'▼' }}</span>@endif
 						</a>
 					</th>
 					<th>
-						@php($qs_name = array_merge($qs, ['sort'=>'name','dir'=>($sort==='name'?$nextDir:'asc')]))
+						@php
+							$qs_name = array_merge($qs, ['sort'=>'name','dir'=>($sort==='name'?$nextDir:'asc')]);
+						@endphp
 						<a href="{{ route('admin.users', $qs_name) }}" class="text-decoration-none">
 							Nombre @if(($sort ?? '')==='name')<span>{{ ($dir ?? 'asc')==='asc'?'▲':'▼' }}</span>@endif
 						</a>
 					</th>
 					<th>
-						@php($qs_email = array_merge($qs, ['sort'=>'email','dir'=>($sort==='email'?$nextDir:'asc')]))
+						@php
+							$qs_email = array_merge($qs, ['sort'=>'email','dir'=>($sort==='email'?$nextDir:'asc')]);
+						@endphp
 						<a href="{{ route('admin.users', $qs_email) }}" class="text-decoration-none">
 							Email @if(($sort ?? '')==='email')<span>{{ ($dir ?? 'asc')==='asc'?'▲':'▼' }}</span>@endif
 						</a>
 					</th>
 										<th>
-												@php($qs_active = array_merge($qs, ['sort'=>'active','dir'=>($sort==='active'?$nextDir:'asc')]))
+												@php
+													$qs_active = array_merge($qs, ['sort'=>'active','dir'=>($sort==='active'?$nextDir:'asc')]);
+												@endphp
 												<a href="{{ route('admin.users', $qs_active) }}" class="text-decoration-none">
 													Activo @if(($sort ?? '')==='active')<span>{{ ($dir ?? 'asc')==='asc'?'▲':'▼' }}</span>@endif
 												</a>
 										</th>
 										<th>
-												@php($qs_roles = array_merge($qs, ['sort'=>'roles','dir'=>($sort==='roles'?$nextDir:'asc')]))
+												@php
+													$qs_roles = array_merge($qs, ['sort'=>'roles','dir'=>($sort==='roles'?$nextDir:'asc')]);
+												@endphp
 												<a href="{{ route('admin.users', $qs_roles) }}" class="text-decoration-none">
 													Roles @if(($sort ?? '')==='roles')<span>{{ ($dir ?? 'asc')==='asc'?'▲':'▼' }}</span>@endif
 												</a>

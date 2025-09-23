@@ -90,7 +90,7 @@ $(function() {
 				},
 				closeClick: false // No cerrar automáticamente tras Confirmar; controlamos nosotros
 			};
-			window.modalConfirm(bodyHtml, 'normal', { centered: true, scrollable: false, size: '', draggable: true });
+			window.modalConfirm(bodyHtml, 'normal', { centered: true, scrollable: false, size: ''});
 			setTimeout(() => document.getElementById('quick_email')?.focus(), 150);
 		}
 		// else: fallback to normal navigation

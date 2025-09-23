@@ -149,7 +149,6 @@ Route::prefix('admin')->middleware(['auth','perm:adminarea'])->group(function(){
 
 	// Professional applications review
 	Route::get('/professional-applications', [\App\Http\Controllers\ProfessionalApplicationController::class, 'index'])->name('admin.profapps.index');
-	Route::post('/professional-applications/demo', [\App\Http\Controllers\ProfessionalApplicationController::class, 'demo'])->name('admin.profapps.demo');
 	Route::post('/professional-applications/{application}/approve', [\App\Http\Controllers\ProfessionalApplicationController::class, 'approve'])->name('admin.profapps.approve');
 	Route::post('/professional-applications/{application}/reject', [\App\Http\Controllers\ProfessionalApplicationController::class, 'reject'])->name('admin.profapps.reject');
 	Route::get('/professional-applications/{application}/file/{field}', [\App\Http\Controllers\ProfessionalApplicationController::class, 'file'])->name('admin.profapps.file');
@@ -187,3 +186,23 @@ Route::get('/about', function () {
 	return view('about');
 })->name('about');
 #endregion
+
+// User notifications listing (simple)
+Route::middleware('auth')->group(function(){
+	Route::get('/notifications', function(){
+		$user = auth()->user();
+		if (!\Illuminate\Support\Facades\Schema::hasTable('notifications')) {
+			return view('notifications', ['notifications' => collect()]);
+		}
+		$notes = $user->notifications()->latest()->limit(50)->get();
+		return view('notifications', ['notifications' => $notes]);
+	})->name('notifications.index');
+
+	Route::post('/notifications/mark-read', function(){
+		$user = auth()->user();
+		if (\Illuminate\Support\Facades\Schema::hasTable('notifications')) {
+			$user->unreadNotifications->markAsRead();
+		}
+		return redirect()->back();
+	})->name('notifications.markread');
+});

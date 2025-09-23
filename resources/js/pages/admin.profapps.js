@@ -23,7 +23,7 @@
 				$form.find('input[name="notes"]').val(notes);
 				$form.trigger('submit');
 			},
-		}, 'normal', { centered: true, draggable: true });
+		}, 'normal', { centered: true });
 	};
 	$(document).on('click', '.js-open-reject', onRejectClick);
 })();
