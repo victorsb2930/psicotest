@@ -1,3 +1,119 @@
+# Psicoguia — Guía de onboarding para colaboradores
+
+Bienvenido/a al repositorio de Psicoguia. Este documento explica paso a paso lo que debe hacer un nuevo colaborador que clona el proyecto para dejarlo funcionando en su entorno local (con Docker) y cómo solucionar problemas comunes.
+
+Requisitos previos
+- Git
+- Docker y Docker Compose
+- Composer (si vas a instalar dependencias fuera del contenedor)
+- Node.js y npm/yarn (opcional si trabajas en assets front)
+
+1) Clonar el repositorio
+
+```bash
+git clone <repo-url>
+cd psicoguia
+```
+
+2) Copiar el entorno de variables
+
+```bash
+cp .env.example .env
+# Edita .env según sea necesario (puedes usar el .env del proyecto si te lo proporcionaron)
+```
+
+3) Levantar servicios con Docker (recomendado)
+
+```bash
+docker-compose up -d --build
+```
+
+Esto crea los contenedores `app`, `db` (Postgres) y `redis` (si están definidos en `docker-compose.yml`).
+
+4) Ejecutar migraciones y seeders
+
+Dentro del contenedor `app` ejecuta:
+
+```bash
+docker-compose exec app php artisan migrate --seed
+# o, para reiniciar y seedear limpio:
+docker-compose exec app php artisan migrate:fresh --seed
+```
+
+5) Generar autoload y limpiar cachés
+
+```bash
+docker-compose exec app composer install --no-interaction --prefer-dist --optimize-autoloader
+docker-compose exec app php artisan config:clear
+docker-compose exec app php artisan cache:clear
+docker-compose exec app php artisan view:clear
+```
+
+6) Compilar assets (opcional en desarrollo)
+
+Si trabajas con JS/CSS y quieres compilar localmente:
+
+```bash
+# desde el host (si tienes node instalado)
+npm install
+npm run dev
+
+# o dentro del contenedor si está configurado
+docker-compose exec app npm install
+docker-compose exec app npm run dev
+```
+
+7) Variables .env importantes
+
+- `APP_URL` — URL base.
+- `DB_*` — conexión a la base de datos Postgres.
+- `REDIS_CLIENT` y `REDIS_HOST` — configuración de Redis. Si trabajas dentro del contenedor deja `REDIS_HOST=redis`.
+- `ADMIN_EMAILS` — lista CSV de emails que el sistema considera administradores (ej.: `test@admin.com,admin2@local`).
+
+8) Comportamiento esperado al registrar usuarios
+
+- Si `ADMIN_EMAILS` contiene el email usado en el registro, el usuario será marcado activo y se le asignará el rol `admin` automáticamente (esto lo gestiona el seeder y el controlador de registro).
+- Si registras el usuario manualmente después de ejecutar seeders, puedes reasignar roles ejecutando el seeder otra vez o usando Tinker.
+
+9) Problemas comunes y soluciones rápidas
+
+- Error "Class 'Redis' not found": asegúrate de usar `phpredis` con la extensión instalada o `predis` en composer y que `REDIS_CLIENT` sea coherente con la extensión/paquete.
+- Error "php_network_getaddresses: getaddrinfo for redis failed": significa que ejecutaste Artisan en el host; ejecuta Artisan dentro del contenedor (`docker-compose exec app php artisan ...`) o mapea el puerto Redis para que el host lo vea.
+- Error "Target class [perm] does not exist": registrar el alias de middleware `perm` está en `bootstrap/app.php`. Si se produce, ejecutar `composer dump-autoload` y `php artisan config:clear` dentro del contenedor.
+- Permisos de `storage`/`bootstrap/cache`: si ves "Failed to open stream: Permission denied", ajusta permisos dentro del contenedor:
+
+```bash
+docker-compose exec app chown -R www-data:www-data storage bootstrap/cache
+docker-compose exec app php artisan view:clear
+```
+
+10) Cómo reasignar admin a un usuario existente
+
+```bash
+docker-compose exec app php artisan db:seed --class=DatabaseSeeder
+# o, con tinker
+docker-compose exec app php artisan tinker
+>>> $u = \App\Models\User::where('email','test@admin.com')->first();
+>>> $u->syncRoles(['admin']);
+>>> $u->is_active = true; $u->save();
+```
+
+11) Cómo ejecutar pruebas
+
+Si hay tests incluidos:
+
+```bash
+docker-compose exec app ./vendor/bin/pest --colors
+```
+
+12) Contacto y estilo de commits
+
+- Usa mensajes de commit claros: `feature: add X`, `fix: correct Y`.
+- Abre Pull Requests contra `main` y asigna un reviewer.
+
+---
+
+Si quieres, puedo añadir badges, instrucciones para desarrollo sin Docker, o ejemplos de comandos frecuentes. ¿Quieres que lo deje con un apartado "Comandos útiles" con atajos para desarrollo? 
 <p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
 
 <p align="center">
