@@ -1,8 +1,10 @@
 @extends('layout')
 @section('title', 'Login')
 @section('page','loginRegister')
-@php($showHeader = false)
 @section('content')
+@once
+	@vite(['resources/css/app.css', 'resources/css/loginRegister.css'])
+@endonce
 <div class="min-vh-100 d-flex align-items-center justify-content-center">
 	<div class="login-container">
 		<div class="box">

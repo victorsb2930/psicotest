@@ -3,12 +3,12 @@
 @section('page','index')
 @section('content')
 
-<section class="bg-hero py-5">
+<section class="py-5">
 	<div class="container">
 		<div class="row justify-content-center text-center">
 			<div class="col-12 col-lg-8">
 				<h1 class="display-5 fw-bold text-brand-dark mb-3">Tu guía emocional, donde y cuando la necesites</h1>
-				<p class="lead text-black mb-0">Accede a orientación profesional para tu salud mental desde la
+				<p class="lead mb-0">Accede a orientación profesional para tu salud mental desde la
 					comodidad de tu hogar.</p>
 			</div>
 		</div>

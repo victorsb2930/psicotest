@@ -8,7 +8,7 @@
 				<div class="col-lg-9">
 					<h1 class="display-6 fw-semibold text-center contact-accent mb-2">Contacto</h1>
 					<p class="text-center text-muted mb-4">Estamos aquí para ayudarte. Escríbenos y te responderemos pronto.</p>
-					<div class="card contact-card border-0">
+					<div class="card border-0">
 						<div class="card-body p-4 p-md-5">
 							<div class="row g-4">
 								<div class="col-12 col-lg-7">

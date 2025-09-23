@@ -1,5 +1,6 @@
 @import "bootstrap/dist/css/bootstrap.min.css";
 @import "bootstrap-icons/font/bootstrap-icons.css";
+@import "tom-select/dist/css/tom-select.css";
 @import 'tailwindcss';
 @import "@fontsource/poppins/400.css";
 @import "@fontsource/poppins/600.css";

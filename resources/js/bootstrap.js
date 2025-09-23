@@ -20,7 +20,6 @@ if (csrf) {
 //#endregion
 
 //#region Tom Select
-import 'tom-select/dist/css/tom-select.css';
 import TomSelect from 'tom-select';
 window.TomSelect = TomSelect;
 //#endregion

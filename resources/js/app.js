@@ -15,16 +15,13 @@ $.ajaxSetup({
 // Carga condicional de assets por página (opcional)
 const page = document.body.dataset.page || 'default';
 switch (page) {
-    case 'index':
-        import('../css/index.css');
-        import('./index.js');
-        break;
+	case 'index':
+		import('./index.js');
+		break;
 	case 'loginRegister':
-		import('../css/loginRegister.css');
 		import('./loginRegister.js');
 		break;
 	case 'contact':
-		import('../css/contact.css');
 		import('./contact.js');
 		break;
 	// Agrega más casos según sea necesario

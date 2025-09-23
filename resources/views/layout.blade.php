@@ -6,9 +6,34 @@
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<meta http-equiv="X-UA-Compatible" content="ie=edge">
-	 <meta name="csrf-token" content="{{ csrf_token() }}">
+	<meta name="csrf-token" content="{{ csrf_token() }}">
 	<title>@yield('title', 'layout')</title>
-	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+	<!-- Critical CSS: minimal, inline to avoid FOUC while dev server injects full CSS via HMR -->
+	<style>
+		html,
+		body {
+			font-family: 'Poppins', Arial, sans-serif;
+			background: #fff0f2;
+			color: #1b1b18
+		}
+
+		.site-header {
+			background: #f58198
+		}
+
+		.site-header .brand,
+		.site-header .brand span {
+			color: #fff
+		}
+
+		.btn-cta {
+			background: #ffffff;
+			color: #f58198;
+			font-weight: 700;
+			padding: 6px 16px;
+			border-radius: 9999px
+		}
+	</style>
 	@vite(['resources/css/app.css','resources/js/app.js'])
 </head>
 
@@ -17,28 +42,32 @@
 	@if($showHeader)
 	<header class="site-header py-3 mb-0 border-bottom w-100">
 		<div class="container d-flex align-items-center justify-content-between">
-			<a href="{{ auth()->check() ? ( auth()->user()->hasRole('admin') ? '/adminarea' : (auth()->user()->hasRole('professional') ? '/professionalarea' : '/userarea') ) : '/' }}" class="brand d-flex align-items-center mb-0 text-white text-decoration-none">
+			<a href="{{ auth()->check() ? ( auth()->user()->hasRole('admin') ? '/adminarea' : (auth()->user()->hasRole('professional') ? '/professionalarea' : '/userarea') ) : '/' }}"
+				class="brand d-flex align-items-center mb-0 text-white text-decoration-none">
 				<img src="{{ Vite::asset('resources/images/p.png') }}" alt="Logo" width="40" height="32" class="me-2">
 				<span class="fs-4">PsicoGuia</span>
 			</a>
 			<ul class="nav nav-pills align-items-center">
-			@auth
+				@auth
 				@php($user = Auth::user())
 				@if(method_exists($user, 'hasRole') && $user->hasRole('admin'))
-					<li class="nav-item"><a href="/admin/users" class="nav-link">Panel Admin</a></li>
+				<li class="nav-item"><a href="/admin/users" class="nav-link">Panel Admin</a></li>
 				@endif
 				<li class="nav-item"><a href="/perfil" class="nav-link">Perfil</a></li>
-				<li class="nav-item"><span class="nav-link disabled text-white-75">Hola, {{ Auth::user()->name }}</span></li>
+				<li class="nav-item"><span class="nav-link disabled text-white-75">Hola, {{ Auth::user()->name }}</span>
+				</li>
 				<form action="{{ route('logout') }}" method="POST" class="d-inline">
 					@csrf
-					<li class="nav-item"><button type="submit" class="nav-link btn btn-link text-white" style="padding: 0; border: none; background: none; cursor: pointer;">Cerrar sesión</button></li>
+					<li class="nav-item"><button type="submit" class="nav-link btn btn-link text-white"
+							style="padding: 0; border: none; background: none; cursor: pointer;">Cerrar sesión</button>
+					</li>
 				</form>
-			@else
-			<li class="nav-item"><a href="/services" class="nav-link">Servicios</a></li>
-			<li class="nav-item"><a href="/about" class="nav-link">Sobre nosotros</a></li>
-			<li class="nav-item"><a href="/contact" class="nav-link">Contacto</a></li>
-			<li class="nav-item ms-2"><a href="/welcome" class="nav-link btn-cta">Iniciar sesión</a></li>
-			@endauth
+				@else
+				<li class="nav-item"><a href="/services" class="nav-link">Servicios</a></li>
+				<li class="nav-item"><a href="/about" class="nav-link">Sobre nosotros</a></li>
+				<li class="nav-item"><a href="/contact" class="nav-link">Contacto</a></li>
+				<li class="nav-item ms-2"><a href="/welcome" class="nav-link btn-cta">Iniciar sesión</a></li>
+				@endauth
 			</ul>
 		</div>
 	</header>
@@ -57,9 +86,11 @@
 				<div class="col-12 col-md-10 col-lg-8">
 					<p class="mb-2">&copy; 2025 PsicoGuía. Todos los derechos reservados.</p>
 					<ul class="list-inline mb-0">
-						<li class="list-inline-item"><a class="link-light text-decoration-underline" href="#">Política de privacidad</a></li>
+						<li class="list-inline-item"><a class="link-light text-decoration-underline" href="#">Política
+								de privacidad</a></li>
 						<li class="list-inline-item text-white-50">|</li>
-						<li class="list-inline-item"><a class="link-light text-decoration-underline" href="#">Términos de uso</a></li>
+						<li class="list-inline-item"><a class="link-light text-decoration-underline" href="#">Términos
+								de uso</a></li>
 					</ul>
 				</div>
 			</div>
