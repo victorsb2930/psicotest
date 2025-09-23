@@ -10,153 +10,148 @@ Requisitos previos
 
 1) Clonar el repositorio
 
+-
+# Psicoguia — Guía de arranque y comandos (ordenados)
+
+Esta guía concentra los pasos exactos y los comandos en el orden correcto para que un nuevo colaborador deje el proyecto funcionando localmente (con Docker). Está en español y contiene atajos y soluciones a problemas comunes.
+
+Requisitos previos
+- Git
+- Docker y Docker Compose
+- (Opcional) Composer y Node.js si prefieres no usar el contenedor para instalar dependencias
+
+Resumen rápido (comandos mínimos en orden)
+
+1. Clonar el repo
+
 ```bash
 git clone <repo-url>
 cd psicoguia
 ```
 
-2) Copiar el entorno de variables
+2. Copiar y revisar variables de entorno
 
 ```bash
 cp .env.example .env
-# Edita .env según sea necesario (puedes usar el .env del proyecto si te lo proporcionaron)
+# Edita `.env` si necesitas (DB_HOST, DB_USER, APP_URL, etc.)
 ```
 
-3) Levantar servicios con Docker (recomendado)
+3. Levantar servicios Docker (construye imágenes si cambias Dockerfile)
 
 ```bash
 docker-compose up -d --build
 ```
 
-Esto crea los contenedores `app`, `db` (Postgres) y `redis` (si están definidos en `docker-compose.yml`).
-
-4) Ejecutar migraciones y seeders
-
-Dentro del contenedor `app` ejecuta:
-
-```bash
-docker-compose exec app php artisan migrate --seed
-# o, para reiniciar y seedear limpio:
-docker-compose exec app php artisan migrate:fresh --seed
-```
-
-5) Generar autoload y limpiar cachés
+4. Instalar dependencias PHP (dentro del contenedor) y optimizar autoload
 
 ```bash
 docker-compose exec app composer install --no-interaction --prefer-dist --optimize-autoloader
+docker-compose exec app composer dump-autoload -o
+```
+
+5. (Opcional) Instalar dependencias JS y compilar assets
+
+Si trabajas en frontend y tienes Node instalado localmente:
+```bash
+npm install
+npm run dev
+```
+
+O dentro del contenedor (si está disponible):
+```bash
+docker-compose exec app npm install
+docker-compose exec app npm run dev
+```
+
+6. Generar clave de la aplicación (si aún no está)
+
+```bash
+docker-compose exec app php artisan key:generate
+```
+
+7. Ejecutar migraciones y seeders (desarrollo)
+
+Si estás en desarrollo y puedes resetear la BD (recomendado para sincronizar esquema):
+```bash
+docker-compose exec app php artisan migrate:fresh --seed
+```
+
+Si NO quieres resetear la BD (aplicar migraciones pendientes):
+```bash
+docker-compose exec app php artisan migrate --seed
+```
+
+8. Limpiar y recargar cachés
+
+```bash
 docker-compose exec app php artisan config:clear
 docker-compose exec app php artisan cache:clear
 docker-compose exec app php artisan view:clear
 ```
 
-6) Compilar assets (opcional en desarrollo)
-
-Si trabajas con JS/CSS y quieres compilar localmente:
+9. Ajustar permisos si ves errores de escritura (views / cache)
 
 ```bash
-# desde el host (si tienes node instalado)
-npm install
-npm run dev
-
-# o dentro del contenedor si está configurado
-docker-compose exec app npm install
-docker-compose exec app npm run dev
+docker-compose exec app chown -R www-data:www-data storage bootstrap/cache || true
+docker-compose exec app chmod -R ug+rwx storage bootstrap/cache || true
 ```
 
-7) Variables .env importantes
-
-- `APP_URL` — URL base.
-- `DB_*` — conexión a la base de datos Postgres.
-- `REDIS_CLIENT` y `REDIS_HOST` — configuración de Redis. Si trabajas dentro del contenedor deja `REDIS_HOST=redis`.
-- `ADMIN_EMAILS` — lista CSV de emails que el sistema considera administradores (ej.: `test@admin.com,admin2@local`).
-
-8) Comportamiento esperado al registrar usuarios
-
-- Si `ADMIN_EMAILS` contiene el email usado en el registro, el usuario será marcado activo y se le asignará el rol `admin` automáticamente (esto lo gestiona el seeder y el controlador de registro).
-- Si registras el usuario manualmente después de ejecutar seeders, puedes reasignar roles ejecutando el seeder otra vez o usando Tinker.
-
-9) Problemas comunes y soluciones rápidas
-
-- Error "Class 'Redis' not found": asegúrate de usar `phpredis` con la extensión instalada o `predis` en composer y que `REDIS_CLIENT` sea coherente con la extensión/paquete.
-- Error "php_network_getaddresses: getaddrinfo for redis failed": significa que ejecutaste Artisan en el host; ejecuta Artisan dentro del contenedor (`docker-compose exec app php artisan ...`) o mapea el puerto Redis para que el host lo vea.
-- Error "Target class [perm] does not exist": registrar el alias de middleware `perm` está en `bootstrap/app.php`. Si se produce, ejecutar `composer dump-autoload` y `php artisan config:clear` dentro del contenedor.
-- Permisos de `storage`/`bootstrap/cache`: si ves "Failed to open stream: Permission denied", ajusta permisos dentro del contenedor:
+10. Comprobar que `ADMIN_EMAILS` funciona y reasignar admin si hace falta
 
 ```bash
-docker-compose exec app chown -R www-data:www-data storage bootstrap/cache
-docker-compose exec app php artisan view:clear
-```
+# Ver la config leída
+docker-compose exec app php artisan tinker --execute="var_export(config('app.admin_emails'))"
 
-10) Cómo reasignar admin a un usuario existente
-
-```bash
+# Re-seed si necesitas forzar asignaciones a admin
 docker-compose exec app php artisan db:seed --class=DatabaseSeeder
-# o, con tinker
+
+# O con tinker asignar admin manualmente
 docker-compose exec app php artisan tinker
 >>> $u = \App\Models\User::where('email','test@admin.com')->first();
 >>> $u->syncRoles(['admin']);
 >>> $u->is_active = true; $u->save();
 ```
 
-11) Cómo ejecutar pruebas
+Comandos útiles frecuentes (atajos)
 
-Si hay tests incluidos:
+- Levantar todo (build si hace falta): `docker-compose up -d --build`
+- Parar: `docker-compose down`
+- Ejecutar artisan dentro del contenedor: `docker-compose exec app php artisan <command>`
+- Abrir un shell en el contenedor: `docker-compose exec app sh` (o bash si está disponible)
+- Ejecutar tests: `docker-compose exec app ./vendor/bin/pest --colors` (o `vendor/bin/phpunit` si aplica)
 
-```bash
-docker-compose exec app ./vendor/bin/pest --colors
-```
+Diagnóstico y resolución de problemas comunes
 
-12) Contacto y estilo de commits
+- Redis
+	- Si ves `Class "Redis" not found`: o bien instala la extensión phpredis en el PHP que ejecuta Artisan, o cambia a `predis` con `composer require predis/predis` y `REDIS_CLIENT=predis` en `.env`.
+	- Si ves `php_network_getaddresses: getaddrinfo for redis failed`: estás ejecutando Artisan en el host y `REDIS_HOST=redis` sólo existe dentro de la red Docker. Ejecuta Artisan dentro del contenedor o mapea el puerto Redis en `docker-compose.yml`.
 
-- Usa mensajes de commit claros: `feature: add X`, `fix: correct Y`.
-- Abre Pull Requests contra `main` y asigna un reviewer.
+- Middleware `perm`
+	- Si ves `Target class [perm] does not exist`, asegúrate de haber registrado el alias en `bootstrap/app.php` y ejecuta:
+		```bash
+		docker-compose exec app composer dump-autoload
+		docker-compose exec app php artisan config:clear
+		```
 
----
+- Permisos de archivos
+	- Si ves `Failed to open stream: Permission denied` al compilar vistas, ejecuta:
+		```bash
+		docker-compose exec app chown -R www-data:www-data storage bootstrap/cache
+		docker-compose exec app php artisan view:clear
+		```
 
-Si quieres, puedo añadir badges, instrucciones para desarrollo sin Docker, o ejemplos de comandos frecuentes. ¿Quieres que lo deje con un apartado "Comandos útiles" con atajos para desarrollo? 
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+Información útil para colaboradores
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+- Evita editar migraciones históricas en repositorio compartido si ya han sido ejecutadas en otros entornos; en su lugar crea migraciones adicionales para cambios de esquema.
+- Mantén `ADMIN_EMAILS` actualizado en `.env` para pruebas locales; el seeder y el controlador utilizan `config('app.admin_emails')`.
 
-## About Laravel
+Preguntas frecuentes
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+- ¿Debo ejecutar `composer install` en mi host o dentro del contenedor? R: Lo más consistente es hacerlo dentro del contenedor con `docker-compose exec app composer install`.
+- ¿Cómo reproduzco el entorno de producción localmente? R: Ajusta `APP_ENV` y `APP_DEBUG` en `.env`, y asegúrate de ejecutar migrations y seeders.
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+¿Quieres que añada una sección "Comandos útiles (atajos)" más detallada con alias de PowerShell o scripts de npm? Dime qué prefieres y lo agrego.
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
-
-## Learning Laravel
-
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
-
-You may also try the [Laravel Bootcamp](https://bootcamp.laravel.com), where you will be guided through building a modern Laravel application from scratch.
-
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-## Laravel Sponsors
-
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
-
-### Premium Partners
-
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
 - **[Redberry](https://redberry.international/laravel-development)**
 - **[Active Logic](https://activelogic.com)**
 
