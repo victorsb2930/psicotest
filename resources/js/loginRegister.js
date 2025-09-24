@@ -9,13 +9,20 @@ const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 
 //#region DOCUMENT READY
-$(function () {
+// Export init/destroy so PJAX loader can manage lifecycle
+const NS = '.loginRegister';
+
+export function init() {
 	setElements();
 	setEvents();
-	// Sincroniza la vista inicial con el hash (#registro | #login)
 	initFromHash();
 	showServerMessages();
-});
+}
+
+export function destroy() {
+	try { $(window).off('hashchange.loginreg'); } catch (_) {}
+	try { $('#register_form').off('submit'); $('#register_form').off('input change'); } catch(_){}
+}
 //#endregion
 
 //#region Funciones auxiliares

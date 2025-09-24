@@ -295,3 +295,77 @@
 	.login-container .box .form .field + .field { margin-top: 16px; }
 	.login-container .box .form .field .type { margin: 8px 0 4px; }
 }
+
+/* Mobile-first fixes: stack the box and overlay vertically and disable horizontal transforms */
+@media (max-width: 768px) {
+    .login-container {
+        flex-direction: column;
+        height: auto !important;
+        max-height: 96vh;
+        overflow: visible;
+        border-radius: var(--pg-radius);
+    }
+
+    .login-container .box {
+        width: 100%;
+        min-height: auto;
+        position: relative;
+        transform: none !important;
+        box-shadow: none;
+    }
+
+    .login-container .box .form {
+        position: relative;
+        height: auto;
+        min-width: auto;
+        padding: 20px;
+        overflow: visible;
+        align-items: stretch;
+        text-align: left;
+    }
+
+    .login-container .overlay {
+        width: 100%;
+        transform: none !important;
+        height: auto;
+        order: 2;
+        padding: 18px 20px;
+        border-radius: 0 0 var(--pg-radius) var(--pg-radius);
+    }
+
+    .login-container .overlay .page {
+        padding: 12px 6px;
+        text-align: center;
+    }
+
+    .login-container .overlay .page h3 { font-size: 28px; }
+
+    .login-container .box .form .type,
+    .login-container .box .form .field .field-label,
+    .login-container .box .form .field .field-help {
+        width: 100%;
+        max-width: 100%;
+    }
+
+    .login-container .box .form .type { width: 100%; height: 48px; }
+
+    .login-container .btn { width: 100%; padding: 12px 18px; }
+
+    /* ensure the active class doesn't perform horizontal transitions on small screens */
+    .login-container.active .box { transform: none !important; }
+    .login-container.active .overlay { transform: none !important; }
+
+	/* additionally ensure overlay pages don't both show on small screens */
+	.login-container .overlay .page { display: none !important; }
+	.login-container .overlay .page.page_signIn { display: flex !important; }
+	.login-container.active .overlay .page.page_signIn { display: none !important; }
+	.login-container.active .overlay .page.page_signUp { display: flex !important; }
+
+	/* Mobile: show only the relevant overlay page to avoid duplicated buttons */
+	.login-container .overlay .page { display: none; opacity: 0; }
+	/* Default state (no .active) -> show signIn page */
+	.login-container .overlay .page.page_signIn { display: flex; opacity: 1; }
+	/* When .active is set, show signUp page and hide signIn */
+	.login-container.active .overlay .page.page_signIn { display: none; opacity: 0; }
+	.login-container.active .overlay .page.page_signUp { display: flex; opacity: 1; }
+}

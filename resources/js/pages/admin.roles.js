@@ -1,50 +1,15 @@
 // Admin Roles page enhancements: icon/color pickers using modalConfirm
 // Requires: modalConfirm (wired in bootstrap.js), Bootstrap Icons CSS loaded in layout
 
-(function () {
-	// Ensure DOM ready and wait for jQuery before running initialization
-	const runWhenReady = (cb) => {
-		if (document.readyState === 'loading') {
-			document.addEventListener('DOMContentLoaded', cb);
-		} else {
-			cb();
-		}
-	};
+// Admin Roles page enhancements: icon/color pickers using modalConfirm
+// Requires: modalConfirm (wired in bootstrap.js), Bootstrap Icons CSS loaded in layout
 
-	const waitForjQueryAndRun = (cb) => {
-		const start = () => {
-			if (typeof window.$ !== 'undefined' || typeof window.jQuery !== 'undefined') {
-				cb();
-				return;
-			}
-			let tries = 0;
-			const iv = setInterval(() => {
-				tries++;
-				if (typeof window.$ !== 'undefined' || typeof window.jQuery !== 'undefined') {
-					clearInterval(iv);
-					cb();
-				} else if (tries > 100) { // ~5s timeout
-					clearInterval(iv);
-					// give up silently — handlers won't be registered
-					console.warn('[admin.roles] jQuery not found after waiting; pickers will not be initialized.');
-				}
-			}, 50);
-		};
-		runWhenReady(start);
-	};
+const NS = '.adminRoles';
+let waitInterval = null;
+let currentTargetInput = null;
+const colorClasses = ['bg-primary', 'bg-secondary', 'bg-success', 'bg-danger', 'bg-warning', 'bg-info', 'bg-dark', 'bg-light'];
 
-	waitForjQueryAndRun(() => {
-		if (typeof modalConfirm === 'undefined') {
-			console.warn('[admin.roles] modalConfirm helper not found; icon/color picker modals may fail.');
-		}
-	// Robust page detection flag: used for optional page-specific logic
-	const isRolesPage = ($('[data-page="admin.roles"]').length > 0) || (($(document.body).data('page') || '') === 'admin.roles');
-
-	const colorClasses = ['bg-primary', 'bg-secondary', 'bg-success', 'bg-danger', 'bg-warning', 'bg-info', 'bg-dark', 'bg-light'];
-
-	let currentTargetInput = null;
-
-	async function getAllBootstrapIcons() {
+async function getAllBootstrapIcons() {
 		// First try loading a pre-generated JSON listing in /bootstrap-icons-list.json
 		const fromJson = async () => {
 			try {
@@ -120,44 +85,44 @@
 		return ['bi-people', 'bi-person', 'bi-shield-lock', 'bi-briefcase', 'bi-house', 'bi-gear'];
 	}
 
-	function getModalConfirm() {
+function getModalConfirm() {
 		if (typeof modalConfirm !== 'undefined') return modalConfirm;
 		// Minimal fallback implementation: create a Bootstrap modal skeleton and show it
 		return function (opts, type = 'dialog', cfg = {}) {
-			const modalId = opts.modalId || ('modal_' + Math.random().toString(36).slice(2,8));
-			let $m = $('#' + modalId);
-			if ($m.length === 0) {
-				const body = opts.body || '';
-				const title = opts.title || '';
-				const html = `
-				<div class="modal fade" id="${modalId}" tabindex="-1" aria-hidden="true">
-				  <div class="modal-dialog ${cfg.size === 'lg' ? 'modal-lg' : ''} ${cfg.centered ? 'modal-dialog-centered' : ''}">
-				    <div class="modal-content">
-				      <div class="modal-header"><h5 class="modal-title">${title}</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
-				      <div class="modal-body">${body}</div>
-				      <div class="modal-footer"></div>
-				    </div>
-				  </div>
-				</div>`;
-				$('body').append(html);
-				$m = $('#' + modalId);
-			}
-			const bs = new bootstrap.Modal($m[0], { backdrop: 'static' });
-			$m.on('hidden.bs.modal', function () { try { $m.remove(); } catch (e) {} });
-			$m.find('.modal-footer').empty();
-			if (opts.btnsType === 'ac') {
-				const $ok = $('<button/>', { type: 'button', class: 'btn btn-primary' }).text('OK');
-				$ok.on('click', function () { if (typeof opts.onClickYes === 'function') opts.onClickYes(); bs.hide(); });
-				const $cancel = $('<button/>', { type: 'button', class: 'btn btn-secondary', 'data-bs-dismiss': 'modal' }).text('Cancelar');
-				$m.find('.modal-footer').append($cancel, $ok);
-			}
-			bs.show();
+				const modalId = opts.modalId || ('modal_' + Math.random().toString(36).slice(2,8));
+				let $m = $('#' + modalId);
+				if ($m.length === 0) {
+						const body = opts.body || '';
+						const title = opts.title || '';
+						const html = `
+						<div class="modal fade" id="${modalId}" tabindex="-1" aria-hidden="true">
+							<div class="modal-dialog ${cfg.size === 'lg' ? 'modal-lg' : ''} ${cfg.centered ? 'modal-dialog-centered' : ''}">
+								<div class="modal-content">
+									<div class="modal-header"><h5 class="modal-title">${title}</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+									<div class="modal-body">${body}</div>
+									<div class="modal-footer"></div>
+								</div>
+							</div>
+						</div>`;
+						$('body').append(html);
+						$m = $('#' + modalId);
+				}
+				const bs = new bootstrap.Modal($m[0], { backdrop: 'static' });
+				$m.on('hidden.bs.modal', function () { try { $m.remove(); } catch (e) {} });
+				$m.find('.modal-footer').empty();
+				if (opts.btnsType === 'ac') {
+						const $ok = $('<button/>', { type: 'button', class: 'btn btn-primary' }).text('OK');
+						$ok.on('click', function () { if (typeof opts.onClickYes === 'function') opts.onClickYes(); bs.hide(); });
+						const $cancel = $('<button/>', { type: 'button', class: 'btn btn-secondary', 'data-bs-dismiss': 'modal' }).text('Cancelar');
+						$m.find('.modal-footer').append($cancel, $ok);
+				}
+				bs.show();
 		};
-	}
+}
 
-	const modalConfirmInstance = getModalConfirm();
+const modalConfirmInstance = getModalConfirm();
 
-	function openIconPicker(targetId) {
+function openIconPicker(targetId) {
 		currentTargetInput = document.getElementById(targetId);
 		const $body = $(`
 	<div>
@@ -207,9 +172,9 @@
 				render(allIcons.filter(i => i.toLowerCase().includes(q)));
 			});
 		});
-	}
+}
 
-	function openColorPicker(targetId) {
+function openColorPicker(targetId) {
 		currentTargetInput = document.getElementById(targetId);
 		const $body = $(`
 	<div>
@@ -247,13 +212,63 @@
 		$colorHexInput.on('input', function () {
 			if (currentTargetInput) currentTargetInput.value = this.value;
 		});
+}
+
+function attachHandlers() {
+	// Ensure jQuery present, otherwise wait briefly
+	if (typeof window.$ === 'undefined' && typeof window.jQuery === 'undefined') {
+		let tries = 0;
+		waitInterval = setInterval(() => {
+			tries++;
+			if (typeof window.$ !== 'undefined' || typeof window.jQuery !== 'undefined') {
+				clearInterval(waitInterval); waitInterval = null;
+				attachHandlers();
+			} else if (tries > 100) {
+				clearInterval(waitInterval); waitInterval = null;
+				console.warn('[admin.roles] jQuery not found after waiting; pickers will not be initialized.');
+			}
+		}, 50);
+		return;
 	}
 
-	$(document).on('click', '[data-role="open-icon-picker"]', function () {
+	if (typeof modalConfirm === 'undefined') {
+		console.warn('[admin.roles] modalConfirm helper not found; icon/color picker modals may fail.');
+	}
+
+	$(document).on('click' + NS, '[data-role="open-icon-picker"]', function () {
 		openIconPicker(this.dataset.target);
 	});
-	$(document).on('click', '[data-role="open-color-picker"]', function () {
+	$(document).on('click' + NS, '[data-role="open-color-picker"]', function () {
 		openColorPicker(this.dataset.target);
 	});
-});
-})();
+}
+
+function detachHandlers() {
+	try {
+		$(document).off(NS);
+	} catch (e) { /* ignore */ }
+	// Clear waiting interval if any
+	if (waitInterval) {
+		clearInterval(waitInterval);
+		waitInterval = null;
+	}
+	// Close and remove modals created by this module if present
+	['#biIconPicker', '#badgeColorPicker'].forEach(id => {
+		try {
+			const $m = $(id);
+			if ($m.length) {
+				const inst = bootstrap.Modal.getInstance($m[0]);
+				inst?.hide();
+				$m.remove();
+			}
+		} catch (e) { /* ignore */ }
+	});
+}
+
+export function init() {
+	attachHandlers();
+}
+
+export function destroy() {
+	detachHandlers();
+}

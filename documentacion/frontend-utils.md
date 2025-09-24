@@ -22,3 +22,20 @@ Notas:
 ```javascript
 modalNotification('Título','Subtexto',{ variant:'info' });
 ```
+
+Convención para módulos por página
+
+Los módulos situados en `resources/js/pages/` pueden exportar `init()` y `destroy()` para integrarse con el loader PJAX. `init()` se llamará después de inyectar la página y `destroy()` se llamará antes de reemplazarla.
+
+Ejemplo mínimo de módulo por página:
+```javascript
+// resources/js/pages/example.page.js
+export function init() {
+	// inicializaciones: listeners, plugins, etc.
+	document.querySelector('#btn').addEventListener('click', onClick);
+}
+export function destroy() {
+	// limpiar listeners, timeouts, modales
+	document.querySelector('#btn')?.removeEventListener('click', onClick);
+}
+```

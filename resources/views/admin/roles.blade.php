@@ -2,14 +2,14 @@
 @section('title','Roles')
 @section('page','admin.roles')
 @section('content')
-<div class="container py-4" data-page="admin.roles">
+<div class="container-fluid py-4" data-page="admin.roles">
 
 	<h1 class="mb-3">Roles</h1>
 	@include('admin._flash')
 	<div class="row g-4">
-		<div class="col-12 col-lg-6">
-			<div class="card">
-				<div class="card-header">Crear nuevo rol</div>
+                <div class="col-12 col-lg-4">
+                    	<div class="card card-min-lg">
+                    	<div class="card-header">Crear nuevo rol</div>
 				<div class="card-body">
 					<form method="POST" action="{{ route('admin.roles.store') }}">
 						@csrf
@@ -50,11 +50,11 @@
 				</div>
 			</div>
 		</div>
-		<div class="col-12 col-lg-6">
-			<div class="card">
-				<div class="card-header">Roles existentes</div>
-				<div class="card-body table-responsive">
-					<table class="table table-sm align-middle">
+                <div class="col-12 col-lg-8">
+                    	<div class="card card-min-lg">
+                    	<div class="card-header">Roles existentes</div>
+                    	<div class="card-body table-responsive">
+                        		<table class="table align-middle roles-table w-100">
 						<thead>
 							<tr>
 								<th>ID</th>
@@ -109,7 +109,30 @@
 										</div>
 									</form>
 								</td>
-								<td><span class="badge bg-light text-dark">{{ $role->name }}</span></td>
+								<td>
+									@php
+										$raw = $role->badge_color ?? null;
+										$useHex = $raw && \Illuminate\Support\Str::startsWith($raw, '#');
+										$slug = $role->name ?? null;
+										$badgeClass = $useHex ? '' : ($raw ?? match($slug){
+											'admin' => 'bg-dark',
+											'professional' => 'bg-success',
+											'user' => 'bg-primary',
+											default => 'bg-secondary',
+										});
+										$badgeStyle = $useHex ? ("background-color: {$raw};") : '';
+										$icon = $role->icon_class ?? match($slug){
+											'admin' => 'bi bi-shield-lock',
+											'professional' => 'bi bi-briefcase',
+											'user' => 'bi bi-person',
+											default => 'bi bi-tag',
+										};
+									@endphp
+									<div class="d-flex align-items-center nombre-cell">
+										<i class="{{ $icon }} me-2"></i>
+										<span class="badge {{ $badgeClass }} me-2" @if($badgeStyle) style="{{ $badgeStyle }}" @endif>{{ $role->name }}</span>
+									</div>
+								</td>
 								<td class="text-end">
 									<form method="POST" action="{{ route('admin.roles.destroy', $role) }}"
 										onsubmit="return confirm('¿Eliminar rol?')" class="d-inline">
@@ -138,6 +161,7 @@
 							@endforeach
 						</tbody>
 					</table>
+
 				</div>
 			</div>
 		</div>
