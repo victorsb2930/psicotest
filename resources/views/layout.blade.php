@@ -3,6 +3,9 @@
 
 <head>
 	@yield('head')
+	<!-- FullCalendar CSS (loaded globally to avoid package CSS import specifier issues) -->
+	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.19/main.min.css" integrity="" crossorigin="anonymous">
+	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fullcalendar/daygrid@6.1.19/main.min.css" integrity="" crossorigin="anonymous">
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<meta http-equiv="X-UA-Compatible" content="ie=edge">
@@ -528,6 +531,17 @@
 						<span class="d-none d-lg-inline text-white">{{ Auth::user()->name ?? 'Usuario' }}</span>
 					</a>
 					<ul class="dropdown-menu dropdown-menu-end shadow">
+						<li class="dropdown-item">
+							<div class="d-flex align-items-center gap-2">
+								<img src="{{ Vite::asset('resources/images/p.png') }}" width="40" height="40" class="rounded-circle" alt="avatar">
+								<div>
+									<div class="fw-semibold">{{ Auth::user()->name ?? 'Usuario' }}</div>
+									<small class="text-muted">{{ Auth::user()->is_active ? 'Disponible' : 'No disponible' }}</small>
+								</div>
+							</div>
+						</li>
+						<li><hr class="dropdown-divider my-1"></li>
+						<li><a class="dropdown-item" href="{{ auth()->user()->hasRole('professional') ? route('professionalarea') : route('userarea') }}">Mi panel</a></li>
 						<li><a class="dropdown-item" href="/perfil">Perfil</a></li>
 						<hr class="sidebar-divider my-0">
 						<li>

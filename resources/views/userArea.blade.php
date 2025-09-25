@@ -2,55 +2,91 @@
 @section('title', 'Área de Usuario')
 @section('page','userArea')
 @section('content')
-	@php $user = Auth::user(); @endphp
+@php $user = Auth::user(); @endphp
 
-	@auth
-	<div class="container mt-5">
-		<div class="row">
-			<div class="col-md-4">
-				<div class="card">
-					<div class="card-body text-center">
-						{{-- Placeholder avatar --}}
-						<img src="/images/2784445.png" alt="avatar" class="rounded-circle mb-3" style="width:96px;height:96px;object-fit:cover">
-						<h4 class="card-title">{{ $user->name }}</h4>
-						<p class="text-muted mb-1">{{ $user->email }}</p>
-						<p class="small text-muted">Registrado: {{ optional($user->created_at)->format('Y-m-d') }}</p>
+@auth
+<div class="container py-4">
+	<header class="d-flex justify-content-between align-items-center mb-4">
+		<h3>Hola, {{ $user->name }}</h3>
+		<div class="d-flex gap-2">
+			<input class="form-control form-control-sm" placeholder="Buscar por especialidad o nombre">
+			<button class="btn btn-primary btn-sm">Buscar</button>
+		</div>
+	</header>
+
+	<div class="row g-3">
+		<div class="col-lg-8">
+			<div class="card card-compact p-3 mb-3">
+				<div class="d-flex justify-content-between align-items-center">
+					<div>
+						<small class="text-muted">PRÓXIMA CITA</small>
+						<div class="fw-bold">--</div>
+						<div>Con: <strong>--</strong></div>
+					</div>
+					<div>
+						<a href="#" class="btn btn-outline-secondary btn-sm">Ver detalles</a>
+						<a href="#" class="btn btn-success btn-sm">Ir a sala</a>
 					</div>
 				</div>
 			</div>
-			<div class="col-md-8">
-				<div class="card">
-					<div class="card-body">
-						<h5 class="card-title">Perfil</h5>
-						<dl class="row">
-							<dt class="col-sm-3">Nombre</dt>
-							<dd class="col-sm-9">{{ $user->name }}</dd>
 
-							<dt class="col-sm-3">Email</dt>
-							<dd class="col-sm-9">{{ $user->email }}</dd>
-
-							<dt class="col-sm-3">Roles</dt>
-							<dd class="col-sm-9">{{ ($user->roles ?? collect())->pluck('name')->join(', ') }}</dd>
-
-							<dt class="col-sm-3">Estado</dt>
-							<dd class="col-sm-9">{{ $user->is_active ? 'Activo' : 'En revisión / Desactivado' }}</dd>
-						</dl>
-
-						<div class="mt-3">
-							{{-- Edit profile route may not exist; link to /profile as a convention --}}
-							<a href="/profile" class="btn btn-primary me-2">Editar perfil</a>
-							<form method="POST" action="/logout" style="display:inline">@csrf<button class="btn btn-outline-secondary">Cerrar sesión</button></form>
+			<div class="card p-3 mb-3">
+				<h5>Profesionales recomendados</h5>
+				<div class="row">
+					<div class="col-md-6 col-lg-4 mb-2">
+						<div class="card p-2">
+							<div class="d-flex justify-content-between align-items-center">
+								<div>
+									<div class="fw-bold">Dra. Ana Ruiz</div>
+									<div class="small text-muted">Cognitiva • $25</div>
+								</div>
+								<div><a href="#" class="btn btn-sm btn-primary">Reservar</a></div>
+							</div>
 						</div>
 					</div>
 				</div>
 			</div>
+
+			<div class="card p-3 mb-3">
+				<h5>Mensajes</h5>
+				<div class="list-group list-group-flush">
+					<div class="list-group-item d-flex justify-content-between align-items-center">
+						<div>
+							<div class="fw-bold">Dra. Ana R.</div>
+							<div class="small text-muted">¿Confirmamos la sesión? — Ayer</div>
+						</div>
+						<div><a href="#" class="btn btn-sm btn-outline-primary">Abrir</a></div>
+					</div>
+				</div>
+			</div>
 		</div>
+
+		<aside class="col-lg-4">
+			<div class="card p-3 mb-3">
+				<h6>Filtros rápidos</h6>
+				<div class="mb-2">
+					<label class="form-label small">Modalidad</label>
+					<select class="form-select form-select-sm"><option>Online</option><option>Presencial</option></select>
+				</div>
+				<div class="mb-2">
+					<label class="form-label small">Precio</label>
+					<select class="form-select form-select-sm"><option>Todos</option><option>$</option><option>$$</option></select>
+				</div>
+				<a href="#" class="btn btn-outline-secondary btn-sm">Aplicar</a>
+			</div>
+
+			<div class="card p-3 mb-3">
+				<h6>Ayuda y emergencia</h6>
+				<p class="small text-muted mb-0">Si estás en riesgo, llama a emergencias. Esta plataforma no reemplaza un servicio de urgencia.</p>
+			</div>
+		</aside>
 	</div>
-	@else
-	<div class="container mt-5">
-		<h1>No estás autenticado</h1>
-		<p>Por favor, <a href="/">inicia sesión</a> para acceder a tu área de usuario.</p>
-	</div>
-	@endauth
+</div>
+@else
+<div class="container mt-5">
+	<h1>No estás autenticado</h1>
+	<p>Por favor, <a href="/welcome">inicia sesión</a> para acceder a tu área de usuario.</p>
+</div>
+@endauth
 
 @endsection

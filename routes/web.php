@@ -32,6 +32,18 @@ Route::get('/professionalarea', function () {
 	return view('professionalArea');
 })->middleware(['auth','perm:professionalarea'])->name('professionalarea');
 
+// Professional calendar and related endpoints
+Route::prefix('professional')->middleware(['auth','perm:professionalarea'])->group(function(){
+	Route::get('/calendar', [\App\Http\Controllers\ProfessionalCalendarController::class, 'index'])->name('professional.calendar');
+	// API endpoints for calendar events (initially returns empty list)
+	Route::get('/calendar/events', [\App\Http\Controllers\ProfessionalCalendarController::class, 'events'])->name('professional.calendar.events');
+	Route::post('/calendar/events', [\App\Http\Controllers\ProfessionalCalendarController::class, 'store'])->name('professional.calendar.events.store');
+	Route::get('/calendar/patients', [\App\Http\Controllers\ProfessionalCalendarController::class, 'searchPatients'])->name('professional.calendar.patients');
+	// endpoints for patients to accept/reject invitations
+	Route::post('/calendar/events/{appointment}/accept', [\App\Http\Controllers\AppointmentController::class, 'accept'])->name('appointments.accept');
+	Route::post('/calendar/events/{appointment}/reject', [\App\Http\Controllers\AppointmentController::class, 'reject'])->name('appointments.reject');
+});
+
 Route::get('/underreview', function () {
 	return view('under_review');
 })->name('underreview');
@@ -133,6 +145,8 @@ Route::prefix('admin')->middleware(['auth','perm:adminarea'])->group(function(){
 	Route::get('/users', [\App\Http\Controllers\AdminController::class, 'users'])->name('admin.users');
 	Route::post('/users/{user}/toggle', [\App\Http\Controllers\AdminController::class, 'toggleActive'])->name('admin.users.toggle');
 	Route::post('/users/{user}/roles', [\App\Http\Controllers\AdminController::class, 'assignRoles'])->name('admin.users.roles');
+	Route::post('/users/{user}/ban', [\App\Http\Controllers\AdminController::class, 'toggleBan'])->name('admin.users.ban');
+	Route::delete('/users/{user}', [\App\Http\Controllers\AdminController::class, 'destroy'])->name('admin.users.destroy');
 
 	// Roles CRUD
 	Route::get('/roles', [\App\Http\Controllers\RbacController::class, 'rolesIndex'])->name('admin.roles.index');

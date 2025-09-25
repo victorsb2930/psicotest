@@ -22,7 +22,8 @@ const pageModuleMap = {
 	'loginRegister': './loginRegister.js',
 	'contact': './contact.js',
 	'admin.roles': './pages/admin.roles.js',
-	'admin-professional-apps': './pages/admin.profapps.js'
+	'admin-professional-apps': './pages/admin.profapps.js',
+	'professional-calendar': './pages/professional.calendar.js'
 };
 
 async function initPage() {

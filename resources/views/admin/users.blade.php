@@ -56,11 +56,12 @@
 	<div class="table-responsive">
 		<table class="table align-middle bg-white">
 			<thead>
-				@php
-				$nextDir = ($dir ?? 'asc') === 'asc' ? 'desc' : 'asc';
-				$qs = request()->query();
-				@endphp
+			@php
+			$nextDir = ($dir ?? 'asc') === 'asc' ? 'desc' : 'asc';
+			$qs = request()->query();
+			@endphp
 				<tr>
+					<th>Acciones</th>
 					<th>
 						@php
 							$qs_id = array_merge($qs, ['sort'=>'id','dir'=>($sort==='id'?$nextDir:'asc')]);
@@ -85,44 +86,85 @@
 							Email @if(($sort ?? '')==='email')<span>{{ ($dir ?? 'asc')==='asc'?'▲':'▼' }}</span>@endif
 						</a>
 					</th>
-										<th>
-												@php
-													$qs_active = array_merge($qs, ['sort'=>'active','dir'=>($sort==='active'?$nextDir:'asc')]);
-												@endphp
-												<a href="{{ route('admin.users', $qs_active) }}" class="text-decoration-none">
-													Activo @if(($sort ?? '')==='active')<span>{{ ($dir ?? 'asc')==='asc'?'▲':'▼' }}</span>@endif
-												</a>
-										</th>
-										<th>
-												@php
-													$qs_roles = array_merge($qs, ['sort'=>'roles','dir'=>($sort==='roles'?$nextDir:'asc')]);
-												@endphp
-												<a href="{{ route('admin.users', $qs_roles) }}" class="text-decoration-none">
-													Roles @if(($sort ?? '')==='roles')<span>{{ ($dir ?? 'asc')==='asc'?'▲':'▼' }}</span>@endif
-												</a>
-										</th>
-					<th>Acciones</th>
+					<th>Activo</th>
+					<th>
+						@php
+							$qs_roles = array_merge($qs, ['sort'=>'roles','dir'=>($sort==='roles'?$nextDir:'asc')]);
+						@endphp
+						<a href="{{ route('admin.users', $qs_roles) }}" class="text-decoration-none">
+							Roles @if(($sort ?? '')==='roles')<span>{{ ($dir ?? 'asc')==='asc'?'▲':'▼' }}</span>@endif
+						</a>
+					</th>
+					<th>
+						@php
+							$qs_created = array_merge($qs, ['sort'=>'created_at','dir'=>($sort==='created_at'?$nextDir:'asc')]);
+						@endphp
+						<a href="{{ route('admin.users', $qs_created) }}" class="text-decoration-none">
+							Creado @if(($sort ?? '')==='created_at')<span>{{ ($dir ?? 'asc')==='asc'?'▲':'▼' }}</span>@endif
+						</a>
+					</th>
+					<th>
+						@php
+							$qs_updated = array_merge($qs, ['sort'=>'updated_at','dir'=>($sort==='updated_at'?$nextDir:'asc')]);
+						@endphp
+						<a href="{{ route('admin.users', $qs_updated) }}" class="text-decoration-none">
+							Última mod. @if(($sort ?? '')==='updated_at')<span>{{ ($dir ?? 'asc')==='asc'?'▲':'▼' }}</span>@endif
+						</a>
+					</th>
 				</tr>
 			</thead>
 			<tbody>
 				@foreach($users as $u)
 				<tr>
+					@php
+						// Determine active state early so it can be used by the actions dropdown
+						$isActive = null;
+						if (isset($u->is_active)) {
+							$isActive = (bool) $u->is_active;
+						} elseif (isset($u->is_banned)) {
+							$isActive = !$u->is_banned;
+						} else {
+							// default to true if no column exists
+							$isActive = true;
+						}
+					@endphp
+					<td>
+						<div class="dropdown">
+							<button class="btn btn-sm btn-light dropdown-toggle" type="button" id="actionsMenu{{ $u->id }}" data-bs-toggle="dropdown" aria-expanded="false" title="Más opciones">
+								<i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
+							</button>
+							<ul class="dropdown-menu" aria-labelledby="actionsMenu{{ $u->id }}">
+								<li><a class="dropdown-item" href="mailto:{{ $u->email }}">Contactar por email</a></li>
+								<li><button class="dropdown-item disabled" type="button" title="Próximamente">Contactar por chat (próximamente)</button></li>
+								@if(Route::has('admin.users.ban'))
+								<li><button class="dropdown-item action-deactivate" type="button" data-user-id="{{ $u->id }}" data-user-name="{{ e($u->name) }}">{{ $isActive ? 'Desactivar' : 'Activar' }}</button></li>
+								@endif
+								@if(Route::has('admin.users.destroy'))
+								<li>
+									<button class="dropdown-item text-danger action-delete" type="button"
+										data-delete-url="{{ route('admin.users.destroy', $u) }}"
+										data-user-name="{{ e($u->name) }}"
+										@if(auth()->id() === $u->id) disabled title="No puedes eliminar tu propia cuenta" @endif
+									>Eliminar</button>
+								</li>
+								@endif
+							</ul>
+						</div>
+					</td>
 					<td>{{ $u->id }}</td>
 					<td>{{ $u->name }}</td>
 					<td>{{ $u->email }}</td>
+
 					<td>
-						<form action="{{ route('admin.users.toggle', $u) }}" method="POST" class="d-inline">
-							@csrf
-							<button class="btn btn-sm {{ $u->is_active ? 'btn-success' : 'btn-outline-secondary' }}"
-								type="submit">
-								{{ $u->is_active ? 'Activo' : 'Inactivo' }}
-							</button>
-						</form>
+						@if($isActive)
+							<span class="badge bg-success" @if(!empty($u->deactivated_reason)) data-bs-toggle="tooltip" title="{{ $u->deactivated_reason }}" @endif>Activo</span>
+						@else
+							<span class="badge bg-secondary" @if(!empty($u->deactivated_reason)) data-bs-toggle="tooltip" title="{{ $u->deactivated_reason }}" @endif>Inactivo</span>
+						@endif
 					</td>
 					<td>
 						<div class="mb-1 text-muted small">Asignados: <span class="badge bg-light text-dark">{{ $u->roles_count ?? $u->roles->count() }}</span></div>
-						<form action="{{ route('admin.users.roles', $u) }}" method="POST"
-							class="d-flex gap-2 align-items-center">
+						<form action="{{ route('admin.users.roles', $u) }}" method="POST" class="d-flex gap-2 align-items-center">
 							@csrf
 							<select name="roles[]" class="form-select form-select-sm" style="min-width:260px">
 								@foreach($roles as $r)
@@ -134,9 +176,8 @@
 							<button class="btn btn-sm btn-primary" type="submit">Guardar</button>
 						</form>
 					</td>
-					<td>
-						<a class="btn btn-sm btn-light" href="mailto:{{ $u->email }}">Contactar</a>
-					</td>
+					<td>{{ $u->created_at?->format('Y-m-d H:i') ?? '' }}</td>
+					<td>{{ $u->updated_at?->format('Y-m-d H:i') ?? '' }}</td>
 				</tr>
 				@endforeach
 			</tbody>
@@ -147,4 +188,92 @@
 		{{ $users->links() }}
 	</div>
 </div>
+
+<!-- Deactivation modal -->
+<div class="modal fade" id="deactivateModal" tabindex="-1" aria-hidden="true">
+	<div class="modal-dialog">
+		<div class="modal-content">
+			<form id="deactivateForm" method="POST" action="">
+				@csrf
+				<div class="modal-header">
+					<h5 class="modal-title">Confirmar desactivación</h5>
+					<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+				</div>
+				<div class="modal-body">
+					<p id="deactivateMessage">¿Estás seguro de desactivar la cuenta?</p>
+					<div class="mb-3">
+						<label class="form-label">Motivo (opcional)</label>
+						<textarea name="reason" id="deactivateReason" class="form-control" rows="3" placeholder="Describe el motivo de la desactivación"></textarea>
+					</div>
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+					<button type="submit" class="btn btn-primary" id="deactivateConfirmBtn">Confirmar</button>
+				</div>
+			</form>
+		</div>
+	</div>
+</div>
+
+<!-- Delete confirmation modal -->
+<div class="modal fade" id="deleteUserModal" tabindex="-1" aria-hidden="true">
+	<div class="modal-dialog">
+		<div class="modal-content">
+			<form id="deleteUserForm" method="POST" action="">
+				@csrf
+				@method('DELETE')
+				<div class="modal-header">
+					<h5 class="modal-title">Confirmar eliminación</h5>
+					<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+				</div>
+				<div class="modal-body">
+					<p id="deleteUserMessage">¿Estás seguro de eliminar este usuario?</p>
+					<p class="small text-muted">Eliminar aquí realiza un soft-delete (se mueve a la papelera de la base de datos). Podrás restaurarlo desde allí si es necesario.</p>
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+					<button type="submit" class="btn btn-danger">Eliminar</button>
+				</div>
+			</form>
+		</div>
+	</div>
+</div>
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+	// initialize bootstrap tooltips for badges showing deactivation reasons
+	var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+	tooltipTriggerList.map(function (el) { return new bootstrap.Tooltip(el); });
+
+	const modalEl = document.getElementById('deactivateModal');
+	if (!modalEl) return;
+	const bsModal = new bootstrap.Modal(modalEl);
+	document.querySelectorAll('.action-deactivate').forEach(function(btn){
+		btn.addEventListener('click', function(){
+			const userId = btn.getAttribute('data-user-id');
+			const userName = btn.getAttribute('data-user-name');
+			const form = document.getElementById('deactivateForm');
+			form.action = '{{ url('/admin/users') }}/' + userId + '/ban';
+			document.getElementById('deactivateMessage').textContent = 'Vas a cambiar el estado de ' + userName + '. Si estás desactivando, por favor indica la razón.';
+			document.getElementById('deactivateReason').value = '';
+			bsModal.show();
+		});
+	});
+
+		// delete action -> modal
+		document.querySelectorAll('.action-delete').forEach(function(btn){
+			btn.addEventListener('click', function(){
+				const url = btn.getAttribute('data-delete-url');
+				const name = btn.getAttribute('data-user-name');
+				const form = document.getElementById('deleteUserForm');
+				form.action = url;
+				document.getElementById('deleteUserMessage').textContent = 'Vas a eliminar al usuario "' + name + '". ¿Confirmas?';
+				const delModal = new bootstrap.Modal(document.getElementById('deleteUserModal'));
+				delModal.show();
+			});
+		});
+});
+</script>
+@endpush
 @endsection
