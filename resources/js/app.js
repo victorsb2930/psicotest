@@ -24,6 +24,7 @@ const pageModuleMap = {
 	'admin.roles': './pages/admin.roles.js',
 	'admin-professional-apps': './pages/admin.profapps.js',
 	'professional-calendar': './pages/professional.calendar.js'
+	,'user-appointments': './pages/user.appointments.js'
 };
 
 async function initPage() {

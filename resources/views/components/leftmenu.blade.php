@@ -78,7 +78,6 @@
 							</a>
 						</li>
 						<li class="nav-item"><a href="{{ Route::has('professional.calendar') ? route('professional.calendar') : '#' }}" class="nav-link px-0 {{ $is('professional.calendar') ? 'active' : '' }}"><i class="bi bi-calendar3 me-2"></i>Calendario</a></li>
-						<li class="nav-item"><a href="{{ Route::has('professional.appointments') ? route('professional.appointments') : '#' }}" class="nav-link px-0 {{ $is('professional.appointments') ? 'active' : '' }}"><i class="bi bi-calendar-check me-2"></i>Citas</a></li>
 						<li class="nav-item"><a href="{{ Route::has('messages.index') ? route('messages.index') : '#' }}" class="nav-link px-0 {{ $is('messages.index') ? 'active' : '' }}"><i class="bi bi-chat-dots me-2"></i>Mensajes</a></li>
 						<li class="nav-item"><a href="{{ Route::has('professional.patients') ? route('professional.patients') : '#' }}" class="nav-link px-0 {{ $is('professional.patients') ? 'active' : '' }}"><i class="bi bi-people me-2"></i>Pacientes</a></li>
 						<li class="nav-item"><a href="{{ Route::has('professional.services') ? route('professional.services') : '#' }}" class="nav-link px-0 {{ $is('professional.services') ? 'active' : '' }}"><i class="bi bi-briefcase me-2"></i>Servicios</a></li>
@@ -88,7 +87,7 @@
 					{{-- REGULAR USER SECTION --}}
 					@else
 						<li class="nav-item"><a href="{{ Route::has('userarea') ? route('userarea') : '#' }}" class="nav-link px-0 {{ $is('userarea') ? 'active' : '' }}"><i class="bi bi-house me-2"></i>Mi cuenta</a></li>
-						<li class="nav-item"><a href="{{ Route::has('appointments.index') ? route('appointments.index') : '#' }}" class="nav-link px-0"><i class="bi bi-calendar-check me-2"></i>Citas</a></li>
+						<li class="nav-item"><a href="{{ Route::has('appointments.index') ? route('appointments.index') : (Route::has('userarea') ? route('userarea') : '#') }}" class="nav-link px-0"><i class="bi bi-calendar3 me-2"></i>Calendario</a></li>
 						<li class="nav-item"><a href="{{ Route::has('search') ? route('search') : '#' }}" class="nav-link px-0"><i class="bi bi-search me-2"></i>Buscar profesionales</a></li>
 						<li class="nav-item"><a href="{{ Route::has('favorites') ? route('favorites') : '#' }}" class="nav-link px-0"><i class="bi bi-star me-2"></i>Favoritos</a></li>
 						<li class="nav-item"><a href="{{ Route::has('messages.index') ? route('messages.index') : '#' }}" class="nav-link px-0"><i class="bi bi-chat-dots me-2"></i>Mensajes</a></li>

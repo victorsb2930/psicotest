@@ -219,4 +219,13 @@ Route::middleware('auth')->group(function(){
 		}
 		return redirect()->back();
 	})->name('notifications.markread');
+
+    // User appointments (calendar view for normal users)
+    Route::get('/appointments', [\App\Http\Controllers\UserAppointmentController::class, 'index'])->name('appointments.index');
+    Route::get('/appointments/events', [\App\Http\Controllers\UserAppointmentController::class, 'events'])->name('appointments.events');
+	// Create appointment (patient requests a new appointment)
+	Route::post('/appointments', [\App\Http\Controllers\UserAppointmentController::class, 'store'])->name('appointments.store');
+	// Patient accept/reject endpoints (calls to AppointmentController)
+	Route::post('/appointments/{appointment}/accept', [\App\Http\Controllers\AppointmentController::class, 'accept'])->name('appointments.patient.accept');
+	Route::post('/appointments/{appointment}/reject', [\App\Http\Controllers\AppointmentController::class, 'reject'])->name('appointments.patient.reject');
 });

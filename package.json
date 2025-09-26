@@ -22,8 +22,11 @@
         "@fullcalendar/core": "^6.1.8",
         "@fullcalendar/daygrid": "^6.1.8",
         "@fullcalendar/interaction": "^6.1.8",
+        "@fullcalendar/list": "^6.1.19",
+        "@fullcalendar/timegrid": "^6.1.19",
         "bootstrap": "^5.3.8",
         "bootstrap-icons": "^1.13.1",
+        "flatpickr": "^4.6.13",
         "jquery": "^3.7.1",
         "tom-select": "^2.4.3",
         "uuid": "^13.0.0"

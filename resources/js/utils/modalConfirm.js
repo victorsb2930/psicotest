@@ -43,12 +43,27 @@ export function modalConfirm(bodyHtml, modalType = 'normal', options = {}) {
 			   </span>`
 			: '';
 
-		const footerHtml = modalType === 'normal'
-			? `<div class="modal-footer border-0 pt-0">
+		let footerHtml = '';
+		if (modalType === 'normal') {
+			// If caller provided a custom buttons array, render those instead of the default two-button footer
+			if (Array.isArray(bodyHtml.buttons) && bodyHtml.buttons.length) {
+				const parts = bodyHtml.buttons.map((b, i) => {
+					const id = `modalBtn_${modalId}_${i}`;
+					const cls = b.className || b.cls || (b.primary ? 'btn-primary' : 'btn-secondary');
+					const text = b.text || b.label || `Button ${i+1}`;
+					const dismiss = b.dismiss || b.closeOnClick ? ' data-bs-dismiss="modal"' : '';
+					return `<button type="button" id="${id}" class="btn ${cls}"${dismiss}>${text}</button>`;
+				});
+				footerHtml = `<div class="modal-footer border-0 pt-0">${parts.join('')}</div>`;
+			} else {
+				footerHtml = `<div class="modal-footer border-0 pt-0">
 					<button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">${labels[0]}</button>
 					<button type="button" class="btn btn-primary" id="modalConfirmBtn_${modalId}">${labels[1]}</button>
-			</div>`
-			: '';
+				</div>`;
+			}
+		} else {
+			footerHtml = '';
+		}
 
 		const dialogCls = [
 			'modal-dialog',
@@ -101,7 +116,7 @@ export function modalConfirm(bodyHtml, modalType = 'normal', options = {}) {
 	// Place footer buttons to the right
 	$modal.find('.modal-footer').addClass('justify-content-end');
 
-	// Reasignar handler del botón Confirmar (si existe)
+	// Reasignar handler del botón Confirmar (si existe) y bind de botones custom
 	const $confirmBtn = $modal.find(`#modalConfirmBtn_${modalId}`);
 	$confirmBtn.off('click').on('click', function () {
 		if (typeof bodyHtml.onClickYes === 'function') {
@@ -112,6 +127,33 @@ export function modalConfirm(bodyHtml, modalType = 'normal', options = {}) {
 			closeAllModals();
 		}
 	});
+
+	// Bind custom buttons if provided as array
+	if (Array.isArray(bodyHtml.buttons) && bodyHtml.buttons.length) {
+		bodyHtml.buttons.forEach((b, i) => {
+			const id = `modalBtn_${modalId}_${i}`;
+			const $btn = $modal.find(`#${id}`);
+			if ($btn.length) {
+				$btn.off('click').on('click', function (ev) {
+					// Call action (can be sync or async)
+					try {
+						if (typeof b.onClick === 'function') {
+							const res = b.onClick($modal, ev);
+							// If the handler returns a Promise, catch errors
+							if (res && typeof res.then === 'function') {
+								res.catch(()=>{});
+							}
+						}
+					} catch (_) {}
+					// Decide whether to close modals after click
+					const shouldClose = ('closeOnClick' in b) ? !!b.closeOnClick : (b.dismiss || b.dismissOnClick || false);
+					if (shouldClose) {
+						closeAllModals();
+					}
+				});
+			}
+		});
+	}
 
 	// Mostrar el modal con backdrop estático por defecto
 	if (opts.zIndex) {

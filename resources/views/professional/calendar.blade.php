@@ -4,10 +4,10 @@
 @section('page','professional-calendar')
 
 @section('content')
-<div class="container py-4">
+<div class="container py-4" data-page="professional-calendar">
 	<div class="d-flex align-items-center mb-3">
-		<h1 class="me-3">Calendario</h1>
-		<button class="btn btn-sm btn-primary" id="newAppointmentBtn">Nueva cita</button>
+	<h1 class="me-3">Calendario</h1>
+	<button class="btn btn-sm btn-primary" id="newAppointmentBtn">Crear nueva cita</button>
 	</div>
 	<div id="calendar" style="max-width: 1100px; margin: 0 auto;"></div>
 </div>
