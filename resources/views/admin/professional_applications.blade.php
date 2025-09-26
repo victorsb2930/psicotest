@@ -100,10 +100,4 @@
     <div class="card-footer">{{ $apps->links() }}</div>
   </div>
 </div>
-
-@push('scripts')
-<script>
-  // Página: admin-professional-apps -> handled by resources/js/pages/admin.profapps.js
-</script>
-@endpush
 @endsection

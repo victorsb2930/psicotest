@@ -3,9 +3,7 @@
 
 <head>
 	@yield('head')
-	<!-- FullCalendar CSS (loaded globally to avoid package CSS import specifier issues) -->
-	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.19/main.min.css" integrity="" crossorigin="anonymous">
-	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fullcalendar/daygrid@6.1.19/main.min.css" integrity="" crossorigin="anonymous">
+	<!-- FullCalendar CSS: loaded from local assets (see resources/css/vendor) -->
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<meta http-equiv="X-UA-Compatible" content="ie=edge">

@@ -3,7 +3,7 @@
     "private": true,
     "type": "module",
     "scripts": {
-    "generate-icons": "node ./scripts/generate-bootstrap-icons-list.cjs",
+        "generate-icons": "node ./scripts/generate-bootstrap-icons-list.cjs",
         "predev": "npm run generate-icons",
         "prebuild": "npm run generate-icons",
         "build": "vite build",
