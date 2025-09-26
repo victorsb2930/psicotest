@@ -1,8 +1,8 @@
 @extends('layout')
 @section('title','Roles')
-@section('page','admin.roles')
+@section('page', 'admin-roles')
 @section('content')
-<div class="container-fluid py-4" data-page="admin.roles">
+<div class="container-fluid py-4">
 
 	<h1 class="mb-3">Roles</h1>
 	@include('admin._flash')

@@ -220,8 +220,24 @@ class LoginRegisterController extends Controller
 	$emailForAttempt = $user?->email ?? strtolower($validated['email']);
 	$credentials = ['email' => $emailForAttempt, 'password' => $validated['password']];
 	if (auth()->attempt($credentials, $remember)) {
+			// Session id is usually regenerated to prevent session fixation.
+			// The Login event listener runs during auth()->attempt() and may
+			// have stored the PRE-REGENERATE session id in user_logins. To
+			// ensure the logout handler can find the row by session_id, we
+			// capture the old id and after regenerating update the row to
+			// use the new session id.
+			$oldSid = $request->session()->getId();
 			$request->session()->regenerate();
 			$user = auth()->user();
+			$newSid = $request->session()->getId();
+			try {
+				if (\Schema::hasTable('user_logins')) {
+					\DB::table('user_logins')
+						->where('user_id', $user->id)
+						->where('session_id', $oldSid)
+						->update(['session_id' => $newSid]);
+				}
+			} catch (\Throwable $_) { /* noop */ }
 
 			// Si no tiene rol asignado, forzar rol 'user' si existe (fallback seguro)
 			try {
@@ -265,6 +281,18 @@ class LoginRegisterController extends Controller
 	}
 
 	public function logout(Request $request) {
+		// Best-effort: mark the user_login row ended before invalidating session.
+		try {
+			if (\Schema::hasTable('user_logins')) {
+				$sid = $request->session()->getId();
+				$ul = \App\Models\UserLogin::where('session_id', $sid)->orderBy('id', 'desc')->first();
+				if ($ul && !$ul->ended_at) {
+					$ul->ended_at = now();
+					$ul->duration_seconds = (int) max(0, now()->getTimestamp() - ($ul->started_at ? $ul->started_at->getTimestamp() : now()->getTimestamp()));
+					$ul->saveQuietly();
+				}
+			}
+		} catch (\Throwable $_) { /* best-effort */ }
 		auth()->logout();
 
 		// Limpieza explícita (aunque invalidate() la elimina de todos modos)
@@ -275,5 +303,38 @@ class LoginRegisterController extends Controller
 			return response()->json(['ok' => true, 'message' => 'Sesión cerrada.']);
 		}
 		return redirect('/');
+	}
+
+	/**
+	 * Endpoint called by client to record session end (best-effort).
+	 * Uses the current authenticated user (if any) and the session id to
+	 * find the matching user_logins row and set ended_at/duration_seconds
+	 * if it hasn't been set already.
+	 */
+	public function endSession(Request $request)
+	{
+		$user = auth()->user();
+		try {
+			if (!\Schema::hasTable('user_logins')) {
+				return response()->json(['ok' => false, 'message' => 'user_logins missing'], 500);
+			}
+			$sid = $request->getSession()->getId();
+			$ul = null;
+			if ($user) {
+				$ul = \App\Models\UserLogin::where('user_id', $user->id)->where('session_id', $sid)->orderBy('id', 'desc')->first();
+			}
+			if (!$ul) {
+				// fallback: find last row by session id even if user missing
+				$ul = \App\Models\UserLogin::where('session_id', $sid)->orderBy('id', 'desc')->first();
+			}
+			if ($ul && !$ul->ended_at) {
+				$ul->ended_at = now();
+				$ul->duration_seconds = (int) max(0, now()->getTimestamp() - ($ul->started_at ? $ul->started_at->getTimestamp() : now()->getTimestamp()));
+				$ul->saveQuietly();
+			}
+		} catch (\Throwable $e) {
+			// best-effort, do not throw for client
+		}
+		return response()->json(['ok' => true]);
 	}
 }

@@ -1,9 +1,8 @@
 @extends('layout')
-
-@section('page','professionals-search')
-
+@section('title','Buscar profesionales')
+@section('page', 'professionals-search')
 @section('content')
-<div class="container py-4" data-page="professionals-search">
+<div class="container py-4">
     <meta name="professionals-search-url" content="{{ route('professionals.search') }}">
     <h1>Buscar profesionales</h1>
     <div class="row mb-3">

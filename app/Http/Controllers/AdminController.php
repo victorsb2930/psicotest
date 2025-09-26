@@ -120,13 +120,24 @@ class AdminController extends Controller {
 		if (\Schema::hasTable('user_logins')) {
 			$rows = \DB::table('user_logins')->where('user_id', $user->id)->orderBy('started_at', 'desc')->get();
 			$res = $rows->map(function($r){
+				$startedAt = $r->started_at ? strtotime($r->started_at) : null;
+				$endedAt = $r->ended_at ? strtotime($r->ended_at) : null;
+				// Prefer stored duration_seconds; if missing, compute using ended_at or now
+				$duration = null;
+				if (!is_null($r->duration_seconds)) {
+					$duration = $r->duration_seconds;
+				} elseif ($startedAt) {
+					$duration = ($endedAt ? $endedAt : time()) - $startedAt;
+					// avoid negative values
+					if ($duration < 0) $duration = 0;
+				}
 				return [
 					'id' => $r->id,
 					'ip' => $r->ip_address,
 					'user_agent' => $r->user_agent,
-					'started_at' => $r->started_at ? date('Y-m-d H:i:s', strtotime($r->started_at)) : null,
-					'ended_at' => $r->ended_at ? date('Y-m-d H:i:s', strtotime($r->ended_at)) : null,
-					'duration_seconds' => $r->duration_seconds,
+					'started_at' => $r->started_at ? date('Y-m-d H:i:s', $startedAt) : null,
+					'ended_at' => $r->ended_at ? date('Y-m-d H:i:s', $endedAt) : null,
+					'duration_seconds' => $duration,
 				];
 			});
 			return response()->json(['ok' => true, 'sessions' => $res]);

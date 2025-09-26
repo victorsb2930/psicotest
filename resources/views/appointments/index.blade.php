@@ -1,10 +1,10 @@
 @extends('layout')
 
 @section('title','Mis citas')
-@section('page','user-appointments')
+@section('page', 'user-appointments')
 
 @section('content')
-<div class="container py-4" data-page="user-appointments">
+<div class="container py-4">
 	<div class="d-flex align-items-center justify-content-between mb-3">
 		<div class="d-flex align-items-center">
 			<h1 class="me-3">Mis citas</h1>

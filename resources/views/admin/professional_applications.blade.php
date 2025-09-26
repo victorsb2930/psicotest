@@ -1,6 +1,6 @@
 @extends('layout')
 @section('title','Solicitudes Profesionales')
-@section('page','admin-professional-apps')
+@section('page', 'admin-professional-apps')
 @section('content')
 <div class="container py-4">
 

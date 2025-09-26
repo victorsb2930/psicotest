@@ -19,10 +19,11 @@ let currentPageName = null;
 
 const pageModuleMap = {
 	'index': './index.js',
-	'loginRegister': './loginRegister.js',
+	'login-register': './loginRegister.js',
 	'contact': './contact.js',
 	'profile': './pages/profile.js',
-	'admin.roles': './pages/admin.roles.js',
+	'admin-roles': './pages/admin.roles.js',
+	'admin-users': './pages/admin.users.js',
 	'admin-professional-apps': './pages/admin.profapps.js',
 	'professional-calendar': './pages/professional.calendar.js'
 	,'user-appointments': './pages/user.appointments.js'
@@ -30,7 +31,32 @@ const pageModuleMap = {
 };
 
 async function initPage() {
-	const page = document.body.dataset.page || 'default';
+	// Determine current page name from multiple possible markers so the
+	// page-module loader works whether `data-page` is placed on <body>,
+	// on the `#app-content` container, or on any element returned by the
+	// server fragment. Fall back to 'default' when none are found.
+	let page = 'default';
+	try {
+		// Prefer reading the raw attribute value where possible for maximum
+		// compatibility with HTML parsing and server-fragment responses.
+		if (document.body && document.body.getAttribute && document.body.getAttribute('data-page')) {
+			page = document.body.getAttribute('data-page');
+		} else {
+			const container = document.getElementById('app-content');
+			if (container && container.getAttribute && container.getAttribute('data-page')) {
+				page = container.getAttribute('data-page');
+			} else {
+				const anyPageEl = document.querySelector('[data-page]');
+				if (anyPageEl && anyPageEl.getAttribute) {
+					const attr = anyPageEl.getAttribute('data-page');
+					if (attr) page = attr;
+				}
+			}
+		}
+	} catch (e) {
+		// defensive fallback to dataset if getAttribute failed for some reason
+		page = (document.body && document.body.dataset && document.body.dataset.page) || 'default';
+	}
 	currentPageName = page;
 	// Importar e inicializar módulo por página si existe
 	const modulePath = pageModuleMap[page];
@@ -69,6 +95,88 @@ document.addEventListener('DOMContentLoaded', () => {
 	// Start PJAX after initial page scripts loaded
 	try { enablePJAX(); } catch (e) { /* if PJAX not supported ignore */ }
 });
+
+// Attempt to notify server when the page is unloaded so we can mark session end.
+// Uses navigator.sendBeacon when available; falls back to synchronous fetch for old browsers.
+function sendSessionEndBeacon() {
+	try {
+		const url = '/sessions/end';
+		const data = new FormData();
+		// Add a lightweight payload to satisfy CSRF protection if present on server
+		const tokenMeta = document.querySelector('meta[name="csrf-token"]');
+		const token = tokenMeta ? tokenMeta.getAttribute('content') : null;
+		if (token) data.append('_token', token);
+		// Attempt sendBeacon first
+		if (navigator && typeof navigator.sendBeacon === 'function') {
+			const blob = new Blob([new URLSearchParams(data).toString()], { type: 'application/x-www-form-urlencoded' });
+			navigator.sendBeacon(url, blob);
+			return true;
+		}
+		// Fallback: synchronous XHR (deprecated) or fetch with keepalive
+		if (window.fetch) {
+			try {
+				fetch(url, { method: 'POST', body: data, keepalive: true, credentials: 'same-origin' });
+				return true;
+			} catch (_) {}
+		}
+		// Last resort: synchronous AJAX (may be blocked in some browsers)
+		try {
+			const xhr = new XMLHttpRequest();
+			xhr.open('POST', url, false);
+			xhr.setRequestHeader('Accept', 'application/json');
+			xhr.send(new URLSearchParams(data).toString());
+			return true;
+		} catch (_) {}
+	} catch (e) {}
+	return false;
+}
+
+// Hook unload and visibilitychange to call sendBeacon when the user closes tab/window.
+window.addEventListener('visibilitychange', function () {
+	if (document.visibilityState === 'hidden') {
+		sendSessionEndBeacon();
+	}
+});
+// beforeunload as backup
+window.addEventListener('beforeunload', function () {
+	sendSessionEndBeacon();
+});
+
+// Intercept logout forms/links to send session end before submitting
+document.addEventListener('click', function (e) {
+	const el = e.target.closest && e.target.closest('form, a, button');
+	if (!el) return;
+	// Common pattern: form[action='/logout'] or any element with data-logout
+	try {
+		if ((el.tagName && el.tagName.toLowerCase() === 'form' && (el.getAttribute('action') || '').endsWith('/logout')) || el.dataset?.logout === 'true' || el.getAttribute && (el.getAttribute('href') || '').endsWith('/logout')) {
+			// best-effort beacon before logout
+			sendSessionEndBeacon();
+		}
+	} catch (_) {}
+});
+
+// Heartbeat (keepalive) logic: when authenticated, ping /profile/heartbeat periodically
+let __pg_heartbeat_interval = null;
+function startHeartbeat(intervalSeconds = 60) {
+	try {
+		if (!window.__isAuth) return;
+		stopHeartbeat();
+		const url = '/profile/heartbeat';
+		const fn = () => {
+			try {
+				fetch(url, { method: 'POST', credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } }).catch(()=>{});
+			} catch (_) {}
+		};
+		fn(); // immediate
+		__pg_heartbeat_interval = setInterval(fn, Math.max(10, intervalSeconds) * 1000);
+	} catch (_) {}
+}
+function stopHeartbeat() {
+	try { if (__pg_heartbeat_interval) { clearInterval(__pg_heartbeat_interval); __pg_heartbeat_interval = null; } } catch(_){}
+}
+
+// Start heartbeat on initial load if the page indicates authenticated state
+document.addEventListener('DOMContentLoaded', function(){ try { if (window.__isAuth) startHeartbeat(60); } catch(_){} });
 
 // Maintain navigation stack for authenticated sessions to control leftmenu back behavior
 function pushToNavStack(path) {
@@ -164,10 +272,22 @@ function enablePJAX() {
 				const titleMeta = tmp.querySelector('[data-page]')?.dataset?.title;
 				if (!fetchedTitle && titleMeta) document.title = titleMeta;
 			} catch(e) { /* ignore */ }
-			// Update body data-page if present
-			const pageEl = tmp.querySelector('[data-page]');
-			if (pageEl && pageEl.dataset && pageEl.dataset.page) {
-				document.body.dataset.page = pageEl.dataset.page;
+			// Update body data-page if present in the fetched content.
+			// Use getAttribute('data-page') for maximum compatibility (dataset may not be populated
+			// in some parsing edge-cases), and fall back to dataset.page.
+			// Prefer any data-page marker in the full fetched HTML, but also check inside the
+			// newContent fragment (some servers return only the inner fragment without <body>).
+			let pageEl = tmp.querySelector('[data-page]');
+			if (!pageEl && newContent && typeof newContent.querySelector === 'function') {
+				pageEl = newContent.querySelector('[data-page]');
+			}
+			if (pageEl) {
+				const pageAttr = pageEl.getAttribute('data-page') || (pageEl.dataset && pageEl.dataset.page) || null;
+				if (pageAttr) {
+					document.body.setAttribute('data-page', pageAttr);
+				} else {
+					document.body.removeAttribute('data-page');
+				}
 			}
 			if (addToHistory) history.pushState({}, '', url);
 			if (addToHistory) {

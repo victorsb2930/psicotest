@@ -20,6 +20,7 @@ Requisitos previos
 - Docker y Docker Compose
 - (Opcional) Composer y Node.js si prefieres no usar el contenedor para instalar dependencias
 
+
 Resumen rápido (comandos mínimos en orden)
 
 1. Clonar el repo
@@ -49,18 +50,22 @@ docker-compose exec app composer install --no-interaction --prefer-dist --optimi
 docker-compose exec app composer dump-autoload -o
 ```
 
-5. (Opcional) Instalar dependencias JS y compilar assets
+5. Frontend: generar iconos y compilar assets
 
-Si trabajas en frontend y tienes Node instalado localmente:
-```bash
+```pwsh
 npm install
+npm run generate-icons   # crea public/bootstrap-icons-list.json
 npm run dev
 ```
 
-O dentro del contenedor (si está disponible):
+6. Migraciones / seeders (desarrollo)
+
 ```bash
-docker-compose exec app npm install
-docker-compose exec app npm run dev
+# Si puedes resetear la BD (desarrollo)
+docker-compose exec app php artisan migrate:fresh --seed
+
+# Si no quieres resetear la BD (aplicar migraciones pendientes)
+docker-compose exec app php artisan migrate --seed
 ```
 
 Nota importante (assets & iconos)
@@ -160,6 +165,21 @@ Información útil para colaboradores
 
 - Evita editar migraciones históricas en repositorio compartido si ya han sido ejecutadas en otros entornos; en su lugar crea migraciones adicionales para cambios de esquema.
 - Mantén `ADMIN_EMAILS` actualizado en `.env` para pruebas locales; el seeder y el controlador utilizan `config('app.admin_emails')`.
+
+Sesiones y mantenimiento
+
+- El frontend hace un heartbeat a `/profile/heartbeat` (por defecto cada 60s) cuando `window.__isAuth` es truthy. Esto actualiza `last_seen_at` del usuario.
+- El cliente intentará notificar cierre de pestaña con `navigator.sendBeacon` a `POST /sessions/end`.
+- En servidor hay un comando para cerrar sesiones inactivas: `php artisan sessions:close-stale --hours=24`. Está registrado en `app/Console/Commands/CloseStaleSessions.php` y programado en `app/Console/Kernel.php` para ejecución diaria.
+
+Checklist mínimo para un nuevo colaborador (en un entorno limpio)
+
+1. Levantar Docker: `docker-compose up -d --build`
+2. Composer dentro del contenedor: `docker-compose exec app composer install --no-interaction --prefer-dist --optimize-autoloader`
+3. Generar iconos y compilar assets: `npm run generate-icons && npm run dev`
+4. Migraciones y seeders: `docker-compose exec app php artisan migrate:fresh --seed`
+
+Siguiendo ese orden la app debería arrancar en la mayoría de entornos de desarrollo. Si algo falla: copia la salida de la terminal y lo revisamos.
 
 Preguntas frecuentes
 

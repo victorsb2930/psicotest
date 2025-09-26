@@ -1,6 +1,6 @@
 @extends('layout')
 @section('title', 'Área de Usuario')
-@section('page','userArea')
+@section('page', 'user-area')
 @section('content')
 @php $user = Auth::user(); @endphp
 

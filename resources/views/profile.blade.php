@@ -1,6 +1,6 @@
 @extends('layout')
 @section('title', 'Perfil')
-@section('page','profile')
+@section('page', 'profile')
 @section('content')
 <div class="card">
 	<div class="card-header">Mi perfil</div>

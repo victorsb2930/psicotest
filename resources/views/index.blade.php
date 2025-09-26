@@ -1,6 +1,6 @@
 @extends('layout')
 @section('title', 'PsicoGuia')
-@section('page','index')
+@section('page', 'index')
 @section('content')
 
 <section class="py-5">

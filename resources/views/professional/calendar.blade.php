@@ -1,10 +1,9 @@
 @extends('layout')
 
 @section('title','Calendario')
-@section('page','professional-calendar')
-
+@section('page', 'professional-calendar')
 @section('content')
-<div class="container py-4" data-page="professional-calendar">
+<div class="container py-4">
 	<div class="d-flex align-items-center mb-3">
 	<h1 class="me-3">Calendario</h1>
 	<button class="btn btn-sm btn-primary" id="newAppointmentBtn">Crear nueva cita</button>

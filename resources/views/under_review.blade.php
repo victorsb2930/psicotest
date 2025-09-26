@@ -1,6 +1,6 @@
 @extends('layout')
 @section('title','Cuenta en revisión')
-@section('page','under-review')
+@section('page', 'under-review')
 @section('content')
 <div class="container py-5">
   <div class="row justify-content-center">

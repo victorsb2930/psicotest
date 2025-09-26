@@ -1,7 +1,7 @@
 @extends('layout')
 
 @section('title','Notificaciones')
-
+@section('page', 'notifications')
 @section('content')
 <div class="container py-4">
     <div class="row justify-content-center">

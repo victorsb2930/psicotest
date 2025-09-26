@@ -592,13 +592,13 @@
 		<div class="container-fluid py-4">
 			<div class="row gx-4">
 				@include('components.leftmenu')
-				<div id="app-content" class="col-12 col-lg-9">
+				<div id="app-content" class="col-12 col-lg-9" data-page="@yield('page','default')">
 					@yield('content')
 				</div>
 			</div>
 		</div>
 		@else
-		<div class="container py-4">
+		<div class="container py-4" id="app-content" data-page="@yield('page','default')">
 			@yield('content')
 		</div>
 		@endif

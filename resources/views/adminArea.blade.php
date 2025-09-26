@@ -1,7 +1,7 @@
 @extends('layout')
 
 @section('title','Admin Area')
-@section('page','admin')
+@section('page','admin-area')
 
 @section('head')
 @vite(['resources/css/admin.css'])

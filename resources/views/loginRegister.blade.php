@@ -1,6 +1,6 @@
 @extends('layout')
 @section('title', 'Login')
-@section('page','loginRegister')
+@section('page', 'login-register')
 @section('content')
 @once
 	@vite(['resources/css/app.css', 'resources/css/loginRegister.css'])

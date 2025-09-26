@@ -1,6 +1,6 @@
 @extends('layout')
 @section('title', 'Área de Profesional')
-@section('page','professionalArea')
+@section('page', 'professional-area')
 @section('content')
 @auth
 <div class="container-fluid">
