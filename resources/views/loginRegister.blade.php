@@ -37,6 +37,14 @@
 				<h3>Regístrate</h3>
 				<form action="{{ route('register') }}" method="POST" id="register_form" enctype="multipart/form-data" novalidate>
 					@csrf
+					<!-- Profile photo for all users -->
+					<div class="field">
+						<label for="reg_photo" class="field-label">Foto de perfil</label>
+						<div class="type">
+							<input type="file" id="reg_photo" name="reg_photo" accept="image/*" />
+						</div>
+						<small class="field-help">Imagen opcional. Tamaño recomendado: 400x400.</small>
+					</div>
 					<div class="field">
 						<label for="reg_type" class="field-label">Tipo de usuario</label>
 						<div class="type">
@@ -79,6 +87,30 @@
 						<div class="type">
 							<input type="file" id="reg_cedula" name="reg_cedula" accept=".pdf,.jpg,.jpeg,.png" />
 						</div>
+					</div>
+					<div class="field professional-only d-none">
+						<label for="reg_specialty" class="field-label">Especialidad</label>
+						<div class="type">
+							<input type="text" placeholder="Ej. Psicología clínica" id="reg_specialty" name="reg_specialty" />
+						</div>
+					</div>
+					<div class="field professional-only d-none">
+						<label for="reg_location" class="field-label">Ubicación</label>
+						<div class="type">
+							<input type="text" placeholder="Ciudad, provincia" id="reg_location" name="reg_location" />
+						</div>
+					</div>
+					<div class="field professional-only d-none">
+						<label class="field-label">Modalidades que gestionará</label>
+						<div class="type modalidades d-flex gap-2 align-items-center">
+							<!-- Using accessible btn-check pattern so inputs remain checkboxes (can select both)
+							     but are presented as compact toggle buttons for better UX -->
+							<input type="checkbox" class="btn-check" name="reg_appointment_types[]" value="presencial" id="reg_type_presencial" autocomplete="off">
+							<label class="btn btn-outline-secondary btn-sm" for="reg_type_presencial">Presencial</label>
+							<input type="checkbox" class="btn-check" name="reg_appointment_types[]" value="virtual" id="reg_type_virtual" autocomplete="off">
+							<label class="btn btn-outline-secondary btn-sm" for="reg_type_virtual">Virtual</label>
+						</div>
+						<small class="field-help">Selecciona una o ambas modalidades.</small>
 					</div>
 					<button class="btn bkg" type="submit">Registrarte</button>
 				</form>

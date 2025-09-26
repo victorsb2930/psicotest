@@ -53,7 +53,7 @@
 		<input type="hidden" name="dir" value="{{ $dir ?? 'asc' }}">
 	</form>
 
-	<div class="table-responsive">
+	<div class="table-responsive" style="overflow: visible;">
 		<table class="table align-middle bg-white">
 			<thead>
 			@php
@@ -135,6 +135,7 @@
 							</button>
 							<ul class="dropdown-menu" aria-labelledby="actionsMenu{{ $u->id }}">
 								<li><a class="dropdown-item" href="mailto:{{ $u->email }}">Contactar por email</a></li>
+								<li><button class="dropdown-item action-show-sessions" type="button" data-user-id="{{ $u->id }}">Mostrar historial de sesiones</button></li>
 								<li><button class="dropdown-item disabled" type="button" title="Próximamente">Contactar por chat (próximamente)</button></li>
 								@if(Route::has('admin.users.ban'))
 								<li><button class="dropdown-item action-deactivate" type="button" data-user-id="{{ $u->id }}" data-user-name="{{ e($u->name) }}">{{ $isActive ? 'Desactivar' : 'Activar' }}</button></li>
@@ -246,9 +247,9 @@ document.addEventListener('DOMContentLoaded', function(){
 	var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
 	tooltipTriggerList.map(function (el) { return new bootstrap.Tooltip(el); });
 
-	const modalEl = document.getElementById('deactivateModal');
-	if (!modalEl) return;
-	const bsModal = new bootstrap.Modal(modalEl);
+	// Deactivation modal
+	const deactivateModalEl = document.getElementById('deactivateModal');
+	const bsDeactivateModal = deactivateModalEl ? new bootstrap.Modal(deactivateModalEl) : null;
 	document.querySelectorAll('.action-deactivate').forEach(function(btn){
 		btn.addEventListener('click', function(){
 			const userId = btn.getAttribute('data-user-id');
@@ -257,22 +258,44 @@ document.addEventListener('DOMContentLoaded', function(){
 			form.action = '{{ url('/admin/users') }}/' + userId + '/ban';
 			document.getElementById('deactivateMessage').textContent = 'Vas a cambiar el estado de ' + userName + '. Si estás desactivando, por favor indica la razón.';
 			document.getElementById('deactivateReason').value = '';
-			bsModal.show();
+			bsDeactivateModal && bsDeactivateModal.show();
 		});
 	});
 
-		// delete action -> modal
-		document.querySelectorAll('.action-delete').forEach(function(btn){
-			btn.addEventListener('click', function(){
-				const url = btn.getAttribute('data-delete-url');
-				const name = btn.getAttribute('data-user-name');
-				const form = document.getElementById('deleteUserForm');
-				form.action = url;
-				document.getElementById('deleteUserMessage').textContent = 'Vas a eliminar al usuario "' + name + '". ¿Confirmas?';
-				const delModal = new bootstrap.Modal(document.getElementById('deleteUserModal'));
-				delModal.show();
+	// Show sessions history modal - single handler
+	document.querySelectorAll('.action-show-sessions').forEach(function(btn){
+		btn.addEventListener('click', function(){
+			const userId = btn.getAttribute('data-user-id');
+			const url = '{{ url('/admin/users') }}/' + userId + '/sessions';
+			window.axios.get(url).then(function(resp){
+				const data = resp.data || {};
+				if (!data.ok) {
+					window.modalConfirm('No se pudo obtener el historial de sesiones', 'normal', { centered: true });
+					return;
+				}
+				const sessions = data.sessions || [];
+				// compute first (oldest started) and last (most recent started)
+				let first = '-'; let last = '-';
+				if (sessions.length) {
+					first = sessions[sessions.length-1].started_at ?? '-';
+					last = sessions[0].started_at ?? '-';
+				}
+				let html = `<div class="mb-3"><strong>Primer acceso:</strong> ${first}<br><strong>Último acceso:</strong> ${last}</div>`;
+				html += `<div class="table-responsive"><table class="table table-sm"><thead><tr><th>Inicio</th><th>Fin</th><th>Duración (s)</th><th>IP</th><th>Agente</th></tr></thead><tbody>`;
+				sessions.forEach(function(s){
+					const started = s.started_at ?? '-';
+					const ended = s.ended_at ?? '-';
+					html += `<tr><td>${started}</td><td>${ended}</td><td>${s.duration_seconds ?? '-'}</td><td>${s.ip ?? '-'}</td><td><small class="text-muted">${s.user_agent ?? '-'}</small></td></tr>`;
+				});
+				html += `</tbody></table></div>`;
+				window.modalConfirm(html, 'normal', { centered: true, scrollable: true, size: 'lg' });
+			}).catch(function(){
+				window.modalConfirm('Error al consultar historial', 'normal', { centered: true });
 			});
 		});
+	});
+
+	// Delete modal trigger handled elsewhere via action-delete buttons
 });
 </script>
 @endpush

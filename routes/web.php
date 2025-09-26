@@ -28,29 +28,41 @@ Route::get('/welcome', function () {
 	return view('loginRegister', compact('signupRoles'));
 });
 
-Route::get('/professionalarea', function () {
-	return view('professionalArea');
-})->middleware(['auth','perm:professionalarea'])->name('professionalarea');
 
-// Professional calendar and related endpoints
-Route::prefix('professional')->middleware(['auth','perm:professionalarea'])->group(function(){
-	Route::get('/calendar', [\App\Http\Controllers\ProfessionalCalendarController::class, 'index'])->name('professional.calendar');
-	// API endpoints for calendar events (initially returns empty list)
-	Route::get('/calendar/events', [\App\Http\Controllers\ProfessionalCalendarController::class, 'events'])->name('professional.calendar.events');
-	Route::post('/calendar/events', [\App\Http\Controllers\ProfessionalCalendarController::class, 'store'])->name('professional.calendar.events.store');
-	Route::get('/calendar/patients', [\App\Http\Controllers\ProfessionalCalendarController::class, 'searchPatients'])->name('professional.calendar.patients');
-	// endpoints for patients to accept/reject invitations
-	Route::post('/calendar/events/{appointment}/accept', [\App\Http\Controllers\AppointmentController::class, 'accept'])->name('appointments.accept');
-	Route::post('/calendar/events/{appointment}/reject', [\App\Http\Controllers\AppointmentController::class, 'reject'])->name('appointments.reject');
-});
+// Protected routes: require authentication (whitelist public pages below)
+Route::middleware(['auth'])->group(function(){
+	Route::get('/professionalarea', function () {
+		return view('professionalArea');
+	})->middleware(['perm:professionalarea'])->name('professionalarea');
 
-Route::get('/underreview', function () {
-	return view('under_review');
-})->name('underreview');
+	// Professional calendar and related endpoints
+	Route::prefix('professional')->middleware(['perm:professionalarea'])->group(function(){
+		Route::get('/calendar', [\App\Http\Controllers\ProfessionalCalendarController::class, 'index'])->name('professional.calendar');
+		// API endpoints for calendar events (initially returns empty list)
+		Route::get('/calendar/events', [\App\Http\Controllers\ProfessionalCalendarController::class, 'events'])->name('professional.calendar.events');
+		Route::post('/calendar/events', [\App\Http\Controllers\ProfessionalCalendarController::class, 'store'])->name('professional.calendar.events.store');
+		Route::get('/calendar/patients', [\App\Http\Controllers\ProfessionalCalendarController::class, 'searchPatients'])->name('professional.calendar.patients');
+		// endpoints for patients to accept/reject invitations
+		Route::post('/calendar/events/{appointment}/accept', [\App\Http\Controllers\AppointmentController::class, 'accept'])->name('appointments.accept');
+		Route::post('/calendar/events/{appointment}/reject', [\App\Http\Controllers\AppointmentController::class, 'reject'])->name('appointments.reject');
+	});
 
-Route::get('/userarea', function () {
-	return view('userArea');
-})->middleware(['auth','perm:userarea'])->name('userarea');
+	// Professionals search - require authentication and permission
+	Route::middleware(['perm:userarea'])->group(function(){
+		Route::get('/professionals', [\App\Http\Controllers\ProfessionalSearchController::class, 'index'])->name('professionals.index');
+		Route::get('/professionals/search', [\App\Http\Controllers\ProfessionalSearchController::class, 'search'])->name('professionals.search');
+	});
+
+	Route::get('/underreview', function () {
+		return view('under_review');
+	})->name('underreview');
+
+	Route::get('/userarea', function () {
+		return view('userArea');
+	})->middleware(['perm:userarea'])->name('userarea');
+
+	// Perfil del usuario
+	Route::get('/perfil', function(){ return view('profile'); })->name('profile')->middleware('auth');
 
 Route::get('/adminarea', function () {
 	$user = auth()->user();
@@ -143,6 +155,7 @@ Route::get('/adminarea', function () {
 // Admin: gestión de usuarios y roles
 Route::prefix('admin')->middleware(['auth','perm:adminarea'])->group(function(){
 	Route::get('/users', [\App\Http\Controllers\AdminController::class, 'users'])->name('admin.users');
+	Route::get('/users/{user}/sessions', [\App\Http\Controllers\AdminController::class, 'sessions'])->name('admin.users.sessions');
 	Route::post('/users/{user}/toggle', [\App\Http\Controllers\AdminController::class, 'toggleActive'])->name('admin.users.toggle');
 	Route::post('/users/{user}/roles', [\App\Http\Controllers\AdminController::class, 'assignRoles'])->name('admin.users.roles');
 	Route::post('/users/{user}/ban', [\App\Http\Controllers\AdminController::class, 'toggleBan'])->name('admin.users.ban');
@@ -168,9 +181,10 @@ Route::prefix('admin')->middleware(['auth','perm:adminarea'])->group(function(){
 	Route::get('/professional-applications/{application}/file/{field}', [\App\Http\Controllers\ProfessionalApplicationController::class, 'file'])->name('admin.profapps.file');
 });
 
+});
+
 Route::post('/login', [LoginRegisterController::class, 'login'])->name('login');
 Route::post('/register', [LoginRegisterController::class, 'register'])->name('register');
-Route::post('/logout', [LoginRegisterController::class, 'logout'])->name('logout');
 // Safe GET fallbacks to avoid 405 on GET /login or GET /register
 Route::get('/login', fn () => redirect('/welcome'));
 Route::get('/register', fn () => redirect('/welcome'));
@@ -219,6 +233,37 @@ Route::middleware('auth')->group(function(){
 		}
 		return redirect()->back();
 	})->name('notifications.markread');
+
+	// Logout should require authentication
+	Route::post('/logout', [LoginRegisterController::class, 'logout'])->name('logout');
+
+	// User photos management
+	Route::get('/profile/photos', [\App\Http\Controllers\UserPhotoController::class, 'index'])->name('profile.photos.index');
+	Route::post('/profile/photos', [\App\Http\Controllers\UserPhotoController::class, 'store'])->name('profile.photos.store');
+	Route::post('/profile/photos/{photo}/set-profile', [\App\Http\Controllers\UserPhotoController::class, 'setProfile'])->name('profile.photos.set');
+	Route::delete('/profile/photos/{photo}', [\App\Http\Controllers\UserPhotoController::class, 'destroy'])->name('profile.photos.destroy');
+
+	// Presence update
+	Route::post('/profile/presence', function(\Illuminate\Http\Request $request){
+		$user = auth()->user();
+		$status = (string) $request->input('status','online');
+		$allowed = ['online','busy','dnd','away','offline'];
+		if (!in_array($status, $allowed, true)) $status = 'online';
+		$user->status = $status;
+		try { $user->save(); } catch(\Throwable$e) {}
+		return response()->json(['ok'=>true,'status'=>$status]);
+	})->name('profile.presence');
+
+	// Heartbeat/keepalive endpoint for presence (called periodically by the client)
+	Route::post('/profile/heartbeat', function(\Illuminate\Http\Request $request){
+		$user = auth()->user();
+		if (!$user) return response()->json(['ok'=>false], 401);
+		try {
+			$user->last_seen_at = now();
+			$user->saveQuietly();
+		} catch (\Throwable$e) { /* noop */ }
+		return response()->json(['ok'=>true,'ts'=>now()->toDateTimeString()]);
+	})->name('profile.heartbeat');
 
     // User appointments (calendar view for normal users)
     Route::get('/appointments', [\App\Http\Controllers\UserAppointmentController::class, 'index'])->name('appointments.index');

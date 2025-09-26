@@ -43,9 +43,9 @@ return new class extends Migration
 			$table->string('name');       // For MyISAM use string('name', 225); // (or 166 for InnoDB with Redundant/Compact row format)
 			$table->string('guard_name'); // For MyISAM use string('guard_name', 25);
 			// Custom UI fields for roles
-			if (! Schema::hasColumn($table->getTable(), 'signup_label')) {
-				// If the published migration doesn't include signup_label, avoid errors; but prefer adding later
-			}
+			$table->boolean('show_in_signup')->default(false)->nullable();
+			$table->string('signup_label')->nullable();
+			$table->boolean('requires_docs')->default(false)->nullable();
 			// Add icon and badge color columns used by the app
 			$table->string('icon_class')->nullable();
 			$table->string('badge_color')->nullable();

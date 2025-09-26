@@ -57,10 +57,17 @@ export async function openAppointmentModal(options = {}) {
                 <label>Profesional (ID)</label>
                 <input type="number" id="am_professional_id" name="professional_id" class="form-control">
             </div>
-            <div class="mb-2">
-                <label>Título</label>
-                <input id="am_title" name="title" class="form-control">
-            </div>
+                <div class="mb-2">
+                    <label>Título</label>
+                    <input id="am_title" name="title" class="form-control">
+                </div>
+                <div class="mb-2">
+                    <label>Modalidad</label>
+                    <select id="am_appointment_type" name="appointment_type" class="form-select">
+                        <option value="">Seleccione modalidad</option>
+                    </select>
+                    <input type="hidden" id="am_appointment_type_hidden" name="appointment_type">
+                </div>
             <div class="mb-2">
                 <label>Inicio</label>
                 <input id="am_start" name="start" type="datetime-local" class="form-control" required>
@@ -116,6 +123,10 @@ export async function openAppointmentModal(options = {}) {
                 payload.start = new Date(startVal).toISOString();
                 if (endVal) payload.end = new Date(endVal).toISOString();
                 if (notes) payload.notes = notes;
+                try {
+                    const apptype = $modal.find('#am_appointment_type').val() || $modal.find('#am_appointment_type_hidden').val();
+                    if (apptype) payload.appointment_type = apptype;
+                } catch(_){}
 
                 // POST using axios
                 await axios.post(submitUrl, payload);
@@ -130,6 +141,32 @@ export async function openAppointmentModal(options = {}) {
     ] });
 
     const $m = $(`#${modalId}`);
+
+    // If caller provided a professional id in defaults, prefill it
+    try {
+        if (defaults.professional_id) {
+            $m.find('#am_professional_id').val(defaults.professional_id);
+        }
+    } catch(_){}
+
+    // Populate appointment type selector from options.types or defaults.types
+    const types = options.types || defaults.types || null; // e.g. ['presencial','virtual'] or [{value,label},...]
+    const $typeSelect = $m.find('#am_appointment_type');
+    const $typeHidden = $m.find('#am_appointment_type_hidden');
+    if ($typeSelect && types) {
+        try {
+            // clear existing non-placeholder options
+            $typeSelect.find('option:not([value=""])').remove();
+            const normalized = Array.isArray(types) ? types.map(t => (typeof t === 'string' ? { value: t, label: (t.charAt(0).toUpperCase() + t.slice(1)) } : t)) : [];
+            normalized.forEach(t => { $typeSelect.append(`<option value="${t.value}">${t.label}</option>`); });
+            // If only one option available, select it by default
+            if (normalized.length === 1) {
+                $typeSelect.val(normalized[0].value);
+                $typeHidden.val(normalized[0].value);
+            }
+            $typeSelect.off('change').on('change', function(){ $typeHidden.val(this.value || ''); });
+        } catch(_){}
+    }
 
     // Prefill start/end: use defaults.start or round to next 15
     const now = new Date();
@@ -253,3 +290,6 @@ export async function openAppointmentModal(options = {}) {
 }
 
 export default openAppointmentModal;
+
+// Expose globally for legacy callers
+try { if (typeof window !== 'undefined') window.openAppointmentModal = openAppointmentModal; } catch(_){}

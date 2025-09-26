@@ -40,6 +40,21 @@ class LoginRegisterController extends Controller
 		];
 
 		$validated = $request->validate($rules, $messages, $attributes);
+		// normalize email to lowercase for case-insensitive handling
+		if (!empty($validated['reg_email'])) {
+			$validated['reg_email'] = strtolower($validated['reg_email']);
+		}
+
+		// enforce case-insensitive uniqueness (in case DB collation is case-sensitive)
+		try {
+			$exists = \App\Models\User::whereRaw('LOWER(email) = ?', [$validated['reg_email']])->exists();
+			if ($exists) {
+				if ($request->expectsJson()) {
+					return response()->json(['ok' => false, 'message' => 'El email ya está en uso.'], 422);
+				}
+				return back()->withErrors(['reg_email' => 'El email ya está en uso.'])->withInput();
+			}
+		} catch (\Throwable $e) { /* noop: fallback to DB unique rule */ }
 
 		$adminEmails = (array) config('app.admin_emails', []);
 		$regEmailLc = strtolower((string)($validated['reg_email'] ?? ''));
@@ -63,10 +78,30 @@ class LoginRegisterController extends Controller
 		// Si la validación pasa, se crea el usuario
 		$user = LoginRegisterModel::create([
 			'name' => $validated['reg_name'],
-			'email' => $validated['reg_email'],
+			'email' => strtolower($validated['reg_email'] ?? ''),
 			'password' => Hash::make($validated['reg_password']),
 			'remember_token' => Str::random(10),
 		]);
+
+		// If a profile photo was uploaded during registration, store it and mark as profile
+		try {
+			if ($request->hasFile('reg_photo')) {
+				$file = $request->file('reg_photo');
+				try {
+					$contents = file_get_contents($file->getRealPath());
+					if (\Schema::hasTable('user_photos')) {
+						\App\Models\UserPhoto::create([
+							'user_id' => $user->id,
+							'foto' => $contents,
+							'caption' => 'Foto de registro',
+							'is_profile' => true,
+						]);
+					}
+				} catch (\Throwable$e) {
+					// noop fallback - ignore if binary save fails
+				}
+			}
+		} catch (\Throwable $e) { /* noop */ }
 		if ($requiresDocs) {
 			$user->is_active = false; // pendiente de aprobación
 			$user->save();
@@ -147,7 +182,14 @@ class LoginRegisterController extends Controller
 		$remember = $request->has('remember');
 
 		// Pre-chequeo: auto-ascenso admin por ENV, cuenta eliminada o bajo revisión
-		$user = \App\Models\User::where('email', $validated['email'])->first();
+		// lookup user case-insensitively
+		$user = null;
+		try {
+			$user = \App\Models\User::whereRaw('LOWER(email) = ?', [strtolower($validated['email'])])->first();
+		} catch (\Throwable $e) {
+			// fallback
+			$user = \App\Models\User::where('email', $validated['email'])->first();
+		}
 		if ($user) {
 			try {
 				$emails = (array) config('app.admin_emails', []);
@@ -174,9 +216,13 @@ class LoginRegisterController extends Controller
 			return redirect()->route('underreview')->with('info', $infoMsg)->withInput();
 		}
 
-		if (auth()->attempt($validated, $remember)) {
+	// ensure credentials use the actual stored email if we found the user case-insensitively
+	$emailForAttempt = $user?->email ?? strtolower($validated['email']);
+	$credentials = ['email' => $emailForAttempt, 'password' => $validated['password']];
+	if (auth()->attempt($credentials, $remember)) {
 			$request->session()->regenerate();
 			$user = auth()->user();
+
 			// Si no tiene rol asignado, forzar rol 'user' si existe (fallback seguro)
 			try {
 				if (($user->roles()->count() ?? 0) === 0) {
@@ -218,9 +264,9 @@ class LoginRegisterController extends Controller
 		return back()->withErrors(['email' => $errMsg])->withInput();
 	}
 
-	public function logout(Request $request)
-	{
+	public function logout(Request $request) {
 		auth()->logout();
+
 		// Limpieza explícita (aunque invalidate() la elimina de todos modos)
 		$request->session()->forget('url.intended');
 		$request->session()->invalidate();

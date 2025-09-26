@@ -177,6 +177,26 @@
 	color: #222;
 }
 
+/* Don't let the generic .type input rule stretch checkboxes/radios or form-check inputs
+   (used by the "Modalidades" professional-only block). Keep them compact and aligned.) */
+.login-container .box .form .type input[type="checkbox"],
+.login-container .box .form .type input[type="radio"],
+.login-container .box .form .type .form-check-input {
+	width: auto;
+	height: auto;
+	padding: 0;
+	margin: 0;
+	flex: none;
+	align-self: center;
+}
+
+/* Ensure the .form-check inside .type displays inline and centers label properly */
+.login-container .box .form .type .form-check {
+	display: inline-flex;
+	align-items: center;
+	gap: .4rem;
+}
+
 .login-container .box .form .type select {
 	width: 100%;
 	height: 100%;
@@ -211,6 +231,23 @@
 }
 .login-container .box .form .type .ts-dropdown {
 	border-radius: 6px;
+}
+
+/* Styles for modalidades toggle buttons (btn-check pattern) inside .type */
+.login-container .box .form .type.modalidades {
+	gap: 0.5rem;
+}
+.login-container .box .form .type.modalidades .btn {
+	padding: 6px 10px;
+	font-size: 13px;
+	line-height: 1;
+	border-radius: 6px;
+}
+.login-container .box .form .type.modalidades .btn.btn-sm {
+	padding: 4px 8px;
+}
+.login-container .box .form .type.modalidades .btn-check:focus + .btn {
+	box-shadow: 0 0 0 3px rgba(13,110,253,0.15);
 }
 
 .login-container .box .form .type input::placeholder {

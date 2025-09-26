@@ -26,6 +26,13 @@ class User extends Authenticatable
 		'email',
 		'timezone',
 		'password',
+		// profile fields
+		'photo',
+		'specialty',
+		'appointment_types',
+		'location',
+		'rating',
+		'status',
 	];
 
 	/**
@@ -48,7 +55,27 @@ class User extends Authenticatable
 		return [
 			'email_verified_at' => 'datetime',
 			'password' => 'hashed',
+			// cast appointment_types json to array
+			'appointment_types' => 'array',
 		];
+	}
+
+	/**
+	 * Return a data URL for the photo blob if present to be used in <img src="...">.
+	 */
+	/**
+	 * Return a data URL for the user's profile photo stored in user_photos.foto (if any).
+	 */
+	public function getProfilePhotoDataUrlAttribute()
+	{
+		$pf = $this->photos()->where('is_profile', true)->first();
+		if (!$pf || empty($pf->foto)) return null;
+		try {
+			$base = base64_encode($pf->foto);
+			return 'data:image/jpeg;base64,' . $base;
+		} catch (\Throwable$e) {
+			return null;
+		}
 	}
 
 	// UserLevel relation removed (legacy)
@@ -71,7 +98,24 @@ class User extends Authenticatable
 	{
 		return $this->hasMany(SectionHistoryPsy::class, 'client_id');
 	}
+
+	/**
+	 * User photos (profile and gallery)
+	 */
+	public function photos()
+	{
+		return $this->hasMany(UserPhoto::class, 'user_id');
+	}
 	#endregion
+
+	/**
+	 * Force emails to lowercase on assignment to avoid case-sensitivity issues.
+	 * This complements the DB migration that normalizes existing values.
+	 */
+	public function setEmailAttribute($value)
+	{
+		$this->attributes['email'] = $value ? mb_strtolower($value) : $value;
+	}
 
 	// Spatie provides hasRole(), hasAnyRole(), can(), hasPermissionTo(), etc.
 }

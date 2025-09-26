@@ -111,4 +111,41 @@ class AdminController extends Controller {
 		if ($request->expectsJson()) return response()->json(['ok'=>true,'is_active'=>$user->is_active]);
 		return back()->with('success', 'Estado actualizado.');
 	}
+
+	/**
+	 * Return session history for a user (JSON) used by admin UI.
+	 */
+	public function sessions(Request $request, User $user) {
+		// Prefer explicit user_logins table which stores start/end/duration
+		if (\Schema::hasTable('user_logins')) {
+			$rows = \DB::table('user_logins')->where('user_id', $user->id)->orderBy('started_at', 'desc')->get();
+			$res = $rows->map(function($r){
+				return [
+					'id' => $r->id,
+					'ip' => $r->ip_address,
+					'user_agent' => $r->user_agent,
+					'started_at' => $r->started_at ? date('Y-m-d H:i:s', strtotime($r->started_at)) : null,
+					'ended_at' => $r->ended_at ? date('Y-m-d H:i:s', strtotime($r->ended_at)) : null,
+					'duration_seconds' => $r->duration_seconds,
+				];
+			});
+			return response()->json(['ok' => true, 'sessions' => $res]);
+		}
+		// Fallback: use sessions table if present
+		if (!\Schema::hasTable('sessions')) {
+			return response()->json(['ok' => false, 'message' => 'No session tracking available'], 404);
+		}
+		$rows = \DB::table('sessions')->where('user_id', $user->id)->orderBy('last_activity', 'desc')->get();
+		$result = $rows->map(function($r){
+			$last = is_numeric($r->last_activity) ? (int)$r->last_activity : null;
+			return [
+				'id' => $r->id,
+				'ip' => $r->ip_address,
+				'user_agent' => $r->user_agent,
+				'last_activity' => $last ? date('Y-m-d H:i:s', $last) : null,
+				'raw_payload' => $r->payload,
+			];
+		});
+		return response()->json(['ok' => true, 'sessions' => $result]);
+	}
 }

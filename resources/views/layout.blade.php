@@ -522,26 +522,48 @@
 				</li>
 
 				<li class="nav-item dropdown">
+						@php
+						$user = Auth::user();
+						$avatar = Vite::asset('resources/images/p.png');
+						// prefer profile_photo_data_url (from user_photos.foto) then user->photo path
+						if ($user) {
+							if (!empty($user->profile_photo_data_url)) {
+								$avatar = $user->profile_photo_data_url;
+							} elseif (!empty($user->photo)) {
+								$avatar = '/storage/' . ltrim($user->photo, '/');
+							}
+						}
+						// map status to simple presence for UI
+						$status = $user?->status ?? ($user?->is_active ? 'online' : 'offline');
+						$presence = $status;
+					@endphp
 					<a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="layoutUserDropdown"
 						role="button" data-bs-toggle="dropdown" aria-expanded="false">
-						<img src="{{ Vite::asset('resources/images/p.png') }}" width="32" height="32"
-							class="rounded-circle me-2" alt="avatar">
-						<span class="d-none d-lg-inline text-white">{{ Auth::user()->name ?? 'Usuario' }}</span>
+						<span style="position:relative; display:inline-block; width:32px; height:32px; margin-right:0.5rem;">
+							<img src="{{ $avatar }}" width="32" height="32" class="rounded-circle" alt="avatar">
+							@php
+							$presenceColor = match($presence) {
+								'online' => '#28a745',
+								'busy' => '#fd7e14',
+								'dnd' => '#dc3545',
+								'away' => '#ffc107',
+								'offline' => '#6c757d',
+								default => '#6c757d'
+							};
+							@endphp
+							<span class="presence-dot" style="position:absolute; right:-2px; bottom:-2px; width:10px; height:10px; border-radius:50%; border:2px solid #fff; background: {{ $presenceColor }};"></span>
+						</span>
+						<span class="d-none d-lg-inline text-white">{{ $user->name ?? 'Usuario' }}</span>
 					</a>
-					<ul class="dropdown-menu dropdown-menu-end shadow">
-						<li class="dropdown-item">
-							<div class="d-flex align-items-center gap-2">
-								<img src="{{ Vite::asset('resources/images/p.png') }}" width="40" height="40" class="rounded-circle" alt="avatar">
-								<div>
-									<div class="fw-semibold">{{ Auth::user()->name ?? 'Usuario' }}</div>
-									<small class="text-muted">{{ Auth::user()->is_active ? 'Disponible' : 'No disponible' }}</small>
-								</div>
-							</div>
-						</li>
+					<ul class="dropdown-menu dropdown-menu-end shadow" id="userDropdownMenu">
+						<li class="dropdown-header">{{ Auth::user()->name ?? 'Usuario' }}</li>
+						<li class="px-3 py-2 small text-muted">Estado</li>
+						@php $states = ['online'=>'Online','busy'=>'Ocupado','dnd'=>'No molestar','away'=>'Ausente','offline'=>'No disponible']; @endphp
+						@foreach($states as $key => $label)
+						<li><button class="dropdown-item presence-select" data-status="{{ $key }}" type="button">{{ $label }}</button></li>
+						@endforeach
 						<li><hr class="dropdown-divider my-1"></li>
-						<li><a class="dropdown-item" href="{{ auth()->user()->hasRole('professional') ? route('professionalarea') : route('userarea') }}">Mi panel</a></li>
 						<li><a class="dropdown-item" href="/perfil">Perfil</a></li>
-						<hr class="sidebar-divider my-0">
 						<li>
 							<form method="POST" action="{{ route('logout') }}" class="m-0">
 								@csrf
@@ -603,6 +625,22 @@
 	@endif
 
 	@stack('scripts')
+	<script>
+		// Presence dropdown handler: send POST to /profile/presence and update dot color
+		document.addEventListener('DOMContentLoaded', function(){
+			const map = { online: '#28a745', busy: '#fd7e14', dnd: '#dc3545', away: '#ffc107', offline: '#6c757d' };
+			document.querySelectorAll('.presence-select').forEach(function(btn){
+				btn.addEventListener('click', async function(){
+					const s = btn.getAttribute('data-status');
+					try {
+						await window.axios.post('{{ route('profile.presence') }}', { status: s });
+						const dot = document.querySelector('.presence-dot');
+						if (dot) dot.style.background = map[s] || map['offline'];
+					} catch(e) { console.error(e); }
+				});
+			});
+		});
+	</script>
 	<script>
 		// UI sync: when authenticated, ensure public nav links don't appear and move them to user dropdown
 		(function(){

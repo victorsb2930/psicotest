@@ -13,9 +13,22 @@ return new class extends Migration {
 			$table->id();
 			$table->string('name');
 			$table->string('email')->unique();
+			// timezone
+			$table->string('timezone')->nullable();
+			// Professional/profile metadata (images are stored in user_photos as BLOB)
+			$table->string('specialty')->nullable();
+			$table->json('appointment_types')->nullable();
+			$table->string('location')->nullable();
+			$table->decimal('rating', 3, 1)->nullable();
 			$table->timestamp('email_verified_at')->nullable();
 			$table->string('password');
 			$table->boolean('is_active')->default(true);
+			// deactivation audit
+			$table->text('deactivated_reason')->nullable();
+			$table->timestamp('deactivated_at')->nullable();
+			// presence/status fields
+			$table->string('status', 32)->default('online')->index();
+			$table->timestamp('last_seen_at')->nullable()->index();
 			$table->rememberToken();
 			$table->softDeletes();
 			$table->timestamps();
@@ -35,6 +48,18 @@ return new class extends Migration {
 			$table->longText('payload');
 			$table->integer('last_activity')->index();
 		});
+
+		// user_photos table for profile and gallery images (store binary image data in `foto`)
+			Schema::create('user_photos', function (Blueprint $table) {
+				$table->id();
+				$table->unsignedBigInteger('user_id')->index();
+				$table->binary('foto')->nullable();
+				$table->string('caption')->nullable();
+				$table->boolean('is_profile')->default(false)->index();
+				$table->timestamps();
+
+				$table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
+			});
 	}
 
 	/**
@@ -46,3 +71,25 @@ return new class extends Migration {
 		Schema::dropIfExists('sessions');
 	}
 };
+
+// Ensure existing emails are normalized when this migration runs in an existing DB.
+// Note: this is a best-effort; if duplicates exist this may fail when creating the unique index.
+// We perform a DB-specific attempt to create a case-insensitive unique constraint/index.
+try {
+	if (\Illuminate\Support\Facades\Schema::hasTable('users')) {
+		$driver = \Illuminate\Support\Facades\DB::getDriverName();
+		\Illuminate\Support\Facades\DB::beginTransaction();
+		\Illuminate\Support\Facades\DB::statement('UPDATE users SET email = LOWER(email) WHERE email IS NOT NULL');
+		if ($driver === 'pgsql') {
+			try { \Illuminate\Support\Facades\DB::statement('CREATE UNIQUE INDEX IF NOT EXISTS users_email_lower_idx ON users (LOWER(email));'); } catch (\Throwable$e) { /* ignore */ }
+		} elseif ($driver === 'mysql') {
+			try {
+				\Illuminate\Support\Facades\DB::statement("ALTER TABLE users MODIFY email VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL");
+				\Illuminate\Support\Facades\DB::statement('CREATE UNIQUE INDEX users_email_lower_idx ON users (email)');
+			} catch (\Throwable$e) { /* ignore */ }
+		}
+		\Illuminate\Support\Facades\DB::commit();
+	}
+} catch (\Throwable$e) {
+	try { \Illuminate\Support\Facades\DB::rollBack(); } catch(\Throwable$e){}
+}

@@ -21,10 +21,12 @@ const pageModuleMap = {
 	'index': './index.js',
 	'loginRegister': './loginRegister.js',
 	'contact': './contact.js',
+	'profile': './pages/profile.js',
 	'admin.roles': './pages/admin.roles.js',
 	'admin-professional-apps': './pages/admin.profapps.js',
 	'professional-calendar': './pages/professional.calendar.js'
 	,'user-appointments': './pages/user.appointments.js'
+	,'professionals-search': './pages/professionals.search.js'
 };
 
 async function initPage() {

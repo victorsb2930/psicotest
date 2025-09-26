@@ -88,7 +88,7 @@
 					@else
 						<li class="nav-item"><a href="{{ Route::has('userarea') ? route('userarea') : '#' }}" class="nav-link px-0 {{ $is('userarea') ? 'active' : '' }}"><i class="bi bi-house me-2"></i>Mi cuenta</a></li>
 						<li class="nav-item"><a href="{{ Route::has('appointments.index') ? route('appointments.index') : (Route::has('userarea') ? route('userarea') : '#') }}" class="nav-link px-0"><i class="bi bi-calendar3 me-2"></i>Calendario</a></li>
-						<li class="nav-item"><a href="{{ Route::has('search') ? route('search') : '#' }}" class="nav-link px-0"><i class="bi bi-search me-2"></i>Buscar profesionales</a></li>
+						<li class="nav-item"><a href="{{ Route::has('professionals.index') ? route('professionals.index') : '#' }}" class="nav-link px-0 {{ $is('professionals.index') ? 'active' : '' }}"><i class="bi bi-search me-2"></i>Buscar profesionales</a></li>
 						<li class="nav-item"><a href="{{ Route::has('favorites') ? route('favorites') : '#' }}" class="nav-link px-0"><i class="bi bi-star me-2"></i>Favoritos</a></li>
 						<li class="nav-item"><a href="{{ Route::has('messages.index') ? route('messages.index') : '#' }}" class="nav-link px-0"><i class="bi bi-chat-dots me-2"></i>Mensajes</a></li>
 					@endif

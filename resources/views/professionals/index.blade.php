@@ -1,0 +1,34 @@
+@extends('layout')
+
+@section('page','professionals-search')
+
+@section('content')
+<div class="container py-4" data-page="professionals-search">
+    <meta name="professionals-search-url" content="{{ route('professionals.search') }}">
+    <h1>Buscar profesionales</h1>
+    <div class="row mb-3">
+        <div class="col-md-4">
+            <input id="pf_q" class="form-control" placeholder="Buscar por nombre o email">
+        </div>
+        <div class="col-md-3">
+            <input id="pf_specialty" class="form-control" placeholder="Especialidad">
+        </div>
+        <div class="col-md-3">
+            <select id="pf_type" class="form-select">
+                <option value="">Tipo de cita (ambos)</option>
+                <option value="presencial">Presencial</option>
+                <option value="virtual">Virtual</option>
+            </select>
+        </div>
+        <div class="col-md-2">
+            <button id="pf_search" class="btn btn-primary w-100">Buscar</button>
+        </div>
+    </div>
+
+    <div id="pf_results" class="row gy-3">
+        <!-- cards injected here -->
+    </div>
+
+    <div id="pf_empty" class="text-center text-muted mt-4 d-none">No se encontraron profesionales.</div>
+</div>
+@endsection
