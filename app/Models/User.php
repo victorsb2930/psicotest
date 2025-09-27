@@ -105,25 +105,6 @@ class User extends Authenticatable
 
 	// UserLevel relation removed (legacy)
 
-	#region Relación con SectionHistoryPsy
-
-	/*
-	 * Relación uno a muchos (un profesional puede tener muchas sesiones)
-	 * Relación uno a muchos (un cliente puede tener muchas sesiones)
-	**/
-	public function professionalSessions()
-	{
-		return $this->hasMany(SectionHistoryPsy::class, 'professional_id');
-	}
-
-	/**
-	 * Relación uno a muchos (un cliente puede tener muchas sesiones)
-	 **/
-	public function clientSessions()
-	{
-		return $this->hasMany(SectionHistoryPsy::class, 'client_id');
-	}
-
 	/**
 	 * User photos (profile and gallery)
 	 */
@@ -131,7 +112,6 @@ class User extends Authenticatable
 	{
 		return $this->hasMany(UserPhoto::class, 'user_id');
 	}
-	#endregion
 
 	/**
 	 * Force emails to lowercase on assignment to avoid case-sensitivity issues.
