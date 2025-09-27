@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Cookie;
 use Intervention\Image\ImageManagerStatic as Image;
 use Illuminate\Validation\Rule;
 use Spatie\Permission\Models\Role as SpatieRole;
@@ -399,6 +400,40 @@ class LoginRegisterController extends Controller
 				}
 			} catch (\Throwable $_) { /* noop */ }
 
+			// Ensure browser token cookie exists and associate its hash with the
+			// active user_login row (update by session_id). This allows future
+			// heartbeats to find and reopen the row even if session_id changes.
+			try {
+				$cookieName = env('BROWSER_TOKEN_COOKIE_NAME', 'psg_browser_token');
+				$ttlDays = (int) env('BROWSER_TOKEN_TTL_DAYS', 30);
+				$token = $request->cookie($cookieName);
+				if (empty($token)) {
+					$token = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
+					Cookie::queue(Cookie::make($cookieName, $token, $ttlDays * 24 * 60, '/', null, config('app.env') !== 'local', true, false, 'Lax'));
+				}
+				$hash = hash_hmac('sha256', $token, config('app.key'));
+				// Create or update device record
+				try {
+					$ip = $request->ip();
+					$ua = $request->userAgent();
+					$dev = \App\Models\UserDevice::firstOrCreate(['user_id' => $user->id, 'token_hash' => $hash], ['ip_address' => $ip, 'user_agent' => $ua, 'last_seen_at' => now(), 'name' => null]);
+					$dev->last_seen_at = now();
+					$dev->ip_address = $ip;
+					$dev->user_agent = $ua;
+					$dev->saveQuietly();
+				} catch (\Throwable $_) { /* ignore device create failures */ }
+				// Update the most-recent row for this session (should exist after the
+				// earlier session_id update). If not, update the most recent open row.
+				try {
+					$u = \DB::table('user_logins')->where('session_id', $newSid)->orderBy('id','desc')->first();
+					if ($u) {
+						\DB::table('user_logins')->where('id', $u->id)->update(['browser_token_hash' => $hash]);
+					} else {
+						\DB::table('user_logins')->where('user_id', $user->id)->whereNull('ended_at')->orderBy('id','desc')->limit(1)->update(['browser_token_hash' => $hash]);
+					}
+				} catch (\Throwable $_) { /* ignore */ }
+			} catch (\Throwable $_) { /* ignore cookie failures */ }
+
 			// Si no tiene rol asignado, forzar rol 'user' si existe (fallback seguro)
 			try {
 				if (($user->roles()->count() ?? 0) === 0) {
@@ -464,6 +499,12 @@ class LoginRegisterController extends Controller
 		$request->session()->forget('url.intended');
 		$request->session()->invalidate();
 		$request->session()->regenerateToken();
+
+		// Clear persistent browser token cookie on logout
+		try {
+			$cookieName = env('BROWSER_TOKEN_COOKIE_NAME', 'psg_browser_token');
+			Cookie::queue(Cookie::forget($cookieName));
+		} catch (\Throwable $_) { /* ignore cookie failures */ }
 		if ($request->expectsJson()) {
 			return response()->json(['ok' => true, 'message' => 'Sesión cerrada.']);
 		}

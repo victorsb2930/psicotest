@@ -20,6 +20,7 @@ let _visibilityHandler = null;
 let _beforeUnloadHandler = null;
 let _btnChangePhotoHandler = null;
 let _inputPhotoHandler = null;
+let _avatarClickHandler = null;
 
 async function refreshGallery(){
 	try{
@@ -160,6 +161,37 @@ export function init(){
 	window.addEventListener('beforeunload', _beforeUnloadHandler);
 
 	// initial gallery load
+
+	// Ensure profile image preview modal exists (the blade includes a fallback script
+	// that runs only on full-page loads; when navigating via PJAX we must ensure
+	// the modal and click handler are attached from this module).
+	if (!document.getElementById('profileImagePreviewModal')) {
+		const modalHtml = `
+		<div class="modal fade" id="profileImagePreviewModal" tabindex="-1" aria-hidden="true">
+			<div class="modal-dialog modal-dialog-centered modal-lg">
+				<div class="modal-content">
+					<div class="modal-body text-center p-0">
+						<img id="profileImagePreviewModalImg" src="" style="width:100%; height:auto;" alt="preview">
+					</div>
+				</div>
+			</div>
+		</div>`;
+		document.body.insertAdjacentHTML('beforeend', modalHtml);
+	}
+
+	// Attach click handler to avatar to open preview modal (store handler to remove on destroy)
+	const avatarWrap = document.getElementById('profile-avatar');
+	const modalImg = document.getElementById('profileImagePreviewModalImg');
+	_avatarClickHandler = function () {
+		const src = document.getElementById('profile-avatar-img')?.src || '';
+		if(!src) return;
+		if (modalImg) modalImg.src = src;
+		const modalEl = document.getElementById('profileImagePreviewModal');
+		if (modalEl) new bootstrap.Modal(modalEl).show();
+	};
+	if (avatarWrap) avatarWrap.addEventListener('click', _avatarClickHandler);
+
+	// then load gallery
 	refreshGallery();
 }
 
@@ -167,9 +199,15 @@ export function destroy(){
 	// cleanup: stop polling/heartbeat and remove handlers
 	try { stopPolling(); } catch(e){}
 	try { stopHeartbeat(); } catch(e){}
-	try { if (_btnChangePhotoHandler) document.getElementById('btn-change-photo')?.removeEventListener('click', _btnChangePhotoHandler); } catch(_){}
-	try { if (_inputPhotoHandler) document.getElementById('input-photo')?.removeEventListener('change', _inputPhotoHandler); } catch(_){}
-	try { if (_visibilityHandler) document.removeEventListener('visibilitychange', _visibilityHandler); } catch(_){}
-	try { if (_beforeUnloadHandler) window.removeEventListener('beforeunload', _beforeUnloadHandler); } catch(_){}
-	_btnChangePhotoHandler = null; _inputPhotoHandler = null; _visibilityHandler = null; _beforeUnloadHandler = null;
+	try { if (_btnChangePhotoHandler) document.getElementById('btn-change-photo')?.removeEventListener('click', _btnChangePhotoHandler); } catch(_){ }
+	try { if (_inputPhotoHandler) document.getElementById('input-photo')?.removeEventListener('change', _inputPhotoHandler); } catch(_){ }
+	try { if (_avatarClickHandler) document.getElementById('profile-avatar')?.removeEventListener('click', _avatarClickHandler); } catch(_){ }
+	try { if (_visibilityHandler) document.removeEventListener('visibilitychange', _visibilityHandler); } catch(_){ }
+	try { if (_beforeUnloadHandler) window.removeEventListener('beforeunload', _beforeUnloadHandler); } catch(_){ }
+
+	_btnChangePhotoHandler = null;
+	_inputPhotoHandler = null;
+	_avatarClickHandler = null;
+	_visibilityHandler = null;
+	_beforeUnloadHandler = null;
 }

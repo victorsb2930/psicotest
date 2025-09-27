@@ -12,7 +12,7 @@ class UserLogin extends Model
     protected $table = 'user_logins';
 
     protected $fillable = [
-        'user_id', 'session_id', 'ip_address', 'user_agent', 'started_at', 'ended_at', 'duration_seconds'
+        'user_id', 'session_id', 'ip_address', 'user_agent', 'started_at', 'ended_at', 'duration_seconds', 'browser_token_hash'
     ];
 
     protected $dates = ['started_at', 'ended_at'];

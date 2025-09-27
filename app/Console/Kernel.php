@@ -15,6 +15,7 @@ class Kernel extends ConsoleKernel
      */
     protected $commands = [
         \App\Console\Commands\CloseStaleSessions::class,
+        \App\Console\Commands\ScanSecurityEvents::class,
     ];
 
     /**
@@ -24,6 +25,8 @@ class Kernel extends ConsoleKernel
     {
         // Close sessions older than 24 hours once a day at 02:00
         $schedule->command('sessions:close-stale --hours=24')->dailyAt('02:00')->withoutOverlapping();
+        // Run security log scanner periodically to detect suspicious token reuse events
+        $schedule->command('security:scan-events')->everyFiveMinutes()->withoutOverlapping();
     }
 
     /**

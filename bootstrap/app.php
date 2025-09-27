@@ -15,6 +15,7 @@ return Application::configure(basePath: dirname(__DIR__))
 		// Route middleware aliases
 		$middleware->alias([
 			'perm' => \App\Http\Middleware\CheckPermission::class,
+			'security.headers' => \App\Http\Middleware\SecurityHeaders::class,
 		]);
 	})
 	->withExceptions(function (Exceptions $exceptions): void {

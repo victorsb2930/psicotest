@@ -44,6 +44,9 @@ Route::get('/underreview', function () {
 // Direct unauthenticated requests without a valid signature or session
 // flash will be rejected (403).
 use Illuminate\Http\Request;
+
+// Apply security response headers to all web routes (prevents a class of XSS/iframe/etc issues)
+Route::middleware(['security.headers'])->group(function(){
 Route::get('/underreview/rejected/{application}', function (Request $request, \App\Models\ProfessionalApplication $application) {
 	$user = auth()->user();
 	$isOwner = $user && $user->id === $application->user_id;
@@ -70,6 +73,22 @@ Route::get('/underreview/rejected/{application}', function (Request $request, \A
 
 // Protected routes: require authentication (whitelist public pages below)
 Route::middleware(['auth'])->group(function(){
+		// Device management endpoints: list and revoke
+		Route::get('/user/devices', function(){
+			$user = auth()->user();
+			$devices = \App\Models\UserDevice::where('user_id', $user->id)->orderBy('last_seen_at','desc')->get();
+			return view('user.devices', compact('devices'));
+		})->name('user.devices');
+
+		Route::post('/user/devices/{device}/revoke', function(\Illuminate\Http\Request $r, \App\Models\UserDevice $device){
+			$user = auth()->user();
+			if ($device->user_id !== $user->id) abort(403);
+			$device->revoked_at = now();
+			$device->save();
+			// Also revoke any user_logins that reference this token
+			try { \App\Models\UserLogin::where('browser_token_hash', $device->token_hash)->update(['ended_at' => now(), 'duration_seconds' => null]); } catch (\Throwable $_) {}
+			return redirect()->back()->with('success','Dispositivo revocado');
+		})->name('user.devices.revoke');
 	Route::get('/professionalarea', function () {
 		return view('professionalArea');
 	})->middleware(['perm:professionalarea'])->name('professionalarea');
@@ -85,6 +104,8 @@ Route::middleware(['auth'])->group(function(){
 		Route::post('/calendar/events/{appointment}/accept', [\App\Http\Controllers\AppointmentController::class, 'accept'])->name('appointments.accept');
 		Route::post('/calendar/events/{appointment}/reject', [\App\Http\Controllers\AppointmentController::class, 'reject'])->name('appointments.reject');
 	});
+
+});
 
 	// Professionals search - require authentication and permission
 	Route::middleware(['perm:userarea'])->group(function(){
@@ -317,6 +338,91 @@ Route::middleware('auth')->group(function(){
 		try {
 			$user->last_seen_at = now();
 			$user->saveQuietly();
+
+			// Reopen a user_logins row that was closed very recently for this same
+			// session id. This handles page reloads (F5) where the client
+			// previously sent a sendBeacon() on unload and the server closed the
+			// session. If the user reloads, we want to treat it as the same
+			// session rather than two separate sessions. The grace window is
+			// configurable via SESSION_REOPEN_GRACE_SECONDS (default 30s).
+			try {
+				if (\Illuminate\Support\Facades\Schema::hasTable('user_logins')) {
+					$sid = $request->getSession()->getId();
+					// Try to find an open row by session_id first
+					$open = \Illuminate\Support\Facades\DB::table('user_logins')->where('session_id', $sid)->whereNull('ended_at')->orderBy('id','desc')->first();
+					if ($open) {
+						// nothing to do - session already open
+					} else {
+						// No open row for this session: prefer to reopen by recent ended_at
+						$ul = \Illuminate\Support\Facades\DB::table('user_logins')->where('session_id', $sid)->orderBy('id','desc')->first();
+						if ($ul && $ul->ended_at) {
+							$grace = (int) env('SESSION_REOPEN_GRACE_SECONDS', 30);
+							$endedTs = $ul->ended_at ? strtotime((string) $ul->ended_at) : null;
+							if ($endedTs !== null && ($endedTs >= (time() - $grace))) {
+								// reopen recent
+								\Illuminate\Support\Facades\DB::table('user_logins')->where('id', $ul->id)->update(['ended_at' => null, 'duration_seconds' => null]);
+								try { \Illuminate\Support\Facades\Log::info('user_login.reopened_by_heartbeat', ['user_login_id' => $ul->id, 'session_id' => $sid, 'user_id' => $user->id ?? null]); } catch (\Throwable $_) {}
+							}
+						}
+						// If still nothing open, try reopen by browser token hash (cookie)
+						$cookieName = env('BROWSER_TOKEN_COOKIE_NAME', 'psg_browser_token');
+						$token = $request->cookie($cookieName);
+						if (!empty($token)) {
+							$hash = hash_hmac('sha256', $token, config('app.key'));
+							try {
+								// find most recent row for this user with matching token hash
+								$found = \Illuminate\Support\Facades\DB::table('user_logins')
+									->where('user_id', $user->id)
+									->where('browser_token_hash', $hash)
+									->orderBy('id','desc')
+									->first();
+								if ($found) {
+									// ensure the device record isn't revoked
+									$dev = null;
+									try { $dev = \App\Models\UserDevice::where('token_hash', $hash)->where('user_id', $user->id)->first(); } catch (\Throwable $_) { $dev = null; }
+									if ($dev && $dev->revoked_at) {
+										try { \Illuminate\Support\Facades\Log::warning('user_login.reopen_blocked_revoked_device', ['device_id' => $dev->id, 'user_id' => $user->id]); } catch (\Throwable $_) {}
+										$found = null;
+									}
+									// Mitigation: only reopen when the request's User-Agent matches
+									// the stored one, unless the environment disables this strict check.
+									$strictUa = filter_var(env('BROWSER_TOKEN_STRICT_UA', true), FILTER_VALIDATE_BOOLEAN);
+									$strictIp = filter_var(env('BROWSER_TOKEN_STRICT_IP', true), FILTER_VALIDATE_BOOLEAN);
+									$reqUa = $request->userAgent() ?? '';
+									$storedUa = $found->user_agent ?? '';
+									$uaMatches = $storedUa !== '' && $reqUa === $storedUa;
+									$reqIp = $request->ip() ?? '';
+									$storedIp = $found->ip_address ?? '';
+									$ipMatches = $storedIp !== '' && $reqIp === $storedIp;
+									$allowUa = !$strictUa || $uaMatches;
+									$allowIp = !$strictIp || $ipMatches;
+									if ($allowUa && $allowIp) {
+										// reopen and update session_id
+										\Illuminate\Support\Facades\DB::table('user_logins')->where('id', $found->id)->update(['ended_at' => null, 'duration_seconds' => null, 'session_id' => $sid]);
+										try { \Illuminate\Support\Facades\Log::info('user_login.reopened_by_token', ['user_login_id' => $found->id, 'session_id' => $sid, 'user_id' => $user->id ?? null]); } catch (\Throwable $_) {}
+										$open = true;
+										// update device last seen
+										try { \App\Models\UserDevice::where('token_hash', $hash)->where('user_id', $user->id)->update(['last_seen_at' => now(), 'ip_address' => $reqIp, 'user_agent' => $reqUa]); } catch (\Throwable $_) {}
+									} else {
+										// Suspicious: token matched but UA/IP policy failed. Log and notify.
+										try { \Illuminate\Support\Facades\Log::warning('user_login.token_reuse_suspicious', ['found_id' => $found->id, 'session_id' => $sid, 'user_id' => $user->id ?? null, 'req_ua' => substr($reqUa,0,200), 'stored_ua' => substr($storedUa,0,200), 'req_ip' => $reqIp, 'stored_ip' => $storedIp]); } catch (\Throwable $_) {}
+										try { $u = auth()->user(); if ($u) $u->notify(new \App\Notifications\DeviceSuspiciousAttempt($reqIp, $reqUa)); } catch (\Throwable $_) {}
+									}
+								}
+							} catch (\Throwable $_) { /* ignore */ }
+						}
+						// If still no open row, create one and persist the token hash if present
+						if (empty($open)) {
+							try {
+								$ip = $request->ip();
+								$ua = $request->userAgent();
+								$newId = \App\Models\UserLogin::create(['user_id' => $user->id, 'session_id' => $sid, 'ip_address' => $ip, 'user_agent' => $ua, 'started_at' => now(), 'browser_token_hash' => isset($hash) ? $hash : null])->id;
+								try { \Illuminate\Support\Facades\Log::info('user_login.created_by_heartbeat', ['user_login_id' => $newId, 'session_id' => $sid, 'user_id' => $user->id ?? null]); } catch (\Throwable $_) {}
+							} catch (\Throwable $_) { /* ignore create failures */ }
+						}
+					}
+				}
+			} catch (\Throwable $_) { /* ignore reopen failures */ }
 		} catch (\Throwable$e) { /* noop */ }
 		return response()->json(['ok'=>true,'ts'=>now()->toDateTimeString()]);
 	})->name('profile.heartbeat');
