@@ -90,7 +90,7 @@ export function modalNotification(
 	);
 
 	// Cerrar con botón
-	$el.on('click', '.btn-close', function (e) {
+	$el.off('click').on('click', '.btn-close', function (e) {
 		e.stopPropagation();
 		$el.remove();
 		updateNotificationPositions();
@@ -99,7 +99,7 @@ export function modalNotification(
 	// Click para ver detalles (solo si corresponde)
 	if (variant === 'danger' && showDetails) {
 		$el.css('cursor', 'pointer');
-		$el.on('click', function (e) {
+		$el.off('click').on('click', function (e) {
 			if ($(e.target).is('.btn-close')) return;
 			showErrorDetailModal(detailConfig);
 		});

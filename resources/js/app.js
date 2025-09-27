@@ -94,6 +94,7 @@ document.addEventListener('DOMContentLoaded', () => {
 	initPage();
 	// Start PJAX after initial page scripts loaded
 	try { enablePJAX(); } catch (e) { /* if PJAX not supported ignore */ }
+  try { updateHeaderCTA(); } catch(_) {}
 });
 
 // Attempt to notify server when the page is unloaded so we can mark session end.
@@ -298,6 +299,9 @@ function enablePJAX() {
 			// Update left-menu back button visibility after init
 			try { updateLeftmenuBackButton(); } catch (e) {}
 
+			// Update header CTA visibility
+			try { updateHeaderCTA(); } catch (e) {}
+
 			// Recalculate active left-menu link based on current location
 			try { updateLeftmenuActive(); } catch (e) {}
 			// Recalculate active left-menu link after PJAX swap
@@ -372,4 +376,43 @@ function updateLeftmenuActive(){
 		links.forEach(a=>a.classList.remove('active'));
 		if(best) best.classList.add('active');
 	}catch(_){/* ignore */}
+}
+
+// Keep the header "Iniciar sesión" CTA in sync when PJAX swaps or history changes.
+function updateHeaderCTA() {
+	try {
+			let cta = document.querySelector(".site-header .btn-cta[href='/welcome']");
+			const path = (location.pathname || '/').replace(/\/$/, '');
+			// If CTA doesn't exist in the header (e.g., server hid it for welcome page and PJAX didn't replace header), recreate it
+			if (!cta) {
+				// don't create CTA for authenticated users or when on welcome page
+				if (window.__isAuth) return;
+				if (path === '/welcome' || path.startsWith('/welcome/')) return;
+				try {
+					const nav = document.querySelector('.site-header ul.nav.nav-pills');
+					if (!nav) return;
+					const li = document.createElement('li'); li.className = 'nav-item ms-2';
+					const a = document.createElement('a');
+					// Match the server-rendered structure so styles and ARIA behave the same
+					a.className = 'nav-link btn-cta';
+					a.setAttribute('role', 'button');
+					a.setAttribute('href', '/welcome');
+					a.textContent = 'Iniciar sesión';
+					li.appendChild(a);
+					nav.appendChild(li);
+					cta = a;
+					// Re-initialize quickLogin handlers if available so the new CTA is bound
+					try { if (window.quickLoginPartial && typeof window.quickLoginPartial.init === 'function') window.quickLoginPartial.init(); } catch (_) {}
+				} catch (_) { return; }
+			}
+		// If user is authenticated, do not show the CTA
+		if (window.__isAuth) { cta.style.display = 'none'; return; }
+			// Hide CTA when on the welcome page or any welcome/* route
+			if (path === '/welcome' || path.startsWith('/welcome/')) {
+			cta.style.display = 'none';
+		} else {
+			// restore default display (let CSS decide)
+			cta.style.display = '';
+		}
+	} catch (_) {}
 }

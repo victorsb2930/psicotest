@@ -1,5 +1,5 @@
 @extends('layout')
-@section('title', 'Login')
+@section('title', 'PiscoGuía: Inicia sesión o Registrate')
 @section('page', 'login-register')
 @section('content')
 @once

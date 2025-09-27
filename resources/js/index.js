@@ -5,7 +5,7 @@ let waitInterval = null;
 function isDesktop() { return window.matchMedia('(min-width: 768px)').matches; }
 
 function handleCtaClick(e) {
-	if (isDesktop() && window.modalConfirm) {
+	if (isDesktop() && modalConfirm) {
 		e.preventDefault();
 		const bodyHtml = {
 			title: 'Iniciar sesión',
@@ -59,7 +59,7 @@ function handleCtaClick(e) {
 			},
 			closeClick: false
 		};
-		window.modalConfirm(bodyHtml, 'normal', { centered: true, scrollable: false, size: ''});
+		modalConfirm(bodyHtml, 'normal', { centered: true, scrollable: false, size: ''});
 	setTimeout(() => document.getElementById('quick_email_local')?.focus(), 150);
 	}
 }

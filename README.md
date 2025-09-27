@@ -181,6 +181,52 @@ Checklist mínimo para un nuevo colaborador (en un entorno limpio)
 
 Siguiendo ese orden la app debería arrancar en la mayoría de entornos de desarrollo. Si algo falla: copia la salida de la terminal y lo revisamos.
 
+Checklist detallado (PowerShell / Windows — comandos listos para pegar)
+
+Si trabajas en Windows con PowerShell, copia y pega estos comandos en el orden indicado. Ajusta rutas/env si es necesario.
+
+```powershell
+# 1) Clona el repositorio y entra en la carpeta
+git clone <repo-url>
+cd psicoguia
+
+# 2) Copia el .env de ejemplo y edítalo según tu entorno
+cp .env.example .env
+# (abrir .env en tu editor para revisar DB, APP_URL, etc.)
+
+# 3) Levanta contenedores (construye si es necesario)
+docker-compose up -d --build
+
+# 4) Instalar dependencias PHP dentro del contenedor y optimizar autoload
+docker-compose exec app composer install --no-interaction --prefer-dist --optimize-autoloader
+docker-compose exec app composer dump-autoload -o
+
+# 5) Generar iconos y compilar assets (localmente o dentro del contenedor)
+npm install
+npm run generate-icons
+npm run dev
+
+# 6) Generar clave de la aplicación (si no existe)
+docker-compose exec app php artisan key:generate
+
+# 7) Ejecutar migraciones y seeders (esto reinicia la BD en desarrollo)
+docker-compose exec app php artisan migrate:fresh --seed
+
+# 8) Limpiar cachés (opcional pero recomendado)
+docker-compose exec app php artisan config:clear
+docker-compose exec app php artisan cache:clear
+docker-compose exec app php artisan view:clear
+
+# 9) Ajustar permisos si hay errores de escritura (Linux en contenedor)
+docker-compose exec app chown -R www-data:www-data storage bootstrap/cache || true
+docker-compose exec app chmod -R ug+rwx storage bootstrap/cache || true
+
+# 10) Iniciar servidor de desarrollo (opcional, si no usas el dev server de Docker)
+# (por defecto la app estará accesible en la URL configurada en APP_URL)
+```
+
+Si sigues estos pasos en un entorno limpio, la aplicación debería arrancar. Si algo falla, pega aquí la salida de la terminal y lo reviso.
+
 Preguntas frecuentes
 
 - ¿Debo ejecutar `composer install` en mi host o dentro del contenedor? R: Lo más consistente es hacerlo dentro del contenedor con `docker-compose exec app composer install`.
