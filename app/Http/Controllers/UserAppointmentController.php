@@ -41,10 +41,11 @@ class UserAppointmentController extends Controller
         $user = Auth::user();
         $data = $request->validate([
             'professional_id' => ['required','integer'],
-            'title' => ['nullable','string','max:255'],
+            'appointment_type' => ['required','string','max:255'],
+            'title' => ['required','string','max:255'],
             'start' => ['required','date'],
-            'end' => ['nullable','date','after:start'],
-            'notes' => ['nullable','string']
+            'end' => ['required','date','after:start'],
+            'notes' => ['required','string']
         ]);
         $start = Carbon::parse($data['start'])->setTimezone('UTC');
         $end = isset($data['end']) ? Carbon::parse($data['end'])->setTimezone('UTC') : null;
@@ -57,10 +58,31 @@ class UserAppointmentController extends Controller
             'end' => $end?->toDateTimeString() ?? null,
             'all_day' => false,
             'notes' => $data['notes'] ?? null,
+            'appointment_type' => $data['appointment_type'] ?? null,
             'status' => 'pending'
         ]);
 
-        try { $appt->professional->notify(new \App\Mail\ContactMessage($appt)); } catch (\Throwable $e) {}
+        // Notify the professional using the AppointmentCreated notification
+        try {
+            $appt->professional->notify(new \App\Notifications\AppointmentCreated($appt));
+        } catch (\Throwable $e) {
+            \Log::error('Failed to notify professional about new appointment', ['err' => $e->getMessage(), 'appointment_id' => $appt->id]);
+            // Fallback: if professional has an email, try to send a simple mailable
+            try {
+                if (!empty($appt->professional?->email)) {
+                    \Illuminate\Support\Facades\Mail::to($appt->professional->email)->send(new \App\Mail\ContactMessage([
+                        'subject' => 'Nueva cita recibida',
+                        'email' => config('mail.from.address'),
+                        'name' => $appt->professional->name,
+                        'message' => 'Has recibido una nueva solicitud de cita.',
+                        'appointment' => $appt->toArray(),
+                    ]));
+                }
+            } catch (\Throwable $_) {
+                // swallow secondary failures but log
+                \Log::error('Fallback mail send failed for appointment notification', ['appointment_id' => $appt->id]);
+            }
+        }
 
         return response()->json(['ok' => true, 'appointment' => $appt]);
     }

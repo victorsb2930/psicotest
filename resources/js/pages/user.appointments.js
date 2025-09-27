@@ -53,14 +53,27 @@ export function init() {
             if (info.event.extendedProps && info.event.extendedProps.status) {
                 info.el.querySelector('.fc-event-title')?.appendChild(formatStatusBadge(info.event.extendedProps.status));
             }
+            // apply color to event element based on status
+            try {
+                const status = (info.event.extendedProps && info.event.extendedProps.status) ? String(info.event.extendedProps.status).toLowerCase() : 'pending';
+                const colors = { pending: '#0d6efd', requested: '#0d6efd', accepted: '#198754', rejected: '#dc3545' };
+                const color = colors[status] || '#6c757d';
+                if (info.el) {
+                    info.el.style.backgroundColor = color;
+                    info.el.style.borderColor = color;
+                    info.el.style.color = '#ffffff';
+                }
+            } catch (e) { /* noop */ }
         },
         eventClick: function(info) {
             // show modal with details and accept/reject if patient
             const ev = info.event;
             const start = ev.start ? ev.start.toLocaleString() : '';
             const end = ev.end ? ev.end.toLocaleString() : '';
+            const status = ev.extendedProps?.status || 'unknown';
+            const statusBadge = `<span class="badge ms-2 bg-secondary">${status}</span>`;
             const body = `
-                <div><strong>Título:</strong> ${ev.title || ''}</div>
+                <div><strong>Título:</strong> ${ev.title || ''} ${statusBadge}</div>
                 <div class="mt-2"><strong>Inicio:</strong> ${start}</div>
                 <div class="mt-1"><strong>Fin:</strong> ${end}</div>
                 <div class="mt-2"><strong>Notas:</strong><div class="small mt-1">${ev.extendedProps.notes || ''}</div></div>
@@ -68,17 +81,36 @@ export function init() {
             const acceptUrl = acceptTpl?.replace('APPOINTMENT_ID', ev.id);
             const rejectUrl = rejectTpl?.replace('APPOINTMENT_ID', ev.id);
             const buttons = [];
-            if (acceptUrl) buttons.push({ label: 'Aceptar', cls: 'btn-success', action: () => { axios.post(acceptUrl).then(()=>{ window.modalNotification?.('Aceptada','Has aceptado la cita',{template:'success'}); calendar.refetchEvents(); }).catch(()=>{ window.modalNotification?.('Error','No se pudo aceptar la cita',{template:'danger'}); }); } });
-            if (rejectUrl) buttons.push({ label: 'Rechazar', cls: 'btn-danger', action: () => { axios.post(rejectUrl).then(()=>{ window.modalNotification?.('Rechazada','Has rechazado la cita',{template:'info'}); calendar.refetchEvents(); }).catch(()=>{ window.modalNotification?.('Error','No se pudo rechazar la cita',{template:'danger'}); }); } });
+            // Only allow actions when appointment is still pending
+            if (status === 'pending') {
+                if (acceptUrl) buttons.push({ label: 'Aceptar', cls: 'btn-success', action: () => { axios.post(acceptUrl).then(()=>{ window.modalNotification?.('Aceptada','Has aceptado la cita',{template:'success'}); calendar.refetchEvents(); }).catch(()=>{ window.modalNotification?.('Error','No se pudo aceptar la cita',{template:'danger'}); }); } });
+                if (rejectUrl) buttons.push({ label: 'Rechazar', cls: 'btn-danger', action: () => {
+                        const bodyReason = `<div class="mb-2"><label>Motivo del rechazo</label><textarea id="rejectReasonUser" class="form-control" rows="3" placeholder="Opcional, explica por qué se rechaza"></textarea></div>`;
+                        if (typeof window.modalConfirm === 'function') {
+                            window.modalConfirm({ title: 'Confirmar rechazo', body: bodyReason, closeClick: false, buttons: [
+                                { text: 'Cancelar', className: 'btn-outline-secondary', onClick: ()=>{}, closeOnClick: true },
+                                { text: 'Confirmar rechazo', className: 'btn-danger', onClick: ()=>{
+                                    const reason = document.getElementById('rejectReasonUser')?.value || null;
+                                    axios.post(rejectUrl, { reason }).then(()=>{ window.modalNotification?.('Rechazada','Has rechazado la cita',{template:'info'}); calendar.refetchEvents(); closeAllModals(); }).catch(()=>{ window.modalNotification?.('Error','No se pudo rechazar la cita',{template:'danger'}); });
+                                }, closeOnClick: false }
+                            ] });
+                        } else {
+                            const reason = prompt('Motivo del rechazo (opcional)') || null;
+                            axios.post(rejectUrl, { reason }).then(()=>{ window.modalNotification?.('Rechazada','Has rechazado la cita',{template:'info'}); calendar.refetchEvents(); }).catch(()=>{ window.modalNotification?.('Error','No se pudo rechazar la cita',{template:'danger'}); });
+                        }
+                    } });
+            }
             // use modalNotification helper to show a modal-like dialog (we have modalConfirm util elsewhere but keep simple)
             const html = `<div>${body}</div>`;
             // Create a lightweight modal using bootstrap's modalConfirm utility if exists
             if (typeof window.modalConfirm === 'function') {
+                // If there are no action buttons (non-pending), show only a close button
+                const modalButtons = buttons.length ? buttons.map(b=>({ text: b.label, className: b.cls, onClick: b.action })) : [{ text: 'Cerrar', className: 'btn-secondary', onClick: ()=>{}, closeOnClick: true }];
                 window.modalConfirm({
                     title: 'Detalle de cita',
                     body: html,
                     closeClick: false,
-                    buttons: buttons.map(b=>({ text: b.label, className: b.cls, onClick: b.action }))
+                    buttons: modalButtons
                 });
             } else {
                 // fallback to notification and prompt

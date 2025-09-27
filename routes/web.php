@@ -90,6 +90,8 @@ Route::middleware(['auth'])->group(function(){
 	Route::middleware(['perm:userarea'])->group(function(){
 		Route::get('/professionals', [\App\Http\Controllers\ProfessionalSearchController::class, 'index'])->name('professionals.index');
 		Route::get('/professionals/search', [\App\Http\Controllers\ProfessionalSearchController::class, 'search'])->name('professionals.search');
+        // Show public profile page for a professional
+        Route::get('/professional/profile/{id}', [\App\Http\Controllers\ProfessionalSearchController::class, 'show'])->name('professionals.show');
 	});
 
 	Route::get('/userarea', function () {
@@ -220,6 +222,7 @@ Route::middleware(['auth'])->group(function(){
 
 Route::post('/login', [LoginRegisterController::class, 'login'])->name('login');
 Route::post('/register', [LoginRegisterController::class, 'register'])->name('register');
+Route::get('/auth/public-key', [LoginRegisterController::class, 'publicKey'])->name('auth.publickey');
 // Safe GET fallbacks to avoid 405 on GET /login or GET /register
 Route::get('/login', fn () => redirect('/welcome'));
 Route::get('/register', fn () => redirect('/welcome'));
@@ -327,3 +330,36 @@ Route::middleware('auth')->group(function(){
 	Route::post('/appointments/{appointment}/accept', [\App\Http\Controllers\AppointmentController::class, 'accept'])->name('appointments.patient.accept');
 	Route::post('/appointments/{appointment}/reject', [\App\Http\Controllers\AppointmentController::class, 'reject'])->name('appointments.patient.reject');
 });
+
+	// Simple JSON endpoints for AJAX notifications polling and marking
+	Route::get('/api/notifications/unread', function(){
+		$user = auth()->user();
+		if (!\Illuminate\Support\Facades\Schema::hasTable('notifications')) {
+			return response()->json(['count' => 0, 'items' => []]);
+		}
+		$items = $user->unreadNotifications()->latest()->limit(10)->get()->map(function($n){
+			$data = is_array($n->data) ? $n->data : (array)$n->data;
+			return [
+				'id' => $n->id,
+				'data' => $data,
+				'time' => $n->created_at->diffForHumans(),
+			];
+		});
+		return response()->json(['count' => $user->unreadNotifications()->count(), 'items' => $items]);
+	});
+
+	Route::post('/api/notifications/mark-read', function(\Illuminate\Http\Request $r){
+		$user = auth()->user();
+		$id = $r->input('id');
+		if ($id) {
+			$notif = $user->unreadNotifications()->where('id', $id)->first();
+			if ($notif) { $notif->markAsRead(); }
+		}
+		return response()->json(['ok' => true]);
+	});
+
+	Route::post('/api/notifications/mark-read-all', function(){
+		$user = auth()->user();
+		$user->unreadNotifications->markAsRead();
+		return response()->json(['ok' => true]);
+	});

@@ -33,6 +33,8 @@ class ProfessionalCalendarController extends Controller
                     'end' => $a->end?->setTimezone('UTC')->toIso8601String(),
                     'allDay' => (bool) $a->all_day,
                     'status' => $a->status,
+                    // include notes so frontend can show description in modals
+                    'notes' => $a->notes ?? null,
                 ];
             });
         return response()->json($events);

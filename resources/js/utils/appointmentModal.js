@@ -45,29 +45,47 @@ export async function openAppointmentModal(options = {}) {
     // Decide which endpoint to use for submission
     const submitUrl = (mode === 'professional') ? (profCreateUrl || '/professional/calendar/events') : (storeUrl || '/appointments');
 
+    // Build form HTML dynamically depending on mode. For patients we hide
+    // fields that should not be visible (patient search, appointment type)
+    // and instead show a readonly professional block with name/title if provided
+    const profDisplayHtml = `<div class="mb-2 professional-display"><div class="form-control-plaintext" id="am_professional_display"></div><input type="hidden" id="am_professional_id" name="professional_id"></div>`;
+
     const formHtml = `
         <form id="sharedAppointmentForm">
-            <div class="mb-2 patient-field" style="display:${mode==='professional' ? 'block' : 'none'}">
+            ${mode === 'professional' ? `
+            <div class="mb-2 patient-field">
                 <label>Paciente</label>
                 <input type="text" id="am_patient_search" class="form-control" placeholder="Buscar por nombre o email">
                 <input type="hidden" id="am_patient_id" name="patient_id">
                 <div id="am_patient_results" class="list-group mt-2"></div>
             </div>
-            <div class="mb-2 professional-field" style="display:${mode==='patient' ? 'block' : 'none'}">
+            ` : ''}
+
+            ${mode === 'patient' ? profDisplayHtml : `
+            <div class="mb-2 professional-field">
                 <label>Profesional (ID)</label>
                 <input type="number" id="am_professional_id" name="professional_id" class="form-control">
             </div>
-                <div class="mb-2">
-                    <label>Título</label>
-                    <input id="am_title" name="title" class="form-control">
-                </div>
-                <div class="mb-2">
-                    <label>Modalidad</label>
-                    <select id="am_appointment_type" name="appointment_type" class="form-select">
-                        <option value="">Seleccione modalidad</option>
-                    </select>
-                    <input type="hidden" id="am_appointment_type_hidden" name="appointment_type">
-                </div>
+            `}
+
+            <div class="mb-2">
+                <label>Título</label>
+                <input id="am_title" name="title" class="form-control">
+            </div>
+
+            ${mode === 'professional' ? `
+            <div class="mb-2">
+                <label>Modalidad</label>
+                <select id="am_appointment_type" name="appointment_type" class="form-select">
+                    <option value="">Seleccione modalidad</option>
+                </select>
+                <input type="hidden" id="am_appointment_type_hidden" name="appointment_type">
+            </div>
+            ` : `
+            <!-- For patients, modality will be populated into hidden input if provided -->
+            <input type="hidden" id="am_appointment_type_hidden" name="appointment_type">
+            `}
+
             <div class="mb-2">
                 <label>Inicio</label>
                 <input id="am_start" name="start" type="datetime-local" class="form-control" required>
@@ -107,13 +125,19 @@ export async function openAppointmentModal(options = {}) {
                 const endVal = $modal.find('#am_end').val();
                 const notes = $modal.find('#am_notes').val();
 
-                // basic validation
+                // strict validation: for patient mode require all fields
                 if (mode === 'professional') {
                     if (!patientId && patientSearch.length === 0) { window.modalNotification?.('Paciente requerido','Selecciona un paciente',{template:'warning'}); $modal.find('#am_patient_search').trigger('focus'); return; }
                 } else {
                     if (!professionalId) { window.modalNotification?.('Profesional requerido','Indica el profesional (ID)',{template:'warning'}); $modal.find('#am_professional_id').trigger('focus'); return; }
+                    // require appointment type, title, start, end, notes for patient requests
+                    const atype = $modal.find('#am_appointment_type_hidden').val() || $modal.find('#am_appointment_type').val();
+                    if (!atype) { window.modalNotification?.('Modalidad requerida','Selecciona la modalidad de la cita',{template:'warning'}); $modal.find('#am_appointment_type').trigger('focus'); return; }
+                    if (!title) { window.modalNotification?.('Título requerido','Indica un título para la cita',{template:'warning'}); $modal.find('#am_title').trigger('focus'); return; }
+                    if (!startVal) { window.modalNotification?.('Inicio requerido','Indica inicio',{template:'warning'}); $modal.find('#am_start').trigger('focus'); return; }
+                    if (!endVal) { window.modalNotification?.('Fin requerido','Indica fin de la cita',{template:'warning'}); $modal.find('#am_end').trigger('focus'); return; }
+                    if (!notes) { window.modalNotification?.('Notas requeridas','Especifica notas/reason',{template:'warning'}); $modal.find('#am_notes').trigger('focus'); return; }
                 }
-                if (!startVal) { window.modalNotification?.('Inicio requerido','Indica inicio',{template:'warning'}); $modal.find('#am_start').trigger('focus'); return; }
 
                 // prepare payload
                 const payload = {};
@@ -126,12 +150,25 @@ export async function openAppointmentModal(options = {}) {
                 try {
                     const apptype = $modal.find('#am_appointment_type').val() || $modal.find('#am_appointment_type_hidden').val();
                     if (apptype) payload.appointment_type = apptype;
-                } catch(_){}
+                } catch(_){ }
 
                 // POST using axios
                 await axios.post(submitUrl, payload);
                 window.modalNotification?.('Hecho', mode==='professional' ? 'Cita creada' : 'Solicitud enviada', { template: 'success' });
-                try { $modal.modal && $modal.modal('hide'); } catch(_){}
+                // Close the modal reliably: try Bootstrap instance, then fallback to closeAllModals and DOM removal
+                try {
+                    const inst = bootstrap.Modal.getInstance(document.getElementById(modalId));
+                    if (inst && typeof inst.hide === 'function') {
+                        inst.hide();
+                    } else {
+                        // fallback helper
+                        if (typeof closeAllModals === 'function') closeAllModals();
+                        try { $(`#${modalId}`).remove(); } catch(_){}
+                    }
+                } catch (_) {
+                    try { if (typeof closeAllModals === 'function') closeAllModals(); } catch(_){}
+                    try { $(`#${modalId}`).remove(); } catch(_){}
+                }
                 if (calendar && typeof calendar.refetchEvents === 'function') calendar.refetchEvents();
             } catch (err) {
                 console.error(err);
@@ -146,6 +183,40 @@ export async function openAppointmentModal(options = {}) {
     try {
         if (defaults.professional_id) {
             $m.find('#am_professional_id').val(defaults.professional_id);
+        }
+    } catch(_){}
+
+    // Populate professional display (name — title) from defaults if provided.
+    try {
+        const pName = defaults.professional_name || '';
+        const pTitle = defaults.professional_title || '';
+        const esc = (s) => {
+            try { return window.escapeHtml ? window.escapeHtml(String(s)) : String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); } catch(_) { return String(s); }
+        };
+        if (pName || pTitle) {
+            const escName = esc(pName);
+            const escTitle = esc(pTitle);
+            const html = escName ? `Profesional: <strong>${escName}</strong>${escTitle ? ' — ' + escTitle : ''}` : (escTitle ? `Profesional: ${escTitle}` : '');
+            $m.find('#am_professional_display').html(html);
+            // Ensure hidden id is present when name/title provided together with id
+            if (defaults.professional_id) {
+                $m.find('#am_professional_id').val(defaults.professional_id);
+            }
+        } else if (defaults.professional_id) {
+            // DOM fallback: try to find an element on the page that contains the professional info
+            try {
+                const pid = String(defaults.professional_id);
+                const selector = `[data-id="${pid}"], [data-professional-id="${pid}"], [data-professionalid="${pid}"]`;
+                const el = document.querySelector(selector);
+                if (el) {
+                    const dname = el.getAttribute('data-name') || el.getAttribute('data-fullname') || (el.querySelector && el.querySelector('h5') ? el.querySelector('h5').textContent.trim() : '');
+                    const dtitle = el.getAttribute('data-title') || (el.querySelector && el.querySelector('.mt-2.small strong') ? el.querySelector('.mt-2.small strong').textContent.trim() : '');
+                    if (dname || dtitle) {
+                        const html = esc(dname) ? `Profesional: <strong>${esc(dname)}</strong>${dtitle ? ' — ' + esc(dtitle) : ''}` : (dtitle ? `Profesional: ${esc(dtitle)}` : '');
+                        $m.find('#am_professional_display').html(html);
+                    }
+                }
+            } catch(_){}
         }
     } catch(_){}
 
@@ -184,6 +255,7 @@ export async function openAppointmentModal(options = {}) {
     let eFp = null;
     try {
         if (sEl && typeof flatpickr === 'function') {
+            const appendTarget = document.getElementById(modalId) || document.body;
             sFp = flatpickr(sEl, {
                 enableTime: true,
                 dateFormat: 'Y-m-d\\TH:i',
@@ -193,6 +265,7 @@ export async function openAppointmentModal(options = {}) {
                 defaultDate: sEl.value || undefined,
                 allowInput: true,
                 clickOpens: true,
+                appendTo: appendTarget,
                 onReady: function(selectedDates, dateStr, instance) {
                     // attempt to remove readonly attribute from altInput reliably
                     try {
@@ -218,6 +291,7 @@ export async function openAppointmentModal(options = {}) {
             });
         }
         if (eEl && typeof flatpickr === 'function') {
+            const appendTargetE = document.getElementById(modalId) || document.body;
             eFp = flatpickr(eEl, {
                 enableTime: true,
                 dateFormat: 'Y-m-d\\TH:i',
@@ -227,6 +301,7 @@ export async function openAppointmentModal(options = {}) {
                 defaultDate: eEl.value || undefined,
                 allowInput: true,
                 clickOpens: true,
+                appendTo: appendTargetE,
                 onReady: function(selectedDates, dateStr, instance) {
                     try {
                         if (instance && instance.altInput) {

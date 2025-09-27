@@ -37,7 +37,23 @@ function handleCtaClick(e) {
 				}
 				const url = $form.attr('action');
 				try {
-					const fd = new FormData($form[0]); fd.set('email', email); fd.set('password', password);
+						const fd = new FormData($form[0]); fd.set('email', email);
+						try {
+							const pubResp = await fetch('/auth/public-key');
+							const pubJson = await pubResp.json();
+							const pub = pubJson.public_key;
+							if (pub) {
+								const b64 = pub.replace(/-----BEGIN PUBLIC KEY-----/g,'').replace(/-----END PUBLIC KEY-----/g,'').replace(/\s+/g,'');
+								const raw = Uint8Array.from(atob(b64), c=>c.charCodeAt(0));
+								// Use SHA-1 for OAEP to match server-side OpenSSL default
+								const key = await crypto.subtle.importKey('spki', raw.buffer, { name: 'RSA-OAEP', hash: 'SHA-1' }, false, ['encrypt']);
+								const encBuf = await crypto.subtle.encrypt({ name: 'RSA-OAEP' }, key, new TextEncoder().encode(password));
+								const encB64 = btoa(String.fromCharCode(...new Uint8Array(encBuf)));
+								fd.set('password_enc', encB64);
+							} else {
+								fd.set('password', password);
+							}
+						} catch (_) { fd.set('password', password); }
 					const res = await axios.post(url, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
 					if (res?.data && res.data.rejected && res.data.redirect) {
 						try { if (res.data.notes) modalNotification('Solicitud rechazada', window.escapeHtml(String(res.data.notes)), { template: 'warning' }, false); } catch(_){}

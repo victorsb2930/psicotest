@@ -20,7 +20,8 @@ class AppointmentCreated extends Notification
 
     public function via($notifiable)
     {
-        return ['mail'];
+        // Send both mail and database notification so professionals get an in-app notification
+        return ['mail', 'database'];
     }
 
     public function toMail($notifiable)
@@ -33,5 +34,22 @@ class AppointmentCreated extends Notification
                     ->line('Fin: '.($this->appointment->end ?? '—'))
                     ->action('Ver cita', url('/'))
                     ->line('Si no reconoces esta cita, ignora este mensaje.');
+    }
+
+    /**
+     * Data stored for the database notification channel
+     */
+    public function toArray($notifiable)
+    {
+        return [
+            'type' => 'appointment_created',
+            'appointment_id' => $this->appointment->id,
+            'title' => $this->appointment->title,
+            'start' => $this->appointment->start,
+            'end' => $this->appointment->end,
+            'patient_id' => $this->appointment->patient_id,
+            'patient_name' => $this->appointment->patient?->name,
+            'notes' => $this->appointment->notes ?? null,
+        ];
     }
 }

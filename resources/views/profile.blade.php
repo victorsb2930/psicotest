@@ -45,3 +45,34 @@
 </div>
 
 @endsection
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+		// ensure modal exists
+		if (!document.getElementById('profileImagePreviewModal')) {
+				const modalHtml = `
+				<div class="modal fade" id="profileImagePreviewModal" tabindex="-1" aria-hidden="true">
+					<div class="modal-dialog modal-dialog-centered modal-lg">
+						<div class="modal-content">
+							<div class="modal-body text-center p-0">
+								<img id="profileImagePreviewModalImg" src="" style="width:100%; height:auto;" alt="preview">
+							</div>
+						</div>
+					</div>
+				</div>`;
+				document.body.insertAdjacentHTML('beforeend', modalHtml);
+		}
+
+		const avatarWrap = document.getElementById('profile-avatar');
+		const modalImg = document.getElementById('profileImagePreviewModalImg');
+		avatarWrap && avatarWrap.addEventListener('click', function(){
+				const src = document.getElementById('profile-avatar-img')?.src || '';
+				if(!src) return;
+				modalImg.src = src;
+				const modalEl = document.getElementById('profileImagePreviewModal');
+				if (modalEl) new bootstrap.Modal(modalEl).show();
+		});
+});
+</script>
+@endpush

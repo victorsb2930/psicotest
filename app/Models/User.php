@@ -46,19 +46,17 @@ class User extends Authenticatable
 	];
 
 	/**
-	 * Get the attributes that should be cast.
+	/**
+	 * The attributes that should be cast.
 	 *
-	 * @return array<string, string>
+	 * @var array<string, string>
 	 */
-	protected function casts(): array
-	{
-		return [
-			'email_verified_at' => 'datetime',
-			'password' => 'hashed',
-			// cast appointment_types json to array
-			'appointment_types' => 'array',
-		];
-	}
+	protected $casts = [
+		'email_verified_at' => 'datetime',
+		'password' => 'hashed',
+		// cast appointment_types json to array
+		'appointment_types' => 'array',
+	];
 
 	/**
 	 * Return a data URL for the photo blob if present to be used in <img src="...">.
@@ -69,19 +67,37 @@ class User extends Authenticatable
 	public function getProfilePhotoDataUrlAttribute()
 	{
 		$pf = $this->photos()->where('is_profile', true)->first();
-		if (!$pf || $pf->foto === null) return null;
+		if (!$pf) return null;
 		try {
-			$raw = $pf->foto;
-			if (is_resource($raw)) {
-				try { if (ftell($raw) !== false) rewind($raw); } catch (\Throwable$_){}
-				$bytes = @stream_get_contents($raw);
-			} else {
-				$bytes = $raw;
+			// Prefer filesystem path when present
+			if (!empty($pf->path) && \Illuminate\Support\Facades\Storage::disk('local')->exists($pf->path)) {
+				$bytes = \Illuminate\Support\Facades\Storage::disk('local')->get($pf->path);
+				if ($bytes === null || $bytes === false || $bytes === '') return null;
+				$base = base64_encode($bytes);
+				$mime = null;
+				try { $f = new \finfo(FILEINFO_MIME_TYPE); $mime = $f->buffer($bytes); } catch (\Throwable$_) { $mime = null; }
+				if (!$mime) { $info = @getimagesizefromstring($bytes); if ($info && !empty($info['mime'])) $mime = $info['mime']; }
+				if (!$mime) $mime = 'application/octet-stream';
+				return 'data:'.$mime.';base64,' . $base;
 			}
-			if ($bytes === null || $bytes === false || $bytes === '') return null;
-			$base = base64_encode($bytes);
-			// we re-encode uploads to jpg in the controller, but accept any image type; default to jpeg
-			return 'data:image/jpeg;base64,' . $base;
+			// Fallback to blob stored in 'foto'
+			if (isset($pf->foto) && $pf->foto !== null) {
+				$raw = $pf->foto;
+				if (is_resource($raw)) {
+					try { if (ftell($raw) !== false) rewind($raw); } catch (\Throwable$_){}
+					$bytes = @stream_get_contents($raw);
+				} else {
+					$bytes = $raw;
+				}
+				if ($bytes === null || $bytes === false || $bytes === '') return null;
+				$base = base64_encode($bytes);
+				$mime = null;
+				try { $f = new \finfo(FILEINFO_MIME_TYPE); $mime = $f->buffer($bytes); } catch (\Throwable$_) { $mime = null; }
+				if (!$mime) { $info = @getimagesizefromstring($bytes); if ($info && !empty($info['mime'])) $mime = $info['mime']; }
+				if (!$mime) $mime = 'application/octet-stream';
+				return 'data:'.$mime.';base64,' . $base;
+			}
+			return null;
 		} catch (\Throwable$e) {
 			return null;
 		}

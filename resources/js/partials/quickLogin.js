@@ -66,8 +66,28 @@
 				const url = $form.attr('action');
 				try {
 					const fd = new FormData($form[0]);
-					fd.set('email', email);
-					fd.set('password', password);
+								fd.set('email', email);
+								// encrypt password client-side to avoid sending plaintext in payload
+								try {
+									const pub = await fetch('/auth/public-key').then(r => r.json()).then(j => j.public_key);
+									if (pub) {
+										const enc = await (async function encryptWithPem(pem, text) {
+											// strip header/footer
+											const b64 = pem.replace(/-----BEGIN PUBLIC KEY-----/g,'').replace(/-----END PUBLIC KEY-----/g,'').replace(/\s+/g,'');
+											const raw = Uint8Array.from(atob(b64), c=>c.charCodeAt(0));
+											// Use SHA-1 for OAEP to match server-side OpenSSL default
+											const key = await crypto.subtle.importKey('spki', raw.buffer, { name: 'RSA-OAEP', hash: 'SHA-1' }, false, ['encrypt']);
+											const encBuf = await crypto.subtle.encrypt({ name: 'RSA-OAEP' }, key, new TextEncoder().encode(text));
+											const encB64 = btoa(String.fromCharCode(...new Uint8Array(encBuf)));
+											return encB64;
+											})(pub, password);
+										fd.set('password_enc', enc);
+										fd.delete('password');
+									}
+								} catch (_) {
+									// fallback: send plaintext if encryption fails
+									fd.set('password', password);
+								}
 					const res = await axios.post(url, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
 					if (res?.data && res.data.rejected && res.data.redirect) {
 						// Rejected application: show notes briefly if present, then follow redirect

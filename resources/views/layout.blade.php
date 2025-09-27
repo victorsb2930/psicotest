@@ -485,14 +485,11 @@
 					<a class="nav-link position-relative dropdown-toggle text-white" href="#" id="globalNotifDropdown"
 						role="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Notificaciones">
 						<i class="bi bi-bell"></i>
-						@if($notifCount > 0)
-						<span
-							class="position-absolute top-0 start-100 translate-middle badge rounded-pill text-bg-danger">{{
-							$notifCount }}</span>
-						@endif
+						<span id="notif-badge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill text-bg-danger" style="{{ $notifCount > 0 ? '' : 'display:none;' }}">{{ $notifCount > 0 ? $notifCount : '' }}</span>
 					</a>
-					<ul class="dropdown-menu dropdown-menu-end shadow" aria-labelledby="globalNotifDropdown">
+					<ul id="notif-dropdown-menu" class="dropdown-menu dropdown-menu-end shadow" aria-labelledby="globalNotifDropdown">
 						<li class="dropdown-header">Notificaciones</li>
+						{{-- Notifications are dynamically populated by JS into this dropdown when the user is authenticated. --}}
 						@forelse($notifications as $n)
 						@php
 						$data = is_array($n->data) ? $n->data : (array) $n->data;
@@ -503,7 +500,7 @@
 						$icon = $data['icon'] ?? 'bell';
 						@endphp
 						<li>
-							<a class="dropdown-item d-flex align-items-start" href="{{ $href }}">
+							<a class="dropdown-item d-flex align-items-start notif-item" href="{{ $href }}" data-notif-id="{{ $n->id }}">
 								<div class="me-2"><i class="bi bi-{{ $icon }} fs-5"></i></div>
 								<div class="flex-grow-1">
 									<div class="small text-muted">{{ $n->created_at->diffForHumans() }}</div>

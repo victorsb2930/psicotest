@@ -160,7 +160,7 @@ export function modalConfirm(bodyHtml, modalType = 'normal', options = {}) {
 					<div class="ms-auto">${closeBtnHtml}</div>
 				</div>
 				<div class="${bodyCls}" id="modalBody${modalId}">${bodyContent}</div>
-				<div class="px-4 pb-4 d-flex justify-content-end">${footerHtml}</div>
+				${footerHtml ? `<div class="px-4 pb-4 d-flex justify-content-end">${footerHtml}</div>` : ''}
 				</div>
 			</div>
 			</div>`;

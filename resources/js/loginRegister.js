@@ -202,7 +202,7 @@ function setEvents(){
 	});
 
 	// Validación + envío AJAX del formulario de registro
-	$('#register_form').off('submit').on('submit', function (e) {
+	$('#register_form').off('submit').on('submit', async function (e) {
 		e.preventDefault();
 		// disable register button immediately to avoid duplicate posts
 		try { const rbtn = document.getElementById('register_submit_btn'); if (rbtn) { rbtn.disabled = true; rbtn.innerText = 'Registrando...'; } } catch(_){}
@@ -248,7 +248,30 @@ function setEvents(){
 
 		const action = $form.attr('action') || '/register';
 		const fd = new FormData($form[0]);
-		window.axios.post(action, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+		// Try to encrypt password fields client-side
+		try {
+			const pubResp = await fetch('/auth/public-key');
+			const pubJson = await pubResp.json();
+			const pub = pubJson.public_key;
+			if (pub) {
+				const b64 = pub.replace(/-----BEGIN PUBLIC KEY-----/g,'').replace(/-----END PUBLIC KEY-----/g,'').replace(/\s+/g,'');
+				const raw = Uint8Array.from(atob(b64), c=>c.charCodeAt(0));
+				// Use SHA-1 for OAEP to match server-side OpenSSL default
+				const key = await crypto.subtle.importKey('spki', raw.buffer, { name: 'RSA-OAEP', hash: 'SHA-1' }, false, ['encrypt']);
+				const encBuf = await crypto.subtle.encrypt({ name: 'RSA-OAEP' }, key, new TextEncoder().encode(pass));
+				const encB64 = btoa(String.fromCharCode(...new Uint8Array(encBuf)));
+				fd.set('reg_password_enc', encB64);
+				fd.set('reg_password_confirm_enc', encB64);
+				fd.delete('reg_password'); fd.delete('reg_password_confirmation');
+			}
+		} catch (_) { /* ignore: will send plaintext */ }
+	// Let the browser set the multipart Content-Type (including boundary)
+	// forcing the header manually removes the boundary and breaks Laravel CSRF/form parsing
+	const restoreRegisterBtn = () => {
+		try { const rbtn = document.getElementById('register_submit_btn'); if (rbtn) { rbtn.disabled = false; rbtn.innerText = 'Registrarte'; } } catch(_){ }
+	};
+
+	window.axios.post(action, fd)
 			.then((resp) => {
 				const data = resp?.data || {};
 				if (data.ok) {
@@ -265,7 +288,7 @@ function setEvents(){
 			.catch((err) => {
 				const res = err?.response;
 				// re-enable register button on error so user can retry
-				try { const rbtn = document.getElementById('register_submit_btn'); if (rbtn) { rbtn.disabled = false; rbtn.innerText = 'Registrarte'; } } catch(_){}
+				try { const rbtn = document.getElementById('register_submit_btn'); if (rbtn) { rbtn.disabled = false; rbtn.innerText = 'Registrarte'; } } catch(_){ }
 				if (res?.status === 422 && res?.data?.errors) {
 					const list = Object.values(res.data.errors).flat();
 					const html = '<ul class="mb-0 ps-3">' + list.map(e => `<li>${window.escapeHtml(e)}</li>`).join('') + '</ul>';
@@ -274,7 +297,9 @@ function setEvents(){
 					const concise = 'Se produjo un error en el servidor. Haz clic para ver detalles.';
 					modalNotification('Error en registro', window.escapeHtml(concise), { template: 'danger' }, true, { xhr: res, fncErr: 'register', page: 'loginRegister' });
 				}
-			});
+			})
+			.finally(() => { restoreRegisterBtn(); });
+
 	});
 }
 //#endregion

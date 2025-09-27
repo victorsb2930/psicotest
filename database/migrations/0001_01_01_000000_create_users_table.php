@@ -15,7 +15,7 @@ return new class extends Migration {
 			$table->string('email')->unique();
 			// timezone
 			$table->string('timezone')->nullable();
-			// Professional/profile metadata (images are stored in user_photos as BLOB)
+			// Professional/profile metadata (images are stored in user_photos as file paths in 'path')
 			$table->string('specialty')->nullable();
 			$table->json('appointment_types')->nullable();
 			$table->string('location')->nullable();
@@ -49,11 +49,12 @@ return new class extends Migration {
 			$table->integer('last_activity')->index();
 		});
 
-		// user_photos table for profile and gallery images (store binary image data in `foto`)
+		// user_photos table for profile and gallery images (store file path in `path`)
 			Schema::create('user_photos', function (Blueprint $table) {
 				$table->id();
 				$table->unsignedBigInteger('user_id')->index();
-				$table->binary('foto')->nullable();
+				// store the storage path (e.g. user_photos/{user_id}/file.jpg)
+				$table->string('path')->nullable();
 				$table->string('caption')->nullable();
 				$table->boolean('is_profile')->default(false)->index();
 				$table->timestamps();

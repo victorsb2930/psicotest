@@ -24,31 +24,40 @@ class UserPhotoController extends Controller
 
 					return $r === false ? '' : $r;
 				};
-				// ensure foto is a string before base64 encoding
-				$dataUrl = null;
-				try {
-					$raw = $p->foto ?? null;
-					if ($raw !== null) {
-						// If DB driver returns a resource (stream), read it
-						if (is_resource($raw)) {
-							// rewind if possible then read
-							try {
-								if (ftell($raw) !== false) {
-									rewind($raw);
-								}
-							} catch (\Throwable$_) {
-							}
-							$bytes = @stream_get_contents($raw);
-						} else {
-							$bytes = $raw;
-						}
-						if ($bytes !== null && $bytes !== false && $bytes !== '') {
-							$dataUrl = 'data:image/jpeg;base64,'.base64_encode($bytes);
-						}
-					}
-				} catch (\Throwable$e) {
+				// prefer serving file from 'path' if available, otherwise fallback to DB blob older apps
 					$dataUrl = null;
-				}
+					try {
+						if (!empty($p->path) && \Illuminate\Support\Facades\Storage::disk('local')->exists($p->path)) {
+							$bytes = \Illuminate\Support\Facades\Storage::disk('local')->get($p->path);
+							if ($bytes !== null && $bytes !== false && $bytes !== '') {
+								// detect mime
+								$mime = null;
+								try { $f = new \finfo(FILEINFO_MIME_TYPE); $mime = $f->buffer($bytes); } catch (\Throwable$_) { $mime = null; }
+								if (!$mime) { $info = @getimagesizefromstring($bytes); if ($info && !empty($info['mime'])) $mime = $info['mime']; }
+								if (!$mime) $mime = 'application/octet-stream';
+								$dataUrl = 'data:'.$mime.';base64,'.base64_encode($bytes);
+							}
+						} else {
+							$raw = $p->foto ?? null;
+							if ($raw !== null) {
+								if (is_resource($raw)) {
+									try { if (ftell($raw) !== false) rewind($raw); } catch (\Throwable$_) {}
+									$bytes = @stream_get_contents($raw);
+								} else {
+									$bytes = $raw;
+								}
+								if ($bytes !== null && $bytes !== false && $bytes !== '') {
+									$mime = null;
+									try { $f = new \finfo(FILEINFO_MIME_TYPE); $mime = $f->buffer($bytes); } catch (\Throwable$_) { $mime = null; }
+									if (!$mime) { $info = @getimagesizefromstring($bytes); if ($info && !empty($info['mime'])) $mime = $info['mime']; }
+									if (!$mime) $mime = 'application/octet-stream';
+									$dataUrl = 'data:'.$mime.';base64,'.base64_encode($bytes);
+								}
+							}
+						}
+					} catch (\Throwable$e) {
+						$dataUrl = null;
+					}
 
 				return [
 					'id' => $p->id,
@@ -75,68 +84,37 @@ class UserPhotoController extends Controller
 		$file = $request->file('photo');
 		$contents = file_get_contents($file->getRealPath());
 
-		// Use Intervention Image to re-encode uploaded file to JPEG (normalize bytes)
-		$encoded = null;
+		// Prefer storing file on disk under storage/app/user_photos preserving original format
+		$path = null;
 		try {
-			$img = Image::make($contents)->encode('jpg', 85);
-			$encoded = (string) $img;
-		} catch (\Throwable$e) {
-			logger()->warning('Intervention failed to re-encode image, trying GD fallback', ['err' => $e->getMessage(), 'user_id' => $user->id ?? null]);
-			// GD fallback
-			try {
-				$im = @imagecreatefromstring($contents);
-				if ($im !== false) {
-					ob_start();
-					imagejpeg($im, null, 85);
-					$jpeg = ob_get_clean();
-					imagedestroy($im);
-					if ($jpeg !== false && $jpeg !== null) {
-						$encoded = $jpeg;
-					}
+			// try to determine extension from uploaded file or mime
+			$ext = null;
+			try { $ext = strtolower(pathinfo($file->getClientOriginalName(), PATHINFO_EXTENSION)); } catch (\Throwable$_) { $ext = null; }
+			if (!$ext) {
+				try { $f = new \finfo(FILEINFO_MIME_TYPE); $m = $f->buffer($contents); } catch (\Throwable$_) { $m = null; }
+				if (!empty($m)) {
+					$map = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/gif' => 'gif', 'image/webp' => 'webp'];
+					$ext = $map[$m] ?? null;
 				}
-			} catch (\Throwable$_) {
-				$encoded = null;
 			}
+			if (!$ext) $ext = 'bin';
+			$fname = 'user_photos/' . $user->id . '/' . time() . '_' . bin2hex(random_bytes(6)) . '.' . $ext;
+			\Illuminate\Support\Facades\Storage::disk('local')->put($fname, $contents);
+			$path = $fname;
+		} catch (\Throwable $e) {
+			logger()->warning('Failed to write user photo to disk, falling back to DB blob', ['err' => $e->getMessage(), 'user_id' => $user->id ?? null]);
+			$path = null;
 		}
 
-		if ($encoded === null) {
-			logger()->warning('Falling back to original uploaded bytes for user photo (no re-encode available)', ['user_id' => $user->id ?? null]);
-			$encoded = $contents;
-		}
-
-		// Some drivers (Postgres) require sending binary data as a LOB parameter.
-		// Use a direct PDO prepared statement with PDO::PARAM_LOB for pgsql, otherwise use Eloquent.
-		$up = null;
-		try {
-			$driver = DB::getPdo()->getAttribute(PDO::ATTR_DRIVER_NAME);
-		} catch (\Throwable$_) {
-			$driver = null;
-		}
-
-		if ($driver === 'pgsql') {
-			try {
-				$pdo = DB::getPdo();
-				$sql = 'INSERT INTO "user_photos" ("user_id","foto","caption","is_profile","created_at","updated_at") VALUES (:user_id, :foto, :caption, :is_profile, now(), now()) RETURNING id';
-				$stmt = $pdo->prepare($sql);
-				$stmt->bindValue(':user_id', $user->id, PDO::PARAM_INT);
-				// bindValue with PARAM_LOB so pgsql receives a bytea parameter correctly
-				$stmt->bindValue(':foto', $encoded, PDO::PARAM_LOB);
-				$stmt->bindValue(':caption', $request->input('caption'), PDO::PARAM_STR);
-				$stmt->bindValue(':is_profile', false, PDO::PARAM_BOOL);
-				$stmt->execute();
-				$newId = $stmt->fetchColumn();
-				$up = $newId ? UserPhoto::find($newId) : null;
-			} catch (\Throwable$e) {
-				logger()->error('UserPhotoController@store DB LOB insert failed', ['err' => $e->getMessage(), 'user_id' => $user->id ?? null]);
-				// fallback to Eloquent create if PDO route fails
-				$up = UserPhoto::create([
-					'user_id' => $user->id,
-					'foto' => $encoded,
-					'caption' => $request->input('caption'),
-					'is_profile' => false,
-				]);
-			}
+		if ($path) {
+			$up = UserPhoto::create([
+				'user_id' => $user->id,
+				'path' => $path,
+				'caption' => $request->input('caption'),
+				'is_profile' => false,
+			]);
 		} else {
+			// fallback to storing blob in foto column for backward compatibility
 			$up = UserPhoto::create([
 				'user_id' => $user->id,
 				'foto' => $encoded,
@@ -170,7 +148,11 @@ class UserPhotoController extends Controller
 						$bytes = $raw;
 					}
 					if ($bytes !== null && $bytes !== false && $bytes !== '') {
-						$dataUrl = 'data:image/jpeg;base64,'.base64_encode($bytes);
+								$mime = null;
+								try { $f = new \finfo(FILEINFO_MIME_TYPE); $mime = $f->buffer($bytes); } catch (\Throwable$_) { $mime = null; }
+								if (!$mime) { $info = @getimagesizefromstring($bytes); if ($info && !empty($info['mime'])) $mime = $info['mime']; }
+								if (!$mime) $mime = 'application/octet-stream';
+								$dataUrl = 'data:'.$mime.';base64,'.base64_encode($bytes);
 					}
 				} catch (\Throwable$_) {
 					$dataUrl = null;
@@ -203,7 +185,7 @@ class UserPhotoController extends Controller
 		$photo->is_profile = true;
 		$photo->save();
 
-		// no filesystem path update; photo is in user_photos.foto
+		// no further updates required; path is already stored if applicable
 		return response()->json(['ok' => true]);
 	}
 
@@ -213,7 +195,12 @@ class UserPhotoController extends Controller
 		if ($photo->user_id !== $user->id) {
 			return response()->json(['ok' => false, 'message' => 'Foto no válida'], 403);
 		}
-		// photo binary stored in DB; simply delete record
+		// If the photo had a filesystem path, remove the file
+		try {
+			if (!empty($photo->path) && \Illuminate\Support\Facades\Storage::disk('local')->exists($photo->path)) {
+				\Illuminate\Support\Facades\Storage::disk('local')->delete($photo->path);
+			}
+		} catch (\Throwable $_) {}
 		$photo->delete();
 
 		return response()->json(['ok' => true]);

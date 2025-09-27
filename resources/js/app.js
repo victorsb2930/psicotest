@@ -1,6 +1,7 @@
 // Globals: jQuery, Bootstrap, Axios, tom-select, uuid, global functions, utils
 import './bootstrap';
 import './partials/quickLogin';
+import './notifications';
 
 /* 
 * Agrego aqui tambien la configuracion global CSRF => CSRF token mismatch.
@@ -94,7 +95,7 @@ document.addEventListener('DOMContentLoaded', () => {
 	initPage();
 	// Start PJAX after initial page scripts loaded
 	try { enablePJAX(); } catch (e) { /* if PJAX not supported ignore */ }
-  try { updateHeaderCTA(); } catch(_) {}
+	try { updateHeaderCTA(); } catch(_) {}
 });
 
 // Attempt to notify server when the page is unloaded so we can mark session end.

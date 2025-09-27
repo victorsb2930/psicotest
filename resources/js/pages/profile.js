@@ -29,6 +29,11 @@ async function refreshGallery(){
 			if(!cont) return;
 			cont.innerHTML = '';
 			res.data.photos.forEach(p => {
+				const wrapper = document.createElement('div');
+				wrapper.style.display = 'inline-block';
+				wrapper.style.margin = '4px';
+				wrapper.style.position = 'relative';
+
 				const img = document.createElement('img');
 				// prefer data_url (returned by server) to avoid extra filesystem mapping
 				img.src = p.data_url ? p.data_url : ('/storage/' + (p.path || ''));
@@ -50,7 +55,36 @@ async function refreshGallery(){
 					// Use modalConfirm exclusively (no native confirm fallback)
 					modalConfirm({ title: 'Confirmar', body: '¿Establecer esta foto como perfil?', btnsType: 'ny', onClickYes: doSet });
 				});
-				cont.appendChild(img);
+
+				// delete button
+				const delBtn = document.createElement('button');
+				delBtn.type = 'button';
+				delBtn.className = 'btn btn-sm btn-danger';
+				delBtn.style.position = 'absolute';
+				delBtn.style.right = '0px';
+				delBtn.style.top = '0px';
+				delBtn.style.padding = '0.15rem 0.4rem';
+				delBtn.style.borderRadius = '0.25rem';
+				delBtn.title = 'Eliminar foto';
+				delBtn.textContent = '×';
+				delBtn.addEventListener('click', async (ev)=>{
+					ev.stopPropagation();
+					const doDelete = async () => {
+						try{
+							await axios.delete(api.delete(p.id));
+							await refreshGallery();
+							modalNotification?.('Eliminada','Foto eliminada correctamente',{template:'success'});
+						}catch(err){
+							console.error(err);
+							modalNotification?.('Error','No se pudo eliminar la foto',{template:'danger'}, true, { xhr: err?.response, body: 'delete' });
+						}
+					};
+					modalConfirm({ title: 'Confirmar', body: '¿Eliminar esta foto?', btnsType: 'ny', onClickYes: doDelete });
+				});
+
+				wrapper.appendChild(img);
+				wrapper.appendChild(delBtn);
+				cont.appendChild(wrapper);
 			});
 		}
 	}catch(e){ console.error(e);

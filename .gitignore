@@ -20,5 +20,7 @@
 /storage/pail
 /vendor
 Homestead.json
+# Uploaded user photos (keep out of git)
+/storage/app/user_photos/
 Homestead.yaml
 Thumbs.db

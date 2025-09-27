@@ -8,14 +8,21 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Intervention\Image\ImageManagerStatic as Image;
 use Illuminate\Validation\Rule;
 use Spatie\Permission\Models\Role as SpatieRole;
 use App\Models\ProfessionalApplication;
+use Illuminate\Support\Facades\File;
 
 class LoginRegisterController extends Controller
 {
 	public function register(Request $request)
 	{
+		// If client sent encrypted password fields, decrypt them into plain fields
+		$this->ensureLoginKeyExists();
+		$this->decryptIfPresent($request, 'reg_password_enc', 'reg_password');
+		$this->decryptIfPresent($request, 'reg_password_confirm_enc', 'reg_password_confirmation');
+
 		$rules = [
 			'reg_type' => ['required', 'integer', Rule::exists('roles', 'id')->where('show_in_signup', true)],
 			'reg_name' => ['required', 'string', 'max:255'],
@@ -23,6 +30,9 @@ class LoginRegisterController extends Controller
 			'reg_password' => ['required', 'string', 'min:6', 'confirmed'],
 			'reg_titulo' => ['nullable','file','mimes:pdf,jpg,jpeg,png','max:8192'],
 			'reg_cedula' => ['nullable','file','mimes:pdf,jpg,jpeg,png','max:8192'],
+			'reg_specialty' => ['nullable','string','max:255'],
+			'reg_location' => ['nullable','string','max:255'],
+			'json' => ['nullable','string','max:255'],
 		];
 
 		$messages = [
@@ -73,7 +83,19 @@ class LoginRegisterController extends Controller
 			$request->validate([
 				'reg_titulo' => ['required','file','mimes:pdf,jpg,jpeg,png','max:8192'],
 				'reg_cedula' => ['required','file','mimes:pdf,jpg,jpeg,png','max:8192'],
-			], $messages, [ 'reg_titulo' => 'título profesional', 'reg_cedula' => 'cédula' ]);
+				'reg_specialty' => ['required','string','max:255'],
+				'reg_location' => ['required','string','max:255'],
+				'reg_appointment_types' => ['required','array'],
+				'reg_appointment_types.*' => ['string','max:255'],
+			],
+			$messages,
+			[
+				'reg_titulo' => 'título profesional',
+				'reg_cedula' => 'cédula',
+				'reg_specialty' => 'especialidad',
+				'reg_location' => 'ubicación',
+				'reg_appointment_types' => 'tipos de cita'
+			]);
 		}
 
 		// Si la validación pasa, se crea el usuario
@@ -84,19 +106,92 @@ class LoginRegisterController extends Controller
 			'remember_token' => Str::random(10),
 		]);
 
+		// Persist profile fields provided at registration (specialty, location, appointment types)
+		try {
+			$changed = false;
+			if ($request->filled('reg_specialty')) {
+				$user->specialty = $request->input('reg_specialty');
+				$changed = true;
+			}
+			if ($request->filled('reg_location')) {
+				$user->location = $request->input('reg_location');
+				$changed = true;
+			}
+			if ($request->filled('reg_appointment_types')) {
+				$val = $request->input('reg_appointment_types');
+				$parsed = null;
+				try { $parsed = is_array($val) ? $val : json_decode($val, true); } catch (\Throwable$_) { $parsed = null; }
+				$user->appointment_types = $parsed === null ? $val : $parsed;
+				$changed = true;
+			}
+			if ($changed) { $user->save(); }
+		} catch (\Throwable $_) { /* best-effort */ }
+
 		// If a profile photo was uploaded during registration, store it and mark as profile
 		try {
 			if ($request->hasFile('reg_photo')) {
 				$file = $request->file('reg_photo');
 				try {
 					$contents = file_get_contents($file->getRealPath());
+					// normalize and re-encode (flatten alpha for PNGs) - reuse logic from UserPhotoController
+					$encoded = null;
+					try {
+						$img = Image::make($contents);
+						$mime = strtolower($img->mime() ?? '');
+						if (strpos($mime, 'png') !== false || $img->isTransparent ?? false) {
+							try {
+								$canvas = Image::canvas($img->width(), $img->height(), '#ffffff');
+								$canvas->insert($img, 'top-left');
+								$encoded = (string) $canvas->encode('jpg', 85);
+							} catch (\Throwable $_inner) {
+								$encoded = (string) $img->encode('jpg', 85);
+							}
+						} else {
+							$encoded = (string) $img->encode('jpg', 85);
+						}
+					} catch (\Throwable $e) {
+						try {
+							$im = @imagecreatefromstring($contents);
+							if ($im !== false) {
+								$w = imagesx($im);
+								$h = imagesy($im);
+								$bg = imagecreatetruecolor($w, $h);
+								$white = imagecolorallocate($bg, 255, 255, 255);
+								imagefilledrectangle($bg, 0, 0, $w, $h, $white);
+								imagecopy($bg, $im, 0, 0, 0, 0, $w, $h);
+								ob_start();
+								imagejpeg($bg, null, 85);
+								$jpeg = ob_get_clean();
+								imagedestroy($im);
+								imagedestroy($bg);
+								if ($jpeg !== false && $jpeg !== null) $encoded = $jpeg;
+							}
+						} catch (\Throwable $_) { $encoded = null; }
+					}
+					if ($encoded === null) $encoded = $contents;
+					$path = null;
+					try {
+						$fname = 'user_photos/' . $user->id . '/' . time() . '_' . bin2hex(random_bytes(6)) . '.jpg';
+						\Illuminate\Support\Facades\Storage::disk('local')->put($fname, $encoded);
+						$path = $fname;
+					} catch (\Throwable $_) { $path = null; }
 					if (\Schema::hasTable('user_photos')) {
-						\App\Models\UserPhoto::create([
-							'user_id' => $user->id,
-							'foto' => $contents,
-							'caption' => 'Foto de registro',
-							'is_profile' => true,
-						]);
+						if ($path) {
+							\App\Models\UserPhoto::create([
+								'user_id' => $user->id,
+								'path' => $path,
+								'caption' => 'Foto de registro',
+								'is_profile' => true,
+							]);
+						} else {
+							// fallback to storing blob if disk write failed
+							\App\Models\UserPhoto::create([
+								'user_id' => $user->id,
+								'foto' => $contents,
+								'caption' => 'Foto de registro',
+								'is_profile' => true,
+							]);
+						}
 					}
 				} catch (\Throwable$e) {
 					// noop fallback - ignore if binary save fails
@@ -168,6 +263,10 @@ class LoginRegisterController extends Controller
 
 	public function login(Request $request)
 	{
+		// Accept either plaintext 'password' (legacy) or 'password_enc' (encrypted from client)
+		$this->ensureLoginKeyExists();
+		$this->decryptIfPresent($request, 'password_enc', 'password');
+
 		$validated = $request->validate([
 			'email' => ['required', 'email'],
 			'password' => ['required', 'string', 'min:6'],
@@ -262,10 +361,10 @@ class LoginRegisterController extends Controller
 			return redirect()->route('underreview')->with('info', $infoMsg)->withInput();
 		}
 
-	// ensure credentials use the actual stored email if we found the user case-insensitively
-	$emailForAttempt = $user?->email ?? strtolower($validated['email']);
-	$credentials = ['email' => $emailForAttempt, 'password' => $validated['password']];
-	if (auth()->attempt($credentials, $remember)) {
+		// ensure credentials use the actual stored email if we found the user case-insensitively
+		$emailForAttempt = $user?->email ?? strtolower($validated['email']);
+		$credentials = ['email' => $emailForAttempt, 'password' => $validated['password']];
+		if (auth()->attempt($credentials, $remember)) {
 			// Session id is usually regenerated to prevent session fixation.
 			// The Login event listener runs during auth()->attempt() and may
 			// have stored the PRE-REGENERATE session id in user_logins. To
@@ -419,5 +518,57 @@ class LoginRegisterController extends Controller
 			// best-effort, do not throw for client
 		}
 		return response()->json(['ok' => true]);
+	}
+
+	// Ensure an RSA keypair exists for encrypting passwords from client
+	protected function ensureLoginKeyExists()
+	{
+		$dir = storage_path('app/login_keys');
+		if (!\File::exists($dir)) {
+			\File::makeDirectory($dir, 0700, true);
+		}
+		$priv = $dir . DIRECTORY_SEPARATOR . 'private.pem';
+		$pub = $dir . DIRECTORY_SEPARATOR . 'public.pem';
+		if (!\File::exists($priv) || !\File::exists($pub)) {
+			// generate 2048-bit RSA key pair
+			$pair = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
+			openssl_pkey_export($pair, $privKeyPem);
+			$pubKey = openssl_pkey_get_details($pair)['key'] ?? null;
+			if ($privKeyPem && $pubKey) {
+				\File::put($priv, $privKeyPem);
+				\File::put($pub, $pubKey);
+			}
+		}
+	}
+
+	// Endpoint to return public key PEM so JS can encrypt password
+	public function publicKey(Request $request)
+	{
+		$this->ensureLoginKeyExists();
+		$pub = storage_path('app/login_keys/public.pem');
+		if (!\File::exists($pub)) return response()->json(['ok' => false], 404);
+		$contents = \File::get($pub);
+		return response()->json(['ok' => true, 'public_key' => $contents]);
+	}
+
+	// Decrypt field 'from' into 'to' when present and inject into request
+	protected function decryptIfPresent(Request $request, string $from, string $to)
+	{
+		if (!$request->has($from)) return;
+		$encB64 = $request->input($from);
+		if (empty($encB64)) return;
+		$priv = storage_path('app/login_keys/private.pem');
+		if (!\File::exists($priv)) return;
+		$privPem = \File::get($priv);
+		$decoded = base64_decode($encB64);
+		if ($decoded === false) return;
+		$ok = false; $plain = null;
+		try {
+			$ok = openssl_private_decrypt($decoded, $plain, $privPem, OPENSSL_PKCS1_OAEP_PADDING);
+		} catch (\Throwable $_) { $ok = false; }
+		if ($ok && $plain !== null) {
+			// overwrite the request value so validation uses the decrypted value
+			$request->merge([$to => $plain]);
+		}
 	}
 }
