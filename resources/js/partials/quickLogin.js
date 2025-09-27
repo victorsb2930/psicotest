@@ -46,6 +46,15 @@
 					fd.set('email', email);
 					fd.set('password', password);
 					const res = await axios.post(url, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+					if (res?.data && res.data.rejected && res.data.redirect) {
+						// Rejected application: show notes briefly if present, then follow redirect
+						try { if (res.data.notes) modalNotification('Solicitud rechazada', window.escapeHtml(String(res.data.notes)), { template: 'warning' }, false); } catch(_) {}
+						try { window.__isAuth = true; } catch(_){ }
+						try { if (typeof updateHeaderCTA === 'function') updateHeaderCTA(); } catch(_){ }
+						try { if (typeof startHeartbeat === 'function') startHeartbeat(60); } catch(_){ }
+						window.location.href = res.data.redirect;
+						return;
+					}
 					if (res?.data && res.data.under_review && res.data.redirect) {
 						// Mark client as authenticated before following redirect so header
 						// UI updates (CTA hide, heartbeat) can run without a full reload.
@@ -62,20 +71,38 @@
 					window.location.href = target;
 				} catch (err) {
 					const res = err?.response;
-					if (res?.data?.under_review && res?.data?.redirect) {
-						window.location.href = res.data.redirect;
+					// Normalize response data: backend sometimes returns JSON as string
+					let respData = res?.data;
+					if (typeof respData === 'string') {
+						try { respData = JSON.parse(respData); } catch (_) { }
+					}
+					// If backend explicitly returned rejected info as part of a 4xx
+					// response, follow the redirect and show notes when provided.
+					if (respData && respData.rejected && respData.redirect) {
+						try { if (respData.notes) modalNotification('Solicitud rechazada', window.escapeHtml(String(respData.notes)), { template: 'warning' }, false); } catch(_){ }
+						try { window.__isAuth = true; } catch(_){ }
+						try { if (typeof updateHeaderCTA === 'function') updateHeaderCTA(); } catch(_){ }
+						try { if (typeof startHeartbeat === 'function') startHeartbeat(60); } catch(_){ }
+						window.location.href = respData.redirect;
+						return;
+					}
+					if (respData && respData.under_review && respData.redirect) {
+						try { window.__isAuth = true; } catch(_){ }
+						try { if (typeof updateHeaderCTA === 'function') updateHeaderCTA(); } catch(_){ }
+						try { if (typeof startHeartbeat === 'function') startHeartbeat(60); } catch(_){ }
+						window.location.href = respData.redirect;
 						return;
 					}
 					let message = 'Email o contraseña incorrectos.';
-					if (res && typeof res.data === 'object') {
-						if (res.data.errors && typeof res.data.errors === 'object') {
-							const firstKey = Object.keys(res.data.errors)[0];
-							const firstMsg = Array.isArray(res.data.errors[firstKey]) ? res.data.errors[firstKey][0] : res.data.errors[firstKey];
-							message = firstMsg || res.data.message || message;
-						} else if (res.data.message) {
-							message = res.data.message;
+					if (respData && typeof respData === 'object') {
+						if (respData.errors && typeof respData.errors === 'object') {
+							const firstKey = Object.keys(respData.errors)[0];
+							const firstMsg = Array.isArray(respData.errors[firstKey]) ? respData.errors[firstKey][0] : respData.errors[firstKey];
+							message = firstMsg || respData.message || message;
+						} else if (respData.message) {
+							message = respData.message;
 						} else {
-							try { message = JSON.stringify(res.data); } catch (_) { }
+							try { message = JSON.stringify(respData); } catch (_) { }
 						}
 					} else if (res && typeof res.data === 'string') {
 						message = res.data;

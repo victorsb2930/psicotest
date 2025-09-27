@@ -39,18 +39,33 @@ function handleCtaClick(e) {
 				try {
 					const fd = new FormData($form[0]); fd.set('email', email); fd.set('password', password);
 					const res = await axios.post(url, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+					if (res?.data && res.data.rejected && res.data.redirect) {
+						try { if (res.data.notes) modalNotification('Solicitud rechazada', window.escapeHtml(String(res.data.notes)), { template: 'warning' }, false); } catch(_){}
+						window.location.href = res.data.redirect; return;
+					}
 					if (res?.data && res.data.under_review && res.data.redirect) { window.location.href = res.data.redirect; return; }
 					const target = res?.data?.redirect || '/'; window.location.href = target;
 				} catch (err) {
 					const res = err?.response; const status = res?.status; const isNetwork = !!err?.isAxiosError && !res; const isServer = typeof status === 'number' && status >= 500;
-					if (res?.data?.under_review && res?.data?.redirect) { window.location.href = res.data.redirect; return; }
+					let respData = res?.data;
+					if (typeof respData === 'string') {
+						try { respData = JSON.parse(respData); } catch(_) { }
+					}
+					if (respData?.under_review && respData?.redirect) { try { window.__isAuth = true; } catch(_){}; try { if (typeof updateHeaderCTA === 'function') updateHeaderCTA(); } catch(_){}; try { if (typeof startHeartbeat === 'function') startHeartbeat(60); } catch(_){}; window.location.href = respData.redirect; return; }
+					if (respData?.rejected && respData?.redirect) {
+						try { if (respData.notes) modalNotification('Solicitud rechazada', window.escapeHtml(String(respData.notes)), { template: 'warning' }, false); } catch(_){}
+						try { window.__isAuth = true; } catch(_){ }
+						try { if (typeof updateHeaderCTA === 'function') updateHeaderCTA(); } catch(_){ }
+						try { if (typeof startHeartbeat === 'function') startHeartbeat(60); } catch(_){ }
+						window.location.href = respData.redirect; return;
+					}
 					let message = 'Email o contraseña incorrectos.';
-					if (res && typeof res.data === 'object') {
-						if (res.data.errors && typeof res.data.errors === 'object') {
-							const firstKey = Object.keys(res.data.errors)[0];
-							const firstMsg = Array.isArray(res.data.errors[firstKey]) ? res.data.errors[firstKey][0] : res.data.errors[firstKey];
-							message = firstMsg || res.data.message || message;
-						} else if (res.data.message) message = res.data.message; else try { message = JSON.stringify(res.data); } catch (_) {}
+					if (respData && typeof respData === 'object') {
+						if (respData.errors && typeof respData.errors === 'object') {
+							const firstKey = Object.keys(respData.errors)[0];
+							const firstMsg = Array.isArray(respData.errors[firstKey]) ? respData.errors[firstKey][0] : respData.errors[firstKey];
+							message = firstMsg || respData.message || message;
+						} else if (respData.message) message = respData.message; else try { message = JSON.stringify(respData); } catch (_) {}
 					} else if (res && typeof res.data === 'string') message = res.data; else if (isNetwork && err?.message) message = err.message;
 					const severe = isNetwork || isServer; const title = severe ? 'Error del servidor' : 'Error de acceso'; const template = severe ? 'danger' : 'warning';
 					const detailCfg = { xhr: res, fncErr: 'quickLogin', page: 'index', body: 'Error al iniciar sesión' };

@@ -152,8 +152,8 @@
 		}
 
 		/* On large screens keep left menu as a normal column so it visually connects to header/footer
-		   The card will stretch to the viewport height minus header/footer so it appears as a single piece
-		   with the header and footer rather than floating independently. */
+		The card will stretch to the viewport height minus header/footer so it appears as a single piece
+		with the header and footer rather than floating independently. */
 		@media (min-width: 992px) {
 			#left-menu {
 				position: relative;
@@ -365,7 +365,7 @@
 			}
 
 			/* main content: remove left-side rounding so it looks joined to the left area
-			   but keep small inner card rounding for content blocks */
+			but keep small inner card rounding for content blocks */
 			#app-content {
 				padding-left: 1rem;
 			}

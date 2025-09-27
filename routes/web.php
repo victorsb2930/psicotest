@@ -28,6 +28,45 @@ Route::get('/welcome', function () {
 	return view('loginRegister', compact('signupRoles'));
 });
 
+// Public route: show the "under review" page even for guests. When a user
+// with a professional account isn't active yet they are redirected here from
+// the login flow; the route must be reachable without authentication.
+Route::get('/underreview', function () {
+    return view('under_review');
+})->name('underreview');
+
+// Show details for a rejected professional application.
+// Access policy:
+// - Authenticated owner may view their own application.
+// - The login flow will set a one-time session flash key allowing a
+//   redirect to this page immediately after an authentication attempt.
+// - AJAX/JS flows receive a temporary signed URL to follow directly.
+// Direct unauthenticated requests without a valid signature or session
+// flash will be rejected (403).
+use Illuminate\Http\Request;
+Route::get('/underreview/rejected/{application}', function (Request $request, \App\Models\ProfessionalApplication $application) {
+	$user = auth()->user();
+	$isOwner = $user && $user->id === $application->user_id;
+
+	// Allow if authenticated owner
+	if ($isOwner) {
+		return view('under_review_rejected', compact('application', 'isOwner'));
+	}
+
+	// Allow if request has a valid signed URL (used by AJAX responses or emails)
+	if ($request->hasValidSignature()) {
+		return view('under_review_rejected', compact('application', 'isOwner'));
+	}
+
+	// Allow if the previous redirect set a one-time flash flag for this application
+	$allowedFlash = session('allow_rejected_view') == $application->id;
+	if ($allowedFlash) {
+		return view('under_review_rejected', compact('application', 'isOwner'));
+	}
+
+	abort(403, 'Acceso no autorizado');
+})->name('underreview.rejected');
+
 
 // Protected routes: require authentication (whitelist public pages below)
 Route::middleware(['auth'])->group(function(){
@@ -52,10 +91,6 @@ Route::middleware(['auth'])->group(function(){
 		Route::get('/professionals', [\App\Http\Controllers\ProfessionalSearchController::class, 'index'])->name('professionals.index');
 		Route::get('/professionals/search', [\App\Http\Controllers\ProfessionalSearchController::class, 'search'])->name('professionals.search');
 	});
-
-	Route::get('/underreview', function () {
-		return view('under_review');
-	})->name('underreview');
 
 	Route::get('/userarea', function () {
 		return view('userArea');
@@ -283,9 +318,9 @@ Route::middleware('auth')->group(function(){
 		return response()->json(['ok'=>true,'ts'=>now()->toDateTimeString()]);
 	})->name('profile.heartbeat');
 
-    // User appointments (calendar view for normal users)
-    Route::get('/appointments', [\App\Http\Controllers\UserAppointmentController::class, 'index'])->name('appointments.index');
-    Route::get('/appointments/events', [\App\Http\Controllers\UserAppointmentController::class, 'events'])->name('appointments.events');
+	// User appointments (calendar view for normal users)
+	Route::get('/appointments', [\App\Http\Controllers\UserAppointmentController::class, 'index'])->name('appointments.index');
+	Route::get('/appointments/events', [\App\Http\Controllers\UserAppointmentController::class, 'events'])->name('appointments.events');
 	// Create appointment (patient requests a new appointment)
 	Route::post('/appointments', [\App\Http\Controllers\UserAppointmentController::class, 'store'])->name('appointments.store');
 	// Patient accept/reject endpoints (calls to AppointmentController)

@@ -209,6 +209,51 @@ class LoginRegisterController extends Controller
 			return back()->withErrors(['email' => $errMsg])->withInput();
 		}
 		if ($user && !$user->is_active) {
+			// If the user has an explicit rejected application, send them to
+			// the rejected-details page which shows the rejection reason.
+			$rejected = ProfessionalApplication::where('user_id', $user->id)->where('status','rejected')->orderByDesc('id')->first();
+			if ($rejected) {
+				$infoMsg = 'Tu solicitud fue rechazada.';
+				// Only reveal the rejection notes to the owner who proves ownership
+				// by providing the correct password in the login attempt. This avoids
+				// leaking the admin note to arbitrary visitors.
+				$notes = null;
+				try {
+					if (!empty($validated['password']) && \Illuminate\Support\Facades\Hash::check($validated['password'], $user->password)) {
+						$notes = (string) $rejected->notes;
+					}
+				} catch (\Throwable $_) { /* ignore hash errors */ }
+
+				if ($request->expectsJson()) {
+					// For AJAX flows, provide a temporary signed URL so the client can
+					// navigate directly without exposing the page publicly.
+					$signed = \URL::temporarySignedRoute(
+						'underreview.rejected', now()->addMinutes(10), ['application' => $rejected->id]
+					);
+					$payload = ['ok' => false, 'rejected' => true, 'redirect' => $signed, 'message' => $infoMsg];
+					if ($notes !== null) $payload['notes'] = $notes;
+					// Debug: log that we're returning a rejected JSON payload (do not log notes content)
+					try { \Illuminate\Support\Facades\Log::info('login.rejected_json', ['user_id' => $user->id, 'application_id' => $rejected->id, 'includes_notes' => ($notes !== null)]); } catch (\Throwable $_) { }
+					return response()->json($payload, 403);
+				}
+
+				// For non-AJAX flows, if password matched, set a one-time session
+				// flash key so the redirected view can be displayed immediately
+				// without making the route globally public.
+				if ($notes !== null) {
+					// store a one-time flag containing the application id
+					session()->flash('allow_rejected_view', $rejected->id);
+					// Debug: log that we're redirecting with flash notes
+					try { \Illuminate\Support\Facades\Log::info('login.rejected_redirect_flash', ['user_id' => $user->id, 'application_id' => $rejected->id, 'includes_notes' => true]); } catch (\Throwable $_) { }
+					return redirect()->route('underreview.rejected', ['application' => $rejected->id])->with(['info' => $infoMsg, 'rejection_notes' => $notes])->withInput();
+				}
+
+				// Set the one-time flag even when notes are not present so the page
+				// can be reached immediately after login (but not directly via URL).
+				session()->flash('allow_rejected_view', $rejected->id);
+				try { \Illuminate\Support\Facades\Log::info('login.rejected_redirect_flash', ['user_id' => $user->id, 'application_id' => $rejected->id, 'includes_notes' => false]); } catch (\Throwable $_) { }
+				return redirect()->route('underreview.rejected', ['application' => $rejected->id])->with('info', $infoMsg)->withInput();
+			}
 			$hasPending = ProfessionalApplication::where('user_id', $user->id)->where('status','pending')->exists();
 			$infoMsg = $hasPending ? 'Tu cuenta profesional está en revisión.' : 'Tu cuenta está desactivada.';
 			if ($request->expectsJson()) {
