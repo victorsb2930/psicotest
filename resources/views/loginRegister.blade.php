@@ -28,7 +28,7 @@
 					<div class="forgot">
 						<span>¿Olvidaste tu contraseña?</span>
 					</div>
-					<button class="btn bkg" type="submit">Iniciar Sesión</button>
+					<button id="login_submit_btn" class="btn bkg" type="submit">Iniciar Sesión</button>
 				</form>
 			</div>
 
@@ -112,7 +112,7 @@
 						</div>
 						<small class="field-help">Selecciona una o ambas modalidades.</small>
 					</div>
-					<button class="btn bkg" type="submit">Registrarte</button>
+					<button id="register_submit_btn" class="btn bkg" type="submit">Registrarte</button>
 				</form>
 			</div>
 		</div>

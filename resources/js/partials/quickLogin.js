@@ -12,8 +12,12 @@
 
 	function openQuickLoginModal() {
 		if (!modalConfirm) return;
+		const modalId = 'quickLoginModalGlobal';
 		const bodyHtml = {
+			modalId: modalId,
 			title: 'Iniciar sesión',
+			confirmLabel: 'Iniciar sesión',
+			cancelLabel: 'Cancelar',
 			body: `
 					<form id="quickLoginFormGlobal" action="/login" method="POST">
 						<input type="hidden" name="_token" value="${$('meta[name="csrf-token"]').attr('content')}">
@@ -33,10 +37,29 @@
 				`,
 			btnsType: 'ac',
 			onClickYes: async () => {
+				// Helper to disable/enable footer buttons and change confirm label
+				const setFooterButtons = (disabled, setLabelToLogin) => {
+					try {
+						const footerBtns = document.querySelectorAll('#' + modalId + ' .modal-footer button');
+						footerBtns.forEach(b => {
+							try { b.disabled = !!disabled; } catch(_){}
+							// change confirm button label when disabling
+							if (b.id === `modalConfirmBtn_${modalId}`) {
+								try { b.innerText = setLabelToLogin ? 'Iniciar sesión' : 'Confirmar'; } catch(_){}
+							}
+						});
+					} catch(_) {}
+				};
+
+				// Immediately disable buttons to prevent double clicks
+				setFooterButtons(true, true);
+
 				const $form = $('#quickLoginFormGlobal');
 				const email = $('#quick_email_global').val()?.toString().trim();
 				const password = $('#quick_password_global').val()?.toString().trim();
 				if (!email || !password) {
+					// restore buttons when validation fails
+					setFooterButtons(false, false);
 					modalNotification('Completa los campos', 'Ingresa email y contraseña.', { template: 'warning' });
 					return;
 				}
@@ -65,9 +88,10 @@
 						return;
 					}
 					const target = res?.data?.redirect || '/';
-					try { window.__isAuth = true; } catch(_){}
-					try { if (typeof updateHeaderCTA === 'function') updateHeaderCTA(); } catch(_){}
-					try { if (typeof startHeartbeat === 'function') startHeartbeat(60); } catch(_){}
+					try { window.__isAuth = true; } catch(_){ }
+					try { if (typeof updateHeaderCTA === 'function') updateHeaderCTA(); } catch(_){ }
+					try { if (typeof startHeartbeat === 'function') startHeartbeat(60); } catch(_){ }
+					// navigation will unload page; no need to re-enable buttons
 					window.location.href = target;
 				} catch (err) {
 					const res = err?.response;
@@ -114,6 +138,8 @@
 					const title = severe ? 'Error del servidor' : 'Error de acceso';
 					const template = severe ? 'danger' : 'warning';
 					const detailCfg = { xhr: res, fncErr: 'quickLogin', page: 'global', body: 'Error al iniciar sesión' };
+					// on error re-enable buttons so the user can retry
+					setFooterButtons(false, false);
 					modalNotification(title, window.escapeHtml(String(message)), { template, delayAutoClose: 6000 }, !!severe, detailCfg);
 				}
 			},

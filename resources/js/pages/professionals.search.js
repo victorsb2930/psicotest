@@ -1,5 +1,3 @@
-import axios from 'axios';
-
 function renderCard(p) {
     const photo = p.photo || '/images/default-avatar.png';
     const specialty = p.specialty || 'General';

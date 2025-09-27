@@ -165,13 +165,28 @@ function setEvents(){
 	});
 
 	// Validación simple al enviar el formulario de login
+	const setLoginBtn = (disabled, label) => {
+		try {
+			const btn = document.getElementById('login_submit_btn');
+			if (!btn) return;
+			btn.disabled = !!disabled;
+			if (typeof label === 'string') btn.innerText = label;
+		} catch(_){}
+	};
 	$('#login_form').off('submit').on('submit', function (e) {
 		const email = $('#login_email').val()?.toString().trim();
 		const password = $('#login_password').val()?.toString().trim();
 		if (!email || !password) {
 			e.preventDefault();
 			modalNotification('Error', 'Por favor ingresa email y contraseña.');
+			return;
 		}
+		// disable button and change label to avoid double submits
+		setLoginBtn(true, 'Iniciando...');
+		// allow form to submit normally; in case of server validation errors the page
+		// will reload with errors; for AJAX flows the axios handlers below will
+		// need to re-enable button on errors (handled in quickLogin/other code)
+		setTimeout(() => { /* safety: if somehow the form didn't navigate, re-enable after 10s */ setLoginBtn(false, 'Iniciar Sesión'); }, 10000);
 	});
 
 	// Live validation en el formulario de registro
@@ -189,6 +204,8 @@ function setEvents(){
 	// Validación + envío AJAX del formulario de registro
 	$('#register_form').off('submit').on('submit', function (e) {
 		e.preventDefault();
+		// disable register button immediately to avoid duplicate posts
+		try { const rbtn = document.getElementById('register_submit_btn'); if (rbtn) { rbtn.disabled = true; rbtn.innerText = 'Registrando...'; } } catch(_){}
 		const $form = $(this);
 		const type = $('#reg_type').val();
 		const name = $('#reg_name').val().toString().trim();
@@ -247,6 +264,8 @@ function setEvents(){
 			})
 			.catch((err) => {
 				const res = err?.response;
+				// re-enable register button on error so user can retry
+				try { const rbtn = document.getElementById('register_submit_btn'); if (rbtn) { rbtn.disabled = false; rbtn.innerText = 'Registrarte'; } } catch(_){}
 				if (res?.status === 422 && res?.data?.errors) {
 					const list = Object.values(res.data.errors).flat();
 					const html = '<ul class="mb-0 ps-3">' + list.map(e => `<li>${window.escapeHtml(e)}</li>`).join('') + '</ul>';

@@ -84,10 +84,15 @@ export function modalConfirm(bodyHtml, modalType = 'normal', options = {}) {
 	const titleText = bodyHtml.title || 'Título por defecto';
 	const bodyContent = bodyHtml.body || '';
 	const btnsType = (bodyHtml.btnsType === 'ny' || bodyHtml.btnsType === 'ac') ? bodyHtml.btnsType : 'ny';
-	const labels = {
+	// Allow callers to override default labels via confirmLabel / cancelLabel
+	const defaultLabels = {
 		ny: ['No', 'Sí'],
 		ac: ['Cancelar', 'Confirmar']
-	}[btnsType];
+	};
+	const overrideCancel = (typeof bodyHtml.cancelLabel === 'string') ? bodyHtml.cancelLabel : (typeof bodyHtml.noLabel === 'string' ? bodyHtml.noLabel : null);
+	const overrideConfirm = (typeof bodyHtml.confirmLabel === 'string') ? bodyHtml.confirmLabel : (typeof bodyHtml.yesLabel === 'string' ? bodyHtml.yesLabel : null);
+	const base = defaultLabels[btnsType] || defaultLabels.ny;
+	const labels = [ overrideCancel ?? base[0], overrideConfirm ?? base[1] ];
 
 	let $modal = $(`#${modalId}`);
 
