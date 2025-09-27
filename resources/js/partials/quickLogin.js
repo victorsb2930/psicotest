@@ -47,10 +47,18 @@
 					fd.set('password', password);
 					const res = await axios.post(url, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
 					if (res?.data && res.data.under_review && res.data.redirect) {
+						// Mark client as authenticated before following redirect so header
+						// UI updates (CTA hide, heartbeat) can run without a full reload.
+						try { window.__isAuth = true; } catch(_){}
+						try { if (typeof updateHeaderCTA === 'function') updateHeaderCTA(); } catch(_){}
+						try { if (typeof startHeartbeat === 'function') startHeartbeat(60); } catch(_){}
 						window.location.href = res.data.redirect;
 						return;
 					}
 					const target = res?.data?.redirect || '/';
+					try { window.__isAuth = true; } catch(_){}
+					try { if (typeof updateHeaderCTA === 'function') updateHeaderCTA(); } catch(_){}
+					try { if (typeof startHeartbeat === 'function') startHeartbeat(60); } catch(_){}
 					window.location.href = target;
 				} catch (err) {
 					const res = err?.response;

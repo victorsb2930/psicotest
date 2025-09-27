@@ -165,7 +165,12 @@ function startHeartbeat(intervalSeconds = 60) {
 		const url = '/profile/heartbeat';
 		const fn = () => {
 			try {
-				fetch(url, { method: 'POST', credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } }).catch(()=>{});
+				// Attach CSRF token (if present) so Laravel's VerifyCsrfToken accepts this POST.
+				const tokenMeta = document.querySelector('meta[name="csrf-token"]');
+				const token = tokenMeta ? tokenMeta.getAttribute('content') : null;
+				const headers = { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' };
+				if (token) headers['X-CSRF-TOKEN'] = token;
+				fetch(url, { method: 'POST', credentials: 'same-origin', headers }).catch(()=>{});
 			} catch (_) {}
 		};
 		fn(); // immediate

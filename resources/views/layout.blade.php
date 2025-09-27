@@ -645,7 +645,12 @@
 		// UI sync: when authenticated, ensure public nav links don't appear and move them to user dropdown
 		(function(){
 			try {
-				const isAuth = {{ auth()->check() ? 'true' : 'false' }};
+				// Expose authentication state to frontend scripts. Many frontend
+				// modules check window.__isAuth to enable/disable behaviors
+				// (heartbeat, hiding public CTAs, etc.). Keep a local `isAuth`
+				// variable for backward compatibility.
+				window.__isAuth = {{ auth()->check() ? 'true' : 'false' }};
+				const isAuth = window.__isAuth;
 				// Hide public nav links if authenticated (defensive, in case server-side rendering missed one)
 				if (isAuth) {
 					document.querySelectorAll('.nav .nav-link').forEach(function(el){

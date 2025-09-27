@@ -6,6 +6,7 @@ use App\Models\LoginRegisterModel;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Spatie\Permission\Models\Role as SpatieRole;
@@ -232,10 +233,25 @@ class LoginRegisterController extends Controller
 			$newSid = $request->session()->getId();
 			try {
 				if (\Schema::hasTable('user_logins')) {
-					\DB::table('user_logins')
+					$updated = \DB::table('user_logins')
 						->where('user_id', $user->id)
 						->where('session_id', $oldSid)
 						->update(['session_id' => $newSid]);
+					// If nothing was updated (row not found by old session id) try a
+					// best-effort fallback: update the most recent open row for this
+					// user (no ended_at) which is likely the one the login listener
+					// just created. This handles cases where session ids were rotated
+					// earlier or the listener saw a different id.
+					if (empty($updated)) {
+						try {
+						\DB::table('user_logins')
+							->where('user_id', $user->id)
+							->whereNull('ended_at')
+							->orderBy('id', 'desc')
+							->limit(1)
+							->update(['session_id' => $newSid]);
+						} catch (\Throwable $_) { /* ignore */ }
+					}
 				}
 			} catch (\Throwable $_) { /* noop */ }
 
@@ -281,6 +297,10 @@ class LoginRegisterController extends Controller
 	}
 
 	public function logout(Request $request) {
+		// Debug: log logout attempt with current session id and user
+		try {
+			Log::info('logout.attempt', ['user_id' => auth()->id(), 'session_id' => $request->session()->getId()]);
+		} catch (\Throwable $_) {}
 		// Best-effort: mark the user_login row ended before invalidating session.
 		try {
 			if (\Schema::hasTable('user_logins')) {
@@ -290,6 +310,7 @@ class LoginRegisterController extends Controller
 					$ul->ended_at = now();
 					$ul->duration_seconds = (int) max(0, now()->getTimestamp() - ($ul->started_at ? $ul->started_at->getTimestamp() : now()->getTimestamp()));
 					$ul->saveQuietly();
+					try { Log::info('logout.controller.closed', ['user_login_id' => $ul->id, 'session_id' => $sid, 'user_id' => auth()->id()]); } catch (\Throwable $_) {}
 				}
 			}
 		} catch (\Throwable $_) { /* best-effort */ }
@@ -331,6 +352,23 @@ class LoginRegisterController extends Controller
 				$ul->ended_at = now();
 				$ul->duration_seconds = (int) max(0, now()->getTimestamp() - ($ul->started_at ? $ul->started_at->getTimestamp() : now()->getTimestamp()));
 				$ul->saveQuietly();
+				\Illuminate\Support\Facades\Log::info('user_login.closed_by_endSession', ['session_id' => $sid, 'user_login_id' => $ul->id, 'user_id' => $user?->id]);
+			} else {
+				// Best-effort fallback: close the most recent open user_login for
+				// this authenticated user when the row couldn't be found by
+				// session_id. This addresses cases where the session id changed
+				// between the login listener and this request.
+				if ($user) {
+					try {
+						$ul2 = \App\Models\UserLogin::where('user_id', $user->id)->whereNull('ended_at')->orderBy('id','desc')->first();
+						if ($ul2) {
+							$ul2->ended_at = now();
+							$ul2->duration_seconds = (int) max(0, now()->getTimestamp() - ($ul2->started_at ? $ul2->started_at->getTimestamp() : now()->getTimestamp()));
+							$ul2->saveQuietly();
+							\Illuminate\Support\Facades\Log::info('user_login.closed_by_endSession_fallback', ['user_login_id' => $ul2->id, 'user_id' => $user->id ?? null]);
+						}
+					} catch (\Throwable $_) { /* ignore */ }
+				}
 			}
 		} catch (\Throwable $e) {
 			// best-effort, do not throw for client

@@ -17,6 +17,12 @@ class UserLogin extends Model
 
     protected $dates = ['started_at', 'ended_at'];
 
+    protected $casts = [
+        'started_at' => 'datetime',
+        'ended_at' => 'datetime',
+        'duration_seconds' => 'integer',
+    ];
+
     public function user()
     {
         return $this->belongsTo(User::class);
