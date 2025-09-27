@@ -493,10 +493,27 @@ class LoginRegisterController extends Controller
 				$ul = \App\Models\UserLogin::where('session_id', $sid)->orderBy('id', 'desc')->first();
 			}
 			if ($ul && !$ul->ended_at) {
-				$ul->ended_at = now();
-				$ul->duration_seconds = (int) max(0, now()->getTimestamp() - ($ul->started_at ? $ul->started_at->getTimestamp() : now()->getTimestamp()));
-				$ul->saveQuietly();
-				\Illuminate\Support\Facades\Log::info('user_login.closed_by_endSession', ['session_id' => $sid, 'user_login_id' => $ul->id, 'user_id' => $user?->id]);
+				// Server-side safeguard: avoid closing sessions that are extremely
+				// recent in case of accidental beacons. This threshold is configurable
+				// via env SESSION_CLOSE_MIN_SECONDS (default 5 seconds).
+				$minSeconds = (int) env('SESSION_CLOSE_MIN_SECONDS', 5);
+				$startedTs = null;
+				if ($ul->started_at instanceof \DateTimeInterface) {
+					$startedTs = $ul->started_at->getTimestamp();
+				} else {
+					$startedTs = $ul->started_at ? strtotime((string) $ul->started_at) : null;
+				}
+				$age = $startedTs ? (now()->getTimestamp() - $startedTs) : null;
+				if ($age !== null && $age < $minSeconds) {
+					// Too recent: skip marking ended_at. This prevents false-positives
+					// when a beacon is sent right after login/session creation.
+					try { \Illuminate\Support\Facades\Log::info('user_login.endSession_skipped_too_short', ['session_id' => $sid, 'user_login_id' => $ul->id, 'age_seconds' => $age, 'min_seconds' => $minSeconds]); } catch (\Throwable $_) {}
+				} else {
+					$ul->ended_at = now();
+					$ul->duration_seconds = (int) max(0, now()->getTimestamp() - ($startedTs ?: now()->getTimestamp()));
+					$ul->saveQuietly();
+					\Illuminate\Support\Facades\Log::info('user_login.closed_by_endSession', ['session_id' => $sid, 'user_login_id' => $ul->id, 'user_id' => $user?->id]);
+				}
 			} else {
 				// Best-effort fallback: close the most recent open user_login for
 				// this authenticated user when the row couldn't be found by
@@ -506,10 +523,22 @@ class LoginRegisterController extends Controller
 					try {
 						$ul2 = \App\Models\UserLogin::where('user_id', $user->id)->whereNull('ended_at')->orderBy('id','desc')->first();
 						if ($ul2) {
-							$ul2->ended_at = now();
-							$ul2->duration_seconds = (int) max(0, now()->getTimestamp() - ($ul2->started_at ? $ul2->started_at->getTimestamp() : now()->getTimestamp()));
-							$ul2->saveQuietly();
-							\Illuminate\Support\Facades\Log::info('user_login.closed_by_endSession_fallback', ['user_login_id' => $ul2->id, 'user_id' => $user->id ?? null]);
+							$startedTs2 = null;
+							if ($ul2->started_at instanceof \DateTimeInterface) {
+								$startedTs2 = $ul2->started_at->getTimestamp();
+							} else {
+								$startedTs2 = $ul2->started_at ? strtotime((string) $ul2->started_at) : null;
+							}
+							$age2 = $startedTs2 ? (now()->getTimestamp() - $startedTs2) : null;
+							$minSeconds = (int) env('SESSION_CLOSE_MIN_SECONDS', 5);
+							if ($age2 !== null && $age2 < $minSeconds) {
+								try { \Illuminate\Support\Facades\Log::info('user_login.endSession_fallback_skipped_too_short', ['user_login_id' => $ul2->id, 'user_id' => $user->id ?? null, 'age_seconds' => $age2, 'min_seconds' => $minSeconds]); } catch (\Throwable $_) {}
+							} else {
+								$ul2->ended_at = now();
+								$ul2->duration_seconds = (int) max(0, now()->getTimestamp() - ($startedTs2 ?: now()->getTimestamp()));
+								$ul2->saveQuietly();
+								\Illuminate\Support\Facades\Log::info('user_login.closed_by_endSession_fallback', ['user_login_id' => $ul2->id, 'user_id' => $user->id ?? null]);
+							}
 						}
 					} catch (\Throwable $_) { /* ignore */ }
 				}

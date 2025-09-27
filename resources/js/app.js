@@ -134,10 +134,17 @@ function sendSessionEndBeacon() {
 }
 
 // Hook unload and visibilitychange to call sendBeacon when the user closes tab/window.
+// Do NOT mark session as ended just because the document became hidden.
+// Calling sendSessionEndBeacon() on every visibilitychange causes a false
+// 'ended_at' to be recorded when users switch tabs, minimize the window,
+// or otherwise hide the page. We keep unload/beforeunload as the reliable
+// place to send a best-effort beacon, and explicit logout handlers still
+// call sendSessionEndBeacon() before invalidating the session.
+//
+// Keep a no-op listener so other code can still listen for visibility
+// changes in the future without surprising behavior here.
 window.addEventListener('visibilitychange', function () {
-	if (document.visibilityState === 'hidden') {
-		sendSessionEndBeacon();
-	}
+	// Intentionally empty: do not close session on tab hide.
 });
 // beforeunload as backup
 window.addEventListener('beforeunload', function () {
