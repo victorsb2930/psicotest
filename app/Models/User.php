@@ -69,9 +69,18 @@ class User extends Authenticatable
 	public function getProfilePhotoDataUrlAttribute()
 	{
 		$pf = $this->photos()->where('is_profile', true)->first();
-		if (!$pf || empty($pf->foto)) return null;
+		if (!$pf || $pf->foto === null) return null;
 		try {
-			$base = base64_encode($pf->foto);
+			$raw = $pf->foto;
+			if (is_resource($raw)) {
+				try { if (ftell($raw) !== false) rewind($raw); } catch (\Throwable$_){}
+				$bytes = @stream_get_contents($raw);
+			} else {
+				$bytes = $raw;
+			}
+			if ($bytes === null || $bytes === false || $bytes === '') return null;
+			$base = base64_encode($bytes);
+			// we re-encode uploads to jpg in the controller, but accept any image type; default to jpeg
 			return 'data:image/jpeg;base64,' . $base;
 		} catch (\Throwable$e) {
 			return null;

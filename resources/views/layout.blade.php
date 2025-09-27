@@ -540,7 +540,7 @@
 					<a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="layoutUserDropdown"
 						role="button" data-bs-toggle="dropdown" aria-expanded="false">
 						<span style="position:relative; display:inline-block; width:32px; height:32px; margin-right:0.5rem;">
-							<img src="{{ $avatar }}" width="32" height="32" class="rounded-circle" alt="avatar">
+							<img id="nav-avatar-img" src="{{ $avatar }}" width="32" height="32" class="rounded-circle" alt="avatar">
 							@php
 							$presenceColor = match($presence) {
 								'online' => '#28a745',
