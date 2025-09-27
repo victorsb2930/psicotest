@@ -50,15 +50,31 @@ export function init(){
         }catch(e){ console.error(e); alert('Error subiendo foto'); }
     });
 
-    document.querySelectorAll('.presence-btn').forEach(b=>b.addEventListener('click', async (ev)=>{
-        const s = b.dataset.status;
+    // presence polling: keep profile view in sync with server and other tabs
+    // module-scoped poll handle so destroy() can clear it
+    let pollInterval = null;
+    const pollPeriod = 5000;
+    async function fetchStatus(){
         try{
-            await axios.post(api.presence, { status: s });
-            // map to color
-            const map = { online: '#28a745', busy: '#fd7e14', dnd: '#dc3545', away: '#ffc107', offline: '#6c757d' };
-            document.getElementById('profile-presence').style.background = map[s] || '#6c757d';
-        }catch(e){ console.error(e); alert('Error actualizando estado'); }
-    }));
+            const res = await axios.get('/profile/status');
+            if(res && res.data && res.data.ok){
+                const status = res.data.status || 'offline';
+                const labels = { online:'Online', busy:'Ocupado', dnd:'No molestar', away:'Ausente', offline:'No disponible' };
+                const label = labels[status] || status;
+                const desc = document.getElementById('profile-presence-desc');
+                if(desc) desc.textContent = label;
+                if (typeof window.applyPresenceToUI === 'function') window.applyPresenceToUI(status);
+                else {
+                    const colors = { online:'#28a745', busy:'#fd7e14', dnd:'#dc3545', away:'#ffc107', offline:'#6c757d' };
+                    const el = document.getElementById('profile-presence'); if (el) el.style.background = colors[status] || colors['offline'];
+                }
+            }
+        }catch(e){ /* ignore */ }
+    }
+    function startPolling(){ if (pollInterval) return; fetchStatus(); pollInterval = setInterval(fetchStatus, pollPeriod); }
+    function stopPolling(){ if (pollInterval){ clearInterval(pollInterval); pollInterval = null; } }
+    // start polling when page init
+    startPolling();
 
     refreshGallery();
 
@@ -84,4 +100,7 @@ export function init(){
     window.addEventListener('beforeunload', ()=>{ navigator.sendBeacon && navigator.sendBeacon(api.heartbeat); });
 }
 
-export function destroy(){ /* cleanup if necessary */ }
+export function destroy(){
+    // cleanup: stop polling and any other long-lived resources
+    try { stopPolling(); } catch(e){}
+}

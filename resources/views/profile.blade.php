@@ -18,20 +18,11 @@
 				<div id="profile-avatar" style="position:relative; display:inline-block;">
 					<img id="profile-avatar-img" src="{{ $avatar }}" alt="avatar" class="rounded-circle" width="140" height="140">
 					<span id="profile-presence" style="position:absolute; right:12px; bottom:12px; width:16px; height:16px; border-radius:50%; border:3px solid #fff; background:#28a745; cursor:pointer;"></span>
+					<span id="profile-presence-desc" class="small text-muted" style="position:absolute; left:calc(100% + 8px); bottom:12px; white-space:nowrap;">Online</span>
 				</div>
 				<div class="mt-3">
 					<label class="btn btn-sm btn-outline-secondary" id="btn-change-photo">Subir foto</label>
 					<input id="input-photo" type="file" accept="image/*" style="display:none">
-				</div>
-				<div class="mt-2">
-					<small class="text-muted">Estado</small>
-					<div class="btn-group mt-1" role="group" aria-label="Presencia">
-						<button type="button" class="btn btn-outline-secondary btn-sm presence-btn" data-status="online">Online</button>
-						<button type="button" class="btn btn-outline-secondary btn-sm presence-btn" data-status="busy">Ocupado</button>
-						<button type="button" class="btn btn-outline-secondary btn-sm presence-btn" data-status="dnd">No molestar</button>
-						<button type="button" class="btn btn-outline-secondary btn-sm presence-btn" data-status="away">Ausente</button>
-						<button type="button" class="btn btn-outline-secondary btn-sm presence-btn" data-status="offline">No disponible</button>
-					</div>
 				</div>
 			</div>
 			<div class="col-md-8">

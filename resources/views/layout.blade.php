@@ -521,10 +521,10 @@
 					</ul>
 				</li>
 
-				<li class="nav-item dropdown">
+				<li class="nav-item dropdown" data-bs-auto-close="outside">
 						@php
 						$user = Auth::user();
-						$avatar = Vite::asset('resources/images/p.png');
+						$avatar = ($user?->photo) ? base64_encode(file_get_contents(public_path($user->photo))) : Vite::asset('resources/images/p.png');
 						// prefer profile_photo_data_url (from user_photos.foto) then user->photo path
 						if ($user) {
 							if (!empty($user->profile_photo_data_url)) {
@@ -556,18 +556,38 @@
 						<span class="d-none d-lg-inline text-white">{{ $user->name ?? 'Usuario' }}</span>
 					</a>
 					<ul class="dropdown-menu dropdown-menu-end shadow" id="userDropdownMenu">
-						<li class="dropdown-header">{{ Auth::user()->name ?? 'Usuario' }}</li>
-						<li class="px-3 py-2 small text-muted">Estado</li>
-						@php $states = ['online'=>'Online','busy'=>'Ocupado','dnd'=>'No molestar','away'=>'Ausente','offline'=>'No disponible']; @endphp
-						@foreach($states as $key => $label)
-						<li><button class="dropdown-item presence-select" data-status="{{ $key }}" type="button">{{ $label }}</button></li>
-						@endforeach
+						{{-- Perfil primero --}}
+						<li><a class="dropdown-item" href="/perfil"><strong>Perfil</strong></a></li>
+
+						{{-- Estado: sublist colapsable dentro del dropdown para mantenerlo limpio --}}
+						<li>
+							{{-- toggle como button para evitar el comportamiento por defecto del anchor --}}
+							<button class="dropdown-item d-flex justify-content-between align-items-center presence-toggle" type="button" aria-expanded="false">Estado <i class="bi bi-chevron-down small"></i></button>
+							<div class="presence-submenu" id="presenceCollapse" aria-hidden="true" style="display:none;">
+								<ul class="list-unstyled ps-3 mb-2">
+									@php
+										$states = ['online'=>'Online','busy'=>'Ocupado','dnd'=>'No molestar','away'=>'Ausente','offline'=>'No disponible'];
+										$stateColors = ['online'=>'#28a745','busy'=>'#fd7e14','dnd'=>'#dc3545','away'=>'#ffc107','offline'=>'#6c757d'];
+									@endphp
+									@foreach($states as $key => $label)
+									@php $color = $stateColors[$key] ?? '#6c757d'; @endphp
+									<li>
+										<button class="dropdown-item presence-select d-flex align-items-center" data-status="{{ $key }}" type="button">
+											<i class="bi bi-circle-fill me-2" style="color: {{ $color }}"></i>
+											<span>{{ $label }}</span>
+										</button>
+									</li>
+									@endforeach
+								</ul>
+							</div>
+						</li>
+
+						{{-- separación y acción de logout al final --}}
 						<li><hr class="dropdown-divider my-1"></li>
-						<li><a class="dropdown-item" href="/perfil">Perfil</a></li>
 						<li>
 							<form method="POST" action="{{ route('logout') }}" class="m-0">
 								@csrf
-								<button class="dropdown-item" type="submit">Cerrar sesión</button>
+								<button class="dropdown-item text-danger" type="submit">Cerrar sesión</button>
 							</form>
 						</li>
 					</ul>
@@ -629,14 +649,93 @@
 		// Presence dropdown handler: send POST to /profile/presence and update dot color
 		document.addEventListener('DOMContentLoaded', function(){
 			const map = { online: '#28a745', busy: '#fd7e14', dnd: '#dc3545', away: '#ffc107', offline: '#6c757d' };
+			// Inyecta el estado actual del usuario desde backend
+			@php
+				$currentPresence = 'offline';
+				if (auth()->check()) {
+					$u = auth()->user();
+					$currentPresence = $u->status ?? ($u->is_active ? 'online' : 'offline');
+				}
+			@endphp
+			window.__userPresence = '{{ $currentPresence }}';
+
+			// función para aplicar el estado en la UI (dot en header, profile, botones)
+			function applyPresenceToUI(status){
+				const stateColors = { online:'#28a745', busy:'#fd7e14', dnd:'#dc3545', away:'#ffc107', offline:'#6c757d' };
+				const color = stateColors[status] || stateColors['offline'];
+				const dot = document.querySelector('.presence-dot');
+				if (dot) dot.style.background = color;
+				const profileDot = document.getElementById('profile-presence');
+				if (profileDot) profileDot.style.background = color;
+
+				// marcar botón activo en perfil
+				document.querySelectorAll('.presence-btn').forEach(function(b){
+					if (b.getAttribute('data-status') === status) b.classList.add('active');
+					else b.classList.remove('active');
+				});
+
+				// marcar (visualmente) opción activa en dropdown si existe
+				document.querySelectorAll('.presence-select').forEach(function(b){
+					if (b.getAttribute('data-status') === status) b.classList.add('active');
+					else b.classList.remove('active');
+				});
+			}
+
+			// Exponer la función globalmente para que módulos cargados por PJAX la usen
+			try { window.applyPresenceToUI = applyPresenceToUI; } catch (e) {}
+
+			// Inicializar UI con el estado del servidor
+			document.addEventListener('DOMContentLoaded', function(){
+				if (window.__userPresence) applyPresenceToUI(window.__userPresence);
+			});
+
+			// sincronización entre pestañas usando localStorage
+			window.addEventListener('storage', function(e){
+				if (e.key !== 'psicoguia_presence') return;
+				try {
+					const payload = JSON.parse(e.newValue || '{}');
+					if (payload && payload.status) {
+						window.__userPresence = payload.status;
+						applyPresenceToUI(payload.status);
+					}
+				} catch(err){ /* ignore parse errors */ }
+			});
+
+			// centraliza la lógica de actualización de presencia (POST + UI + localStorage)
+			window.updatePresence = async function(status){
+				try {
+					await window.axios.post('{{ route('profile.presence') }}', { status: status });
+				} catch(e){
+					console.error('updatePresence error', e);
+					throw e;
+				}
+				window.__userPresence = status;
+				applyPresenceToUI(status);
+				try {
+					localStorage.setItem('psicoguia_presence', JSON.stringify({ status: status, ts: Date.now() }));
+				} catch(e) { /* ignore localStorage errors */ }
+				return true;
+			};
+
+			// handler para botones dentro del dropdown
 			document.querySelectorAll('.presence-select').forEach(function(btn){
-				btn.addEventListener('click', async function(){
+				btn.addEventListener('click', async function(evt){
+					evt.preventDefault();
+					evt.stopPropagation();
 					const s = btn.getAttribute('data-status');
-					try {
-						await window.axios.post('{{ route('profile.presence') }}', { status: s });
-						const dot = document.querySelector('.presence-dot');
-						if (dot) dot.style.background = map[s] || map['offline'];
-					} catch(e) { console.error(e); }
+					try { await window.updatePresence(s); } catch(e){}
+				});
+			});
+
+			// handler para botones en la página de perfil (presence-btn)
+			document.querySelectorAll('.presence-btn').forEach(function(btn){
+				btn.addEventListener('click', async function(evt){
+					evt.preventDefault();
+					const s = btn.getAttribute('data-status');
+					try { await window.updatePresence(s); } catch(e){}
+					// marcar visualmente el botón seleccionado
+					document.querySelectorAll('.presence-btn').forEach(function(b){ b.classList.remove('active'); });
+					btn.classList.add('active');
 				});
 			});
 		});
@@ -671,7 +770,10 @@
 						const html = extra.join('');
 						// Prefer inserting the public links before the visual separator so
 						// the Logout button remains the last item in the dropdown.
-						const sep = dropdownMenu.querySelector('hr.sidebar-divider');
+						// Prefer inserting the public links before our dropdown divider so
+						// the Logout button remains the last item. Look for the divider we
+						// render: 'hr.dropdown-divider.my-1'. Fall back to end if not found.
+						const sep = dropdownMenu.querySelector('hr.dropdown-divider.my-1');
 						if (sep) {
 							sep.insertAdjacentHTML('beforebegin', html);
 						} else {
@@ -690,6 +792,30 @@
 				} catch(e){}
 			} catch(e){}
 		})();
+	</script>
+	<script>
+		// Presence submenu toggle: simple JS (no Bootstrap collapse) to avoid
+		// closing the parent dropdown accidentally.
+		document.addEventListener('DOMContentLoaded', function(){
+			const toggles = document.querySelectorAll('.presence-toggle');
+			toggles.forEach(function(btn){
+				btn.addEventListener('click', function(evt){
+					evt.preventDefault();
+					evt.stopPropagation();
+					const submenu = btn.parentElement.querySelector('.presence-submenu');
+					if (!submenu) return;
+					const isHidden = submenu.style.display === 'none' || submenu.getAttribute('aria-hidden') === 'true';
+					submenu.style.display = isHidden ? 'block' : 'none';
+					submenu.setAttribute('aria-hidden', isHidden ? 'false' : 'true');
+					btn.setAttribute('aria-expanded', isHidden ? 'true' : 'false');
+				});
+			});
+
+			// Clicking inside submenu should not close the dropdown; stop propagation
+			document.querySelectorAll('.presence-submenu, .presence-submenu .presence-select').forEach(function(el){
+				el.addEventListener('click', function(evt){ evt.stopPropagation(); });
+			});
+		});
 	</script>
 </body>
 

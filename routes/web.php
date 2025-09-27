@@ -257,6 +257,21 @@ Route::middleware('auth')->group(function(){
 		return response()->json(['ok'=>true,'status'=>$status]);
 	})->name('profile.presence');
 
+	// Return current authenticated user's status (used by polling on /perfil)
+	Route::get('/profile/status', function(){
+		$user = auth()->user();
+		if (!$user) return response()->json(['ok'=>false], 401);
+		$lastSeen = null;
+		if (isset($user->last_seen_at)) {
+			if ($user->last_seen_at instanceof \DateTimeInterface) {
+				$lastSeen = $user->last_seen_at->format('Y-m-d H:i:s');
+			} else {
+				$lastSeen = is_string($user->last_seen_at) && $user->last_seen_at !== '' ? $user->last_seen_at : null;
+			}
+		}
+		return response()->json(['ok'=>true,'status'=>$user->status ?? 'offline','last_seen_at'=>$lastSeen]);
+	})->name('profile.status');
+
 	// Heartbeat/keepalive endpoint for presence (called periodically by the client)
 	Route::post('/profile/heartbeat', function(\Illuminate\Http\Request $request){
 		$user = auth()->user();
