@@ -55,6 +55,21 @@ services:
     depends_on:
       - db
 
+  # Servicio MailHog (captura correos en desarrollo)
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: laravel-mailhog
+    restart: unless-stopped
+    ports:
+      - "1025:1025"   # SMTP
+      - "8025:8025"   # Web UI
+    environment:
+      - MH_STORAGE=maildir
+    volumes:
+      - mailhog_data:/maildir
+    # No depende de otros servicios explícitamente; ningún otro servicio debe esperar a que MailHog arranque
+
 volumes:
   pg_data:
   vendor_data:
+  mailhog_data:
