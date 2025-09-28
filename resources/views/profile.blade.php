@@ -49,6 +49,63 @@
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function(){
+	// 2FA modal HTML (for confirming reopen when IP changed)
+	if (!document.getElementById('reopen2faModal')) {
+		const modal2 = `
+		<div class="modal fade" id="reopen2faModal" tabindex="-1" aria-hidden="true">
+			<div class="modal-dialog modal-dialog-centered">
+				<div class="modal-content">
+					<div class="modal-header">
+						<h5 class="modal-title">Confirmar reapertura de sesión</h5>
+					</div>
+					<div class="modal-body">
+						<p>Hemos enviado un código a tu correo. Introduce el código de 6 dígitos para confirmar que eres tú.</p>
+						<div class="mb-2"><input id="reopen2faCode" class="form-control" placeholder="Código 6 dígitos" maxlength="6" inputmode="numeric"></div>
+						<div id="reopen2faError" class="text-danger small" style="display:none"></div>
+					</div>
+					<div class="modal-footer">
+						<button id="reopen2faCancel" type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+						<button id="reopen2faSubmit" type="button" class="btn btn-primary">Confirmar</button>
+					</div>
+				</div>
+			</div>
+		</div>`;
+		document.body.insertAdjacentHTML('beforeend', modal2);
+	}
+
+	// Helper to show the 2FA modal and handle submit
+	function showReopen2faModal() {
+		const modalEl = document.getElementById('reopen2faModal');
+		const bs = new bootstrap.Modal(modalEl);
+		const input = document.getElementById('reopen2faCode');
+		const err = document.getElementById('reopen2faError');
+		const submit = document.getElementById('reopen2faSubmit');
+		err.style.display = 'none';
+		input.value = '';
+		submit.onclick = async function() {
+			err.style.display = 'none';
+			const code = input.value.trim();
+			if (!/^[0-9]{6}$/.test(code)) { err.textContent = 'Introduce un código válido de 6 dígitos.'; err.style.display = 'block'; return; }
+			submit.disabled = true;
+			try {
+				const res = await fetch('/profile/heartbeat/confirm', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content') }, body: JSON.stringify({ code }) });
+				const j = await res.json();
+				if (j.ok) {
+					bs.hide();
+					// Optionally refresh presence or UI
+					location.reload();
+				} else {
+					err.textContent = j.message || 'Código incorrecto';
+					err.style.display = 'block';
+				}
+			} catch (errNet) {
+				err.textContent = 'Error de red. Intenta de nuevo.'; err.style.display = 'block';
+			} finally { submit.disabled = false; }
+		};
+		bs.show();
+		setTimeout(() => input.focus(), 250);
+	}
+
 		// ensure modal exists
 		if (!document.getElementById('profileImagePreviewModal')) {
 				const modalHtml = `

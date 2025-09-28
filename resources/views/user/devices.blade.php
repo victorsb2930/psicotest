@@ -39,6 +39,10 @@
             @endforeach
         </tbody>
     </table>
+    <form method="POST" action="{{ route('user.devices.revoke_all') }}">
+        @csrf
+        <button class="btn btn-warning">Revocar todos los dispositivos</button>
+    </form>
     <p class="text-muted">Puedes revocar dispositivos si detectas actividad sospechosa.</p>
 </div>
 @endsection

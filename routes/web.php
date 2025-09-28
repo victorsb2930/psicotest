@@ -89,6 +89,18 @@ Route::middleware(['auth'])->group(function(){
 			try { \App\Models\UserLogin::where('browser_token_hash', $device->token_hash)->update(['ended_at' => now(), 'duration_seconds' => null]); } catch (\Throwable $_) {}
 			return redirect()->back()->with('success','Dispositivo revocado');
 		})->name('user.devices.revoke');
+
+		// Revoke all devices for the current user
+		Route::post('/user/devices/revoke-all', function(\Illuminate\Http\Request $r){
+			$user = auth()->user();
+			if (!$user) abort(401);
+			try {
+				\App\Models\UserDevice::where('user_id', $user->id)->whereNull('revoked_at')->update(['revoked_at' => now()]);
+				// also close any user_logins referencing those tokens
+				try { \App\Models\UserLogin::where('user_id', $user->id)->update(['ended_at' => now(), 'duration_seconds' => null]); } catch (\Throwable $_) {}
+			} catch (\Throwable $_) {}
+			return redirect()->back()->with('success','Todos los dispositivos han sido revocados');
+		})->name('user.devices.revoke_all');
 	Route::get('/professionalarea', function () {
 		return view('professionalArea');
 	})->middleware(['perm:professionalarea'])->name('professionalarea');
@@ -404,9 +416,32 @@ Route::middleware('auth')->group(function(){
 										// update device last seen
 										try { \App\Models\UserDevice::where('token_hash', $hash)->where('user_id', $user->id)->update(['last_seen_at' => now(), 'ip_address' => $reqIp, 'user_agent' => $reqUa]); } catch (\Throwable $_) {}
 									} else {
-										// Suspicious: token matched but UA/IP policy failed. Log and notify.
-										try { \Illuminate\Support\Facades\Log::warning('user_login.token_reuse_suspicious', ['found_id' => $found->id, 'session_id' => $sid, 'user_id' => $user->id ?? null, 'req_ua' => substr($reqUa,0,200), 'stored_ua' => substr($storedUa,0,200), 'req_ip' => $reqIp, 'stored_ip' => $storedIp]); } catch (\Throwable $_) {}
-										try { $u = auth()->user(); if ($u) $u->notify(new \App\Notifications\DeviceSuspiciousAttempt($reqIp, $reqUa)); } catch (\Throwable $_) {}
+										// Token matched but policy failed. If UA matches but IP differs, require a one-time 2FA code
+										// to confirm reopening (allows users who changed networks but use the same browser).
+										$reqUa = $request->userAgent() ?? '';
+										$reqIp = $request->ip() ?? '';
+										$uaMatches = $storedUa !== '' && $reqUa === $storedUa;
+										$ipMatches = $storedIp !== '' && $reqIp === $storedIp;
+
+										if ($uaMatches && !$ipMatches) {
+											// Generate a 6-digit code and cache it tied to user+token hash
+											try {
+												$code = str_pad((string) random_int(100000, 999999), 6, '0', STR_PAD_LEFT);
+												$cacheKey = 'reopen_2fa:' . $user->id . ':' . $hash;
+												\Illuminate\Support\Facades\Cache::put($cacheKey, $code, now()->addMinutes(10));
+												$u = auth()->user();
+												if ($u) {
+													$u->notify(new \App\Notifications\DeviceReopen2FA($code, $reqIp, $reqUa));
+												}
+												try { \Illuminate\Support\Facades\Log::info('user_login.reopen_2fa_sent', ['user_id' => $user->id ?? null, 'req_ip' => $reqIp, 'stored_ip' => $storedIp, 'req_ua' => substr($reqUa,0,200)]); } catch (\Throwable $_) {}
+											} catch (\Throwable $_) { /* ignore generation/notify failures */ }
+											// Tell the client it must confirm with the 2FA code
+											return response()->json(['ok' => true, 'two_factor_required' => true]);
+										} else {
+											// UA doesn't match or other mismatch: treat as suspicious and notify user
+											try { \Illuminate\Support\Facades\Log::warning('user_login.token_reuse_suspicious', ['found_id' => $found->id, 'session_id' => $sid, 'user_id' => $user->id ?? null, 'req_ua' => substr($reqUa,0,200), 'stored_ua' => substr($storedUa,0,200), 'req_ip' => $reqIp, 'stored_ip' => $storedIp]); } catch (\Throwable $_) {}
+											try { $u = auth()->user(); if ($u) $u->notify(new \App\Notifications\DeviceSuspiciousAttempt($reqIp, $reqUa)); } catch (\Throwable $_) {}
+										}
 									}
 								}
 							} catch (\Throwable $_) { /* ignore */ }
@@ -426,6 +461,116 @@ Route::middleware('auth')->group(function(){
 		} catch (\Throwable$e) { /* noop */ }
 		return response()->json(['ok'=>true,'ts'=>now()->toDateTimeString()]);
 	})->name('profile.heartbeat');
+
+	// Endpoint to confirm a reopen using the 2FA code sent by email
+	Route::post('/profile/heartbeat/confirm', function(\Illuminate\Http\Request $request){
+		$user = auth()->user();
+		if (!$user) return response()->json(['ok'=>false], 401);
+		$cookieName = env('BROWSER_TOKEN_COOKIE_NAME', 'psg_browser_token');
+		$token = $request->cookie($cookieName);
+		if (empty($token)) return response()->json(['ok'=>false,'message'=>'no_token'], 400);
+		$hash = hash_hmac('sha256', $token, config('app.key'));
+		$code = $request->input('code');
+		if (!$code) return response()->json(['ok'=>false,'message'=>'no_code'], 400);
+		// Check block record
+		try {
+			$block = \App\Models\DeviceReopenBlock::where('user_id', $user->id)->where(function($q) use ($hash){ $q->whereNull('token_hash')->orWhere('token_hash', $hash); })->orderBy('id','desc')->first();
+			if ($block) {
+				if ($block->permanent) return response()->json(['ok'=>false,'message'=>'blocked_permanent'], 403);
+				if ($block->blocked_until && \Illuminate\Support\Carbon::now()->lessThan($block->blocked_until)) return response()->json(['ok'=>false,'message'=>'blocked_until','until' => $block->blocked_until->toDateTimeString()], 403);
+			}
+		} catch (\Throwable $_) { $block = null; }
+
+		$cacheKey = 'reopen_2fa:' . $user->id . ':' . $hash;
+		$expected = \Illuminate\Support\Facades\Cache::get($cacheKey);
+		if (!$expected || !hash_equals((string)$expected, (string)$code)) {
+			// log failed attempt
+			try { \App\Models\DeviceReopenAttempt::create(['user_id' => $user->id, 'token_hash' => $hash, 'ip_address' => $request->ip(), 'user_agent' => $request->userAgent(), 'success' => false, 'action' => 'confirm']); } catch (\Throwable $_) {}
+			// increment attempt counter and enforce blocks
+			try {
+				$ctrKey = 'reopen_attempts:' . $user->id . ':' . $hash;
+				$cnt = (int) (\Illuminate\Support\Facades\Cache::get($ctrKey, 0) + 1);
+				\Illuminate\Support\Facades\Cache::put($ctrKey, $cnt, now()->addHours(2));
+				if ($cnt >= 15) {
+					\App\Models\DeviceReopenBlock::create(['user_id'=>$user->id,'token_hash'=>$hash,'permanent'=>true,'blocked_until'=>null]);
+				} elseif ($cnt >= 10) {
+					\App\Models\DeviceReopenBlock::create(['user_id'=>$user->id,'token_hash'=>$hash,'permanent'=>false,'blocked_until'=>now()->addHour()]);
+				} elseif ($cnt >= 5) {
+					\App\Models\DeviceReopenBlock::create(['user_id'=>$user->id,'token_hash'=>$hash,'permanent'=>false,'blocked_until'=>now()->addMinutes(15)]);
+				}
+			} catch (\Throwable $_) {}
+			return response()->json(['ok'=>false,'message'=>'invalid_code'], 400);
+		}
+		// valid: reopen most recent user_logins row for this token
+		try {
+			$found = \Illuminate\Support\Facades\DB::table('user_logins')->where('user_id', $user->id)->where('browser_token_hash', $hash)->orderBy('id','desc')->first();
+			if ($found) {
+				$sid = $request->getSession()->getId();
+				\Illuminate\Support\Facades\DB::table('user_logins')->where('id', $found->id)->update(['ended_at' => null, 'duration_seconds' => null, 'session_id' => $sid]);
+				try { \Illuminate\Support\Facades\Log::info('user_login.reopened_by_2fa', ['user_login_id' => $found->id, 'user_id' => $user->id ?? null]); } catch (\Throwable $_) {}
+				// update device last seen
+				try { \App\Models\UserDevice::where('token_hash', $hash)->where('user_id', $user->id)->update(['last_seen_at' => now(), 'ip_address' => $request->ip(), 'user_agent' => $request->userAgent()]); } catch (\Throwable $_) {}
+			}
+		} catch (\Throwable $_) { /* ignore */ }
+		// consume code
+		\Illuminate\Support\Facades\Cache::forget($cacheKey);
+		try { \App\Models\DeviceReopenAttempt::create(['user_id' => $user->id, 'token_hash' => $hash, 'ip_address' => $request->ip(), 'user_agent' => $request->userAgent(), 'success' => true, 'action' => 'confirm']); } catch (\Throwable $_) {}
+		return response()->json(['ok'=>true]);
+	})->name('profile.heartbeat.confirm');
+
+	// Resend 2FA code endpoint (rate-limited per user+token)
+	Route::post('/profile/heartbeat/resend', function(\Illuminate\Http\Request $request){
+		$user = auth()->user();
+		if (!$user) return response()->json(['ok'=>false], 401);
+		$cookieName = env('BROWSER_TOKEN_COOKIE_NAME', 'psg_browser_token');
+		$token = $request->cookie($cookieName);
+		if (empty($token)) return response()->json(['ok'=>false,'message'=>'no_token'], 400);
+		$hash = hash_hmac('sha256', $token, config('app.key'));
+		$cacheKeyRate = 'reopen_2fa_rate:' . $user->id . ':' . $hash;
+		if (\Illuminate\Support\Facades\Cache::has($cacheKeyRate)) {
+			return response()->json(['ok'=>false,'message'=>'rate_limited'], 429);
+		}
+		// check if blocked
+		try {
+			$block = \App\Models\DeviceReopenBlock::where('user_id', $user->id)->where(function($q) use ($hash){ $q->whereNull('token_hash')->orWhere('token_hash', $hash); })->orderBy('id','desc')->first();
+			if ($block) {
+				if ($block->permanent) return response()->json(['ok'=>false,'message'=>'blocked_permanent'], 403);
+				if ($block->blocked_until && \Illuminate\Support\Carbon::now()->lessThan($block->blocked_until)) return response()->json(['ok'=>false,'message'=>'blocked_until','until' => $block->blocked_until->toDateTimeString()], 403);
+			}
+		} catch (\Throwable $_) { /* ignore */ }
+
+		try {
+			$code = str_pad((string) random_int(100000, 999999), 6, '0', STR_PAD_LEFT);
+			$cacheKey = 'reopen_2fa:' . $user->id . ':' . $hash;
+			\Illuminate\Support\Facades\Cache::put($cacheKey, $code, now()->addMinutes(10));
+			\Illuminate\Support\Facades\Cache::put($cacheKeyRate, true, now()->addMinutes(2)); // allow resend every 2 minutes
+			$method = $request->input('method','email');
+			if ($method === 'sms' && !empty($user->phone) && env('TWILIO_SID') && env('TWILIO_TOKEN') && env('TWILIO_FROM')) {
+				try {
+					$client = new \Twilio\Rest\Client(env('TWILIO_SID'), env('TWILIO_TOKEN'));
+					$client->messages->create($user->phone, ['from' => env('TWILIO_FROM'), 'body' => "Código 2FA: {$code}"]); 
+				} catch (\Throwable $_) {
+					// fallback to email if SMS fails
+					$u = auth()->user(); if ($u) $u->notify(new \App\Notifications\DeviceReopen2FA($code, $request->ip(), $request->userAgent()));
+				}
+			} else {
+				$u = auth()->user(); if ($u) $u->notify(new \App\Notifications\DeviceReopen2FA($code, $request->ip(), $request->userAgent()));
+			}
+			try { \App\Models\DeviceReopenAttempt::create(['user_id' => $user->id, 'token_hash' => $hash, 'ip_address' => $request->ip(), 'user_agent' => $request->userAgent(), 'success' => null, 'action' => 'resend']); } catch (\Throwable $_) {}
+		} catch (\Throwable $_) { /* ignore */ }
+		return response()->json(['ok'=>true]);
+	})->name('profile.heartbeat.resend');
+
+	// Admin endpoint to unlock a user's blocks (requires admin permission)
+	Route::post('/admin/users/{user}/unlock-reopen', function(\Illuminate\Http\Request $r, \App\Models\User $user){
+		$actor = auth()->user();
+		if (!$actor || !$actor->can('adminarea')) abort(403);
+		$tokenHash = $r->input('token_hash');
+		try {
+			\App\Models\DeviceReopenBlock::where('user_id', $user->id)->where(function($q) use($tokenHash){ if ($tokenHash) $q->where('token_hash', $tokenHash); })->update(['admin_unlocked_by' => $actor->id, 'admin_unlocked_at' => now(), 'permanent' => false, 'blocked_until' => null]);
+		} catch (\Throwable $_) {}
+		return redirect()->back()->with('success','Bloqueos eliminados (registro marcado para revisión por admin)');
+	})->name('admin.users.unlock_reopen');
 
 	// User appointments (calendar view for normal users)
 	Route::get('/appointments', [\App\Http\Controllers\UserAppointmentController::class, 'index'])->name('appointments.index');

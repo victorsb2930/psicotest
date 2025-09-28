@@ -2,6 +2,7 @@
 import './bootstrap';
 import './partials/quickLogin';
 import './notifications';
+import './partials/reopen2fa';
 
 /* 
 * Agrego aqui tambien la configuracion global CSRF => CSRF token mismatch.
@@ -178,7 +179,16 @@ function startHeartbeat(intervalSeconds = 60) {
 				const token = tokenMeta ? tokenMeta.getAttribute('content') : null;
 				const headers = { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' };
 				if (token) headers['X-CSRF-TOKEN'] = token;
-				fetch(url, { method: 'POST', credentials: 'same-origin', headers }).catch(()=>{});
+				fetch(url, { method: 'POST', credentials: 'same-origin', headers }).then(async (res)=>{
+					try {
+						if (!res.ok) return;
+						const j = await res.json().catch(()=>null);
+						if (j && j.two_factor_required) {
+							// notify any listener to show 2FA modal
+							window.dispatchEvent(new CustomEvent('pg:reopen-2fa-required', { detail: j }));
+						}
+					} catch (_) {}
+				}).catch(()=>{});
 			} catch (_) {}
 		};
 		fn(); // immediate
