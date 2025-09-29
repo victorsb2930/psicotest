@@ -509,7 +509,7 @@
 							</a>
 						</li>
 						@empty
-						<li class="dropdown-item text-muted">No hay notificaciones</li>
+						<li class="dropdown-item text-muted notif-empty">No hay notificaciones</li>
 						@endforelse
 						<li>
 							<hr class="dropdown-divider">

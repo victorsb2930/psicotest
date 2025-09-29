@@ -136,7 +136,7 @@ export async function openAppointmentModal(options = {}) {
                     if (!title) { window.modalNotification?.('Título requerido','Indica un título para la cita',{template:'warning'}); $modal.find('#am_title').trigger('focus'); return; }
                     if (!startVal) { window.modalNotification?.('Inicio requerido','Indica inicio',{template:'warning'}); $modal.find('#am_start').trigger('focus'); return; }
                     if (!endVal) { window.modalNotification?.('Fin requerido','Indica fin de la cita',{template:'warning'}); $modal.find('#am_end').trigger('focus'); return; }
-                    if (!notes) { window.modalNotification?.('Notas requeridas','Especifica notas/reason',{template:'warning'}); $modal.find('#am_notes').trigger('focus'); return; }
+                    if (!notes) { window.modalNotification?.('Notas requeridas','Especifica notas/razón',{template:'warning'}); $modal.find('#am_notes').trigger('focus'); return; }
                 }
 
                 // prepare payload
