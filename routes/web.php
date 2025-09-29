@@ -251,6 +251,28 @@ Route::middleware(['auth'])->group(function(){
 		Route::get('/professional-applications/{application}/file/{field}', [\App\Http\Controllers\ProfessionalApplicationController::class, 'file'])->name('admin.profapps.file');
 	});
 
+		// Admin: Device management (global) - listar y revocar dispositivos de cualquier usuario
+		Route::get('/devices', function(){
+			$devices = \App\Models\UserDevice::with('user')->orderBy('last_seen_at','desc')->paginate(50);
+			return view('admin.devices.index', compact('devices'));
+		})->name('admin.devices');
+
+		Route::post('/devices/{device}/revoke', function(\Illuminate\Http\Request $r, \App\Models\UserDevice $device){
+			// mark revoked
+			$device->revoked_at = now();
+			$device->save();
+			// optionally close user logins referencing this token
+			try { \App\Models\UserLogin::where('browser_token_hash', $device->token_hash)->update(['ended_at' => now(), 'duration_seconds' => null]); } catch (\Throwable $_) {}
+			return redirect()->back()->with('success','Dispositivo revocado');
+		})->name('admin.devices.revoke');
+
+		// Revoke all devices for a given user (admin action)
+		Route::post('/devices/user/{user}/revoke-all', function(\Illuminate\Http\Request $r, \App\Models\User $user){
+			try { \App\Models\UserDevice::where('user_id', $user->id)->whereNull('revoked_at')->update(['revoked_at' => now()]); } catch (\Throwable $_) {}
+			try { \App\Models\UserLogin::where('user_id', $user->id)->update(['ended_at' => now(), 'duration_seconds' => null]); } catch (\Throwable $_) {}
+			return redirect()->back()->with('success','Todos los dispositivos del usuario han sido revocados');
+		})->name('admin.devices.revoke_user_all');
+
 });
 
 Route::post('/login', [LoginRegisterController::class, 'login'])->name('login');
@@ -414,7 +436,23 @@ Route::middleware('auth')->group(function(){
 										try { \Illuminate\Support\Facades\Log::info('user_login.reopened_by_token', ['user_login_id' => $found->id, 'session_id' => $sid, 'user_id' => $user->id ?? null]); } catch (\Throwable $_) {}
 										$open = true;
 										// update device last seen
-										try { \App\Models\UserDevice::where('token_hash', $hash)->where('user_id', $user->id)->update(['last_seen_at' => now(), 'ip_address' => $reqIp, 'user_agent' => $reqUa]); } catch (\Throwable $_) {}
+										try {
+											// derive a friendly name if device record has no name
+											$derived = \App\Models\UserDevice::friendlyNameFromUserAgent($reqUa);
+											$upd = ['last_seen_at' => now(), 'ip_address' => $reqIp, 'user_agent' => $reqUa];
+											if ($derived) $upd['name'] = \DB::raw("COALESCE(name, '" . addslashes($derived) . "')");
+											// Use a raw update when setting COALESCE to avoid overwriting existing names
+											try {
+												if (isset($upd['name'])) {
+													\App\Models\UserDevice::where('token_hash', $hash)->where('user_id', $user->id)->update(['last_seen_at' => now(), 'ip_address' => $reqIp, 'user_agent' => $reqUa, 'name' => $derived]);
+												} else {
+													\App\Models\UserDevice::where('token_hash', $hash)->where('user_id', $user->id)->update($upd);
+												}
+											} catch (\Throwable $_inner) {
+												// fallback to simple update
+												try { \App\Models\UserDevice::where('token_hash', $hash)->where('user_id', $user->id)->update(['last_seen_at' => now(), 'ip_address' => $reqIp, 'user_agent' => $reqUa]); } catch (\Throwable $_) {}
+											}
+										} catch (\Throwable $_) {}
 									} else {
 										// Token matched but policy failed. If UA matches but IP differs, require a one-time 2FA code
 										// to confirm reopening (allows users who changed networks but use the same browser).
@@ -509,7 +547,14 @@ Route::middleware('auth')->group(function(){
 				\Illuminate\Support\Facades\DB::table('user_logins')->where('id', $found->id)->update(['ended_at' => null, 'duration_seconds' => null, 'session_id' => $sid]);
 				try { \Illuminate\Support\Facades\Log::info('user_login.reopened_by_2fa', ['user_login_id' => $found->id, 'user_id' => $user->id ?? null]); } catch (\Throwable $_) {}
 				// update device last seen
-				try { \App\Models\UserDevice::where('token_hash', $hash)->where('user_id', $user->id)->update(['last_seen_at' => now(), 'ip_address' => $request->ip(), 'user_agent' => $request->userAgent()]); } catch (\Throwable $_) {}
+				try {
+					$derived = \App\Models\UserDevice::friendlyNameFromUserAgent($request->userAgent());
+					if ($derived) {
+						\App\Models\UserDevice::where('token_hash', $hash)->where('user_id', $user->id)->update(['last_seen_at' => now(), 'ip_address' => $request->ip(), 'user_agent' => $request->userAgent(), 'name' => $derived]);
+					} else {
+						\App\Models\UserDevice::where('token_hash', $hash)->where('user_id', $user->id)->update(['last_seen_at' => now(), 'ip_address' => $request->ip(), 'user_agent' => $request->userAgent()]);
+					}
+				} catch (\Throwable $_) {}
 			}
 		} catch (\Throwable $_) { /* ignore */ }
 		// consume code

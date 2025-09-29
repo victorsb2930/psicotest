@@ -31,7 +31,7 @@
 						<div class="card-body">
 							<div class="text-muted d-flex align-items-center justify-content-center gap-2">
 								<span class="bi bi-journal-check"></span>
-								<span>Solicitudes Pro pendientes</span>
+								<span>Solicitudes Profesionales pendientes</span>
 							</div>
 							<div class="display-6">{{ $totals['prof_pending'] ?? 0 }}</div>
 						</div>

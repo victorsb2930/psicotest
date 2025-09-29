@@ -59,6 +59,12 @@
 							<i class="bi bi-key me-2"></i>Permisos
 						</a>
 					</li>
+					<li class="nav-item">
+						{{-- Enlace a gestión de dispositivos para administradores; si no existe ruta admin.devices, usar user.devices como fallback --}}
+						<a href="{{ Route::has('admin.devices') ? route('admin.devices') : (Route::has('user.devices') ? route('user.devices') : '#') }}" class="nav-link px-0 {{ $is('admin.devices') ? 'active' : '' }}">
+							<i class="bi bi-phone me-2"></i>Dispositivos
+						</a>
+					</li>
 
 				{{-- PROFESSIONAL / USER SECTION --}}
 				@else

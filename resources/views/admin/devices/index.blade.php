@@ -1,14 +1,23 @@
 @extends('layouts.app')
 
+@section('title','Dispositivos - Admin')
+
 @section('content')
 <div class="container py-4">
-    <h3>Dispositivos conectados</h3>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h3>Dispositivos registrados</h3>
+        <a href="{{ route('adminarea') }}" class="btn btn-sm btn-outline-secondary">Volver al panel</a>
+    </div>
+
     @if(session('success'))
         <div class="alert alert-success">{{ session('success') }}</div>
     @endif
-    <table class="table table-striped">
+
+    <div class="table-responsive">
+    <table class="table table-hover">
         <thead>
             <tr>
+                <th>Usuario</th>
                 <th>Nombre</th>
                 <th>IP</th>
                 <th>User-Agent</th>
@@ -20,6 +29,14 @@
         <tbody>
             @foreach($devices as $d)
             <tr>
+                <td>
+                    @if($d->user)
+                        <div><strong>{{ $d->user->name }}</strong></div>
+                        <div class="small text-muted">{{ $d->user->email }}</div>
+                    @else
+                        <span class="text-muted">(usuario eliminado)</span>
+                    @endif
+                </td>
                 <td>{{ $d->display_name ?? 'Sin nombre' }}</td>
                 <td>{{ $d->ip_address ?? '-' }}</td>
                 <td style="max-width:400px;overflow:hidden;text-overflow:ellipsis;">{{ $d->user_agent ? Str::limit($d->user_agent, 200) : '-' }}</td>
@@ -37,40 +54,27 @@
                     @endphp
                     {{ $lastSeenHuman }}
                 </td>
-                <td>
-                    @php
-                        $rev = $d->revoked_at ?? null;
-                        $revHuman = 'No';
-                        try {
-                            if ($rev) {
-                                if ($rev instanceof \Illuminate\Support\Carbon || $rev instanceof \DateTimeInterface) {
-                                    $revHuman = 'Sí (' . $rev->diffForHumans() . ')';
-                                } else {
-                                    $revHuman = 'Sí (' . \Illuminate\Support\Carbon::parse($rev)->diffForHumans() . ')';
-                                }
-                            }
-                        } catch (\Throwable $_) { $revHuman = 'Sí'; }
-                    @endphp
-                    {{ $revHuman }}
-                </td>
+                <td>{{ $d->revoked_at ? 'Sí (' . $d->revoked_at->diffForHumans() . ')' : 'No' }}</td>
                 <td>
                     @if(!$d->revoked_at)
-                    <form method="POST" action="{{ route('user.devices.revoke', ['device' => $d->id]) }}">
-                        @csrf
-                        <button class="btn btn-sm btn-danger">Revocar</button>
-                    </form>
+                        <form method="POST" action="{{ route('admin.devices.revoke', ['device' => $d->id]) }}" class="d-inline-block">
+                            @csrf
+                            <button class="btn btn-sm btn-danger">Revocar</button>
+                        </form>
                     @else
                         <span class="text-muted">Revocado</span>
+                    @endif
+                    @if($d->user)
+                        <form method="POST" action="{{ route('admin.devices.revoke_user_all', ['user' => $d->user->id]) }}" class="d-inline-block ms-2">
+                            @csrf
+                            <button class="btn btn-sm btn-warning">Revocar todos de usuario</button>
+                        </form>
                     @endif
                 </td>
             </tr>
             @endforeach
         </tbody>
     </table>
-    <form method="POST" action="{{ route('user.devices.revoke_all') }}">
-        @csrf
-        <button class="btn btn-warning">Revocar todos los dispositivos</button>
-    </form>
-    <p class="text-muted">Puedes revocar dispositivos si detectas actividad sospechosa.</p>
+    </div>
 </div>
 @endsection

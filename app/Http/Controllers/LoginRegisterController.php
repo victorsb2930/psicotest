@@ -416,10 +416,17 @@ class LoginRegisterController extends Controller
 				try {
 					$ip = $request->ip();
 					$ua = $request->userAgent();
-					$dev = \App\Models\UserDevice::firstOrCreate(['user_id' => $user->id, 'token_hash' => $hash], ['ip_address' => $ip, 'user_agent' => $ua, 'last_seen_at' => now(), 'name' => null]);
+					$dev = \App\Models\UserDevice::firstOrCreate(
+						['user_id' => $user->id, 'token_hash' => $hash],
+						['ip_address' => $ip, 'user_agent' => $ua, 'last_seen_at' => now(), 'name' => \App\Models\UserDevice::friendlyNameFromUserAgent($ua)]
+					);
 					$dev->last_seen_at = now();
 					$dev->ip_address = $ip;
 					$dev->user_agent = $ua;
+					// If name is still empty, try to derive from user agent
+					if (empty($dev->name)) {
+						$dev->name = \App\Models\UserDevice::friendlyNameFromUserAgent($ua);
+					}
 					$dev->saveQuietly();
 				} catch (\Throwable $_) { /* ignore device create failures */ }
 				// Update the most-recent row for this session (should exist after the
