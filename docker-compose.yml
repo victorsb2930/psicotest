@@ -71,5 +71,8 @@ services:
 
 volumes:
   pg_data:
+    name: psicoguia_pg_data
   vendor_data:
+    name: psicoguia_vendor_data
   mailhog_data:
+    name: psicoguia_mailhog_data
