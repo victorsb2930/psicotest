@@ -84,7 +84,14 @@
 							</a>
 						</li>
 						<li class="nav-item"><a href="{{ Route::has('professional.calendar') ? route('professional.calendar') : '#' }}" class="nav-link px-0 {{ $is('professional.calendar') ? 'active' : '' }}"><i class="bi bi-calendar3 me-2"></i>Calendario</a></li>
-						<li class="nav-item"><a href="{{ Route::has('messages.index') ? route('messages.index') : '#' }}" class="nav-link px-0 {{ $is('messages.index') ? 'active' : '' }}"><i class="bi bi-chat-dots me-2"></i>Mensajes</a></li>
+						<li class="nav-item">
+							@php $messagesUrl = (auth()->check() && Route::has('messages.index')) ? route('messages.index') : null; @endphp
+							@if($messagesUrl)
+								<a href="{{ $messagesUrl }}" class="nav-link px-0 {{ $is('messages.index') ? 'active' : '' }}"><i class="bi bi-chat-dots me-2"></i>Mensajes</a>
+							@else
+								<span class="nav-link px-0 text-muted" title="Inicia sesión para ver tus mensajes"><i class="bi bi-chat-dots me-2"></i>Mensajes</span>
+							@endif
+						</li>
 						<li class="nav-item"><a href="{{ Route::has('professional.patients') ? route('professional.patients') : '#' }}" class="nav-link px-0 {{ $is('professional.patients') ? 'active' : '' }}"><i class="bi bi-people me-2"></i>Pacientes</a></li>
 						<li class="nav-item"><a href="{{ Route::has('professional.services') ? route('professional.services') : '#' }}" class="nav-link px-0 {{ $is('professional.services') ? 'active' : '' }}"><i class="bi bi-briefcase me-2"></i>Servicios</a></li>
 						<li class="nav-item"><a href="{{ Route::has('professional.payments') ? route('professional.payments') : '#' }}" class="nav-link px-0 {{ $is('professional.payments') ? 'active' : '' }}"><i class="bi bi-credit-card me-2"></i>Pagos</a></li>
@@ -96,7 +103,14 @@
 						<li class="nav-item"><a href="{{ Route::has('appointments.index') ? route('appointments.index') : (Route::has('userarea') ? route('userarea') : '#') }}" class="nav-link px-0"><i class="bi bi-calendar3 me-2"></i>Calendario</a></li>
 						<li class="nav-item"><a href="{{ Route::has('professionals.index') ? route('professionals.index') : '#' }}" class="nav-link px-0 {{ $is('professionals.index') ? 'active' : '' }}"><i class="bi bi-search me-2"></i>Buscar profesionales</a></li>
 						<li class="nav-item"><a href="{{ Route::has('favorites') ? route('favorites') : '#' }}" class="nav-link px-0"><i class="bi bi-star me-2"></i>Favoritos</a></li>
-						<li class="nav-item"><a href="{{ Route::has('messages.index') ? route('messages.index') : '#' }}" class="nav-link px-0"><i class="bi bi-chat-dots me-2"></i>Mensajes</a></li>
+						<li class="nav-item">
+							@php $messagesUrl = (auth()->check() && Route::has('messages.index')) ? route('messages.index') : null; @endphp
+							@if($messagesUrl)
+								<a href="{{ $messagesUrl }}" class="nav-link px-0 {{ $is('messages.index') ? 'active' : '' }}"><i class="bi bi-chat-dots me-2"></i>Mensajes</a>
+							@else
+								<span class="nav-link px-0 text-muted" title="Inicia sesión para ver tus mensajes"><i class="bi bi-chat-dots me-2"></i>Mensajes</span>
+							@endif
+						</li>
 					@endif
 				@endcan
 
