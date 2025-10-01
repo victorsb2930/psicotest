@@ -138,6 +138,18 @@
 				<hr class="sidebar-divider my-1">
 				<li class="nav-item"><a href="{{ route('contact') }}" class="nav-link px-0"><i class="bi bi-envelope me-2"></i>Contacto</a></li>
 				<li class="nav-item"><a href="{{ route('services') }}" class="nav-link px-0"><i class="bi bi-briefcase me-2"></i>Servicios</a></li>
+				@php
+					$pendingFriends = 0;
+					if(auth()->check() && \Illuminate\Support\Facades\Schema::hasTable('friend_requests')){
+						try { $pendingFriends = \App\Models\FriendRequest::where('to_id', auth()->id())->where('status','pending')->count(); } catch(\Throwable $_){}
+					}
+				@endphp
+				<li class="nav-item position-relative">
+					<a href="{{ route('friends.index') }}" class="nav-link px-0 d-flex align-items-center justify-content-between {{ $is('friends.index') ? 'active' : '' }}">
+						<span><i class="bi bi-people me-2"></i>Amigos</span>
+						@if($pendingFriends>0)<span class="badge text-bg-danger">{{ $pendingFriends }}</span>@endif
+					</a>
+				</li>
 			</ul>
 		</div>
 	</div>

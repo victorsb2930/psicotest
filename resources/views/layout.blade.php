@@ -741,6 +741,34 @@
 		});
 	</script>
 	<script>
+	// Global counters dynamic update
+	document.addEventListener('DOMContentLoaded', function(){
+		async function fetchCounters(){
+			try { const r = await fetch('/api/counters'); const j = await r.json(); if(!j.ok) return; apply(j); } catch(_){ }
+		}
+		function apply(j){
+			// Messages
+			try {
+				const link = document.querySelector('#left-menu a.nav-link i.bi-chat-dots')?.closest('a');
+				if (link) {
+					let badge = link.querySelector('.badge');
+					if (j.messages_unread>0){ if(!badge){ badge=document.createElement('span'); badge.className='badge text-bg-light text-dark ms-2'; link.appendChild(badge);} badge.textContent=j.messages_unread; }
+					else if(badge) badge.remove();
+				}
+			} catch(_){ }
+			// Friends pending
+			try {
+				const fl = document.querySelector('#left-menu a.nav-link i.bi-people')?.closest('a');
+				if (fl){ let fbadge = fl.querySelector('.badge'); if(j.friend_requests_pending>0){ if(!fbadge){ fbadge=document.createElement('span'); fbadge.className='badge text-bg-danger'; fl.appendChild(fbadge);} fbadge.textContent=j.friend_requests_pending; } else if(fbadge) fbadge.remove(); }
+			} catch(_){ }
+		}
+		document.addEventListener('counters:update', ev => { if(ev.detail) apply(ev.detail); });
+		// Poll fallback every 30s in case realtime down
+		setInterval(fetchCounters, 30000);
+		fetchCounters();
+	});
+	</script>
+	<script>
 		// UI sync: when authenticated, ensure public nav links don't appear and move them to user dropdown
 		(function(){
 			try {

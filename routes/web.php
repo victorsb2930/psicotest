@@ -636,6 +636,9 @@ Route::middleware('auth')->group(function(){
 	Route::post('/friend/request/{requestModel}/accept', [\App\Http\Controllers\FriendRequestController::class, 'accept'])->name('friend.request.accept');
 	Route::post('/friend/request/{requestModel}/reject', [\App\Http\Controllers\FriendRequestController::class, 'reject'])->name('friend.request.reject');
 	Route::get('/friend/requests/pending', [\App\Http\Controllers\FriendRequestController::class, 'pending'])->name('friend.requests.pending');
+	// Friends list & search
+	Route::get('/friends', [\App\Http\Controllers\FriendsController::class, 'index'])->name('friends.index');
+	Route::get('/friends/search', [\App\Http\Controllers\FriendsController::class, 'search'])->name('friends.search');
 });
 
 	// Simple JSON endpoints for AJAX notifications polling and marking
@@ -670,3 +673,12 @@ Route::middleware('auth')->group(function(){
 		$user->unreadNotifications->markAsRead();
 		return response()->json(['ok' => true]);
 	});
+
+	// Global counters (messages unread, pending friend requests)
+	Route::middleware('auth')->get('/api/counters', function(){
+		$u = auth()->user();
+		$unread = 0; $pending = 0;
+		try { if (\Illuminate\Support\Facades\Schema::hasTable('messages')) { $unread = \App\Models\Message::where('to_id',$u->id)->whereNull('read_at')->count(); } } catch(\Throwable $_){}
+		try { if (\Illuminate\Support\Facades\Schema::hasTable('friend_requests')) { $pending = \App\Models\FriendRequest::where('to_id',$u->id)->where('status','pending')->count(); } } catch(\Throwable $_){}
+		return response()->json(['ok'=>true,'messages_unread'=>$unread,'friend_requests_pending'=>$pending]);
+	})->name('api.counters');
