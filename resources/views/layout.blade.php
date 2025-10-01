@@ -8,6 +8,7 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<meta http-equiv="X-UA-Compatible" content="ie=edge">
 	<meta name="csrf-token" content="{{ csrf_token() }}">
+	<meta name="broadcast-driver" content="{{ config('broadcasting.default') }}">
 	@if(auth()->check())<meta name="auth-user-id" content="{{ auth()->id() }}">@endif
 	<title>@yield('title', 'PsicoGuia')</title>
 	<!-- Minimal critical CSS -->

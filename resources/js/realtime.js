@@ -3,8 +3,10 @@ import Pusher from 'pusher-js';
 
 window.Pusher = Pusher;
 
-// Detect driver (we expose via meta or fallback to pusher)
-const driver = (import.meta.env.VITE_BROADCAST_DRIVER || 'pusher').toLowerCase();
+// Detect driver using env or meta fallback
+const metaDriver = document.querySelector('meta[name="broadcast-driver"]')?.content;
+const driver = (import.meta.env.VITE_BROADCAST_DRIVER || metaDriver || 'pusher').toLowerCase();
+console.debug('[Realtime] resolved driver =', driver);
 let echoConfig = null;
 if (driver === 'reverb') {
 	echoConfig = {
@@ -34,11 +36,13 @@ if (driver === 'reverb') {
 }
 
 if (echoConfig) {
-	window.Echo = new Echo(echoConfig);
+	try { window.Echo = new Echo(echoConfig); } catch(err){ console.error('[Realtime] Echo init failed', err); }
 
 	const userId = window.__authUserId;
 	if (userId) {
-		window.Echo.private(`user.${userId}`)
+		const channelName = `user.${userId}`;
+		console.debug('[Realtime] subscribing to', channelName);
+		window.Echo.private(channelName)
 			.listen('MessageSent', (e) => {
 				window.dispatchEvent(new CustomEvent('rt:message', { detail: e }));
 				// Actualiza badge mensajes
@@ -62,5 +66,5 @@ if (echoConfig) {
 			});
 	}
 } else {
-    console.warn('Realtime deshabilitado: no hay configuración válida (pusher o reverb).');
+	console.warn('Realtime deshabilitado: no hay configuración válida (pusher o reverb). Asegúrate de definir VITE_BROADCAST_DRIVER y variables VITE_REVERB_* o VITE_PUSHER_* y recompilar con npm run dev.');
 }
