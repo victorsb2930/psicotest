@@ -8,6 +8,7 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<meta http-equiv="X-UA-Compatible" content="ie=edge">
 	<meta name="csrf-token" content="{{ csrf_token() }}">
+	@if(auth()->check())<meta name="auth-user-id" content="{{ auth()->id() }}">@endif
 	<title>@yield('title', 'PsicoGuia')</title>
 	<!-- Minimal critical CSS -->
 	<style>
@@ -642,6 +643,8 @@
 	@endif
 
 	@stack('scripts')
+	<script>window.__authUserId = (document.querySelector('meta[name="auth-user-id"]')||{}).content || null;</script>
+	@vite(['resources/js/realtime.js'])
 	<script>
 		// Presence dropdown handler: send POST to /profile/presence and update dot color
 		document.addEventListener('DOMContentLoaded', function(){

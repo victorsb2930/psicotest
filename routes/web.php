@@ -630,6 +630,12 @@ Route::middleware('auth')->group(function(){
 	Route::get('/messages', [\App\Http\Controllers\MessagesController::class, 'index'])->name('messages.index');
 	Route::get('/messages/thread/{user}', [\App\Http\Controllers\MessagesController::class, 'thread'])->name('messages.thread');
 	Route::post('/messages/thread/{user}', [\App\Http\Controllers\MessagesController::class, 'send'])->name('messages.send');
+
+	// Friend requests
+	Route::post('/friend/{user}/request', [\App\Http\Controllers\FriendRequestController::class, 'send'])->name('friend.request');
+	Route::post('/friend/request/{requestModel}/accept', [\App\Http\Controllers\FriendRequestController::class, 'accept'])->name('friend.request.accept');
+	Route::post('/friend/request/{requestModel}/reject', [\App\Http\Controllers\FriendRequestController::class, 'reject'])->name('friend.request.reject');
+	Route::get('/friend/requests/pending', [\App\Http\Controllers\FriendRequestController::class, 'pending'])->name('friend.requests.pending');
 });
 
 	// Simple JSON endpoints for AJAX notifications polling and marking

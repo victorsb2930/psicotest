@@ -6,6 +6,7 @@ use App\Models\Message;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use App\Events\MessageSent;
 
 class MessagesController extends Controller
 {
@@ -78,6 +79,8 @@ class MessagesController extends Controller
         ]);
 
         $msg->load(['from','to']);
+
+        try { broadcast(new MessageSent($msg))->toOthers(); } catch (\Throwable $e) { /* ignore if broadcasting not configured */ }
 
         return response()->json(['ok'=>true,'message'=>$msg]);
     }
