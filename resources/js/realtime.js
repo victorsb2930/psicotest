@@ -23,12 +23,24 @@ if (key) {
 		window.Echo.private(`user.${userId}`)
 			.listen('MessageSent', (e) => {
 				window.dispatchEvent(new CustomEvent('rt:message', { detail: e }));
+				// Actualiza badge mensajes
+				try {
+					const link = document.querySelector('#left-menu a.nav-link i.bi-chat-dots')?.closest('a');
+					if (link) {
+						let badge = link.querySelector('.badge');
+						if (!badge) { badge = document.createElement('span'); badge.className='badge text-bg-light text-dark ms-2'; link.appendChild(badge); badge.textContent='0'; }
+						badge.textContent = String(parseInt(badge.textContent||'0',10)+1);
+					}
+				} catch(_){ }
+				if (window.modalNotification) window.modalNotification('Nuevo mensaje', e.body || 'Tienes un nuevo mensaje',{template:'info'});
 			})
 			.listen('FriendRequestSent', (e) => {
 				window.dispatchEvent(new CustomEvent('rt:friend_request', { detail: e }));
+				if (window.modalNotification) window.modalNotification('Solicitud de amistad', `${e.from_name} te ha enviado una solicitud`, {template:'warning'});
 			})
 			.listen('FriendRequestAccepted', (e) => {
 				window.dispatchEvent(new CustomEvent('rt:friend_request_accepted', { detail: e }));
+				if (window.modalNotification) window.modalNotification('Amistad aceptada', `${e.to_name} ahora es tu amigo`, {template:'success'});
 			});
 	}
 } else {
