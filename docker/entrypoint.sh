@@ -32,6 +32,12 @@ fi
 # Run migrations (safe if already ran)
 php artisan migrate --force || true
 
+# Ensure storage symlink (avoid copying host symlink in build context)
+if [ ! -e public/storage ]; then
+  echo "Creating storage symlink (public/storage)..."
+  php artisan storage:link || true
+fi
+
 # Cache config/routes/views for speed (ignore failures in dev)
 php artisan config:cache || true
 php artisan route:cache || true

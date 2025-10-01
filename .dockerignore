@@ -1,0 +1,14 @@
+.git
+.github
+node_modules
+vendor
+public/storage
+storage/logs
+storage/framework/cache
+storage/framework/sessions
+storage/framework/views
+*.log
+Dockerfile.old
+docker-compose.override.yml
+npm-debug.log
+yarn-error.log
