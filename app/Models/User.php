@@ -124,4 +124,15 @@ class User extends Authenticatable
 	}
 
 	// Spatie provides hasRole(), hasAnyRole(), can(), hasPermissionTo(), etc.
+
+	public function sentFriendRequests(){ return $this->hasMany(FriendRequest::class,'from_id'); }
+	public function receivedFriendRequests(){ return $this->hasMany(FriendRequest::class,'to_id'); }
+	public function friends(){
+		return User::whereIn('id', function($q){
+			$q->selectRaw('CASE WHEN from_id = ? THEN to_id ELSE from_id END as fid', [$this->id])
+				->from('friend_requests')
+				->where(function($w){ $w->where('from_id',$this->id)->orWhere('to_id',$this->id); })
+				->where('status','accepted');
+		});
+	}
 }

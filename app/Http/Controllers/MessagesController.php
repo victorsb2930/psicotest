@@ -68,6 +68,15 @@ class MessagesController extends Controller
         if ($me->id === $user->id) {
             return response()->json(['ok'=>false,'error'=>'same_user'], 400);
         }
+        // Enforce friendship (accepted friend request in either direction)
+        $areFriends = \App\Models\FriendRequest::where(function($q) use ($me,$user){
+            $q->where('from_id',$me->id)->where('to_id',$user->id);
+        })->orWhere(function($q) use ($me,$user){
+            $q->where('from_id',$user->id)->where('to_id',$me->id);
+        })->where('status','accepted')->exists();
+        if (!$areFriends) {
+            return response()->json(['ok'=>false,'error'=>'not_friends'], 403);
+        }
         $data = $request->validate([
             'body' => 'required|string|max:4000'
         ]);

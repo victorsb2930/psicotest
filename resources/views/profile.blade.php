@@ -36,6 +36,7 @@
 			<div class="col-md-8">
 				<h5>{{ auth()->user()->name }}</h5>
 				<p>{{ auth()->user()->email }}</p>
+				@include('components.friend_button', ['user' => auth()->user()])
 				<hr>
 				<h6>Galería</h6>
 				<div id="photo-gallery" class="d-flex gap-2 flex-wrap"></div>

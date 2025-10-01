@@ -87,7 +87,18 @@
 						<li class="nav-item">
 							@php $messagesUrl = (auth()->check() && Route::has('messages.index')) ? route('messages.index') : null; @endphp
 							@if($messagesUrl)
-								<a href="{{ $messagesUrl }}" class="nav-link px-0 {{ $is('messages.index') ? 'active' : '' }}"><i class="bi bi-chat-dots me-2"></i>Mensajes</a>
+								@php
+									$unreadMsgs = 0;
+									if(auth()->check() && \Illuminate\Support\Facades\Schema::hasTable('messages')){
+										try {
+											$unreadMsgs = \App\Models\Message::where('to_id', auth()->id())->whereNull('read_at')->count();
+										} catch(\Throwable $e) { $unreadMsgs = 0; }
+									}
+								@endphp
+								<a href="{{ $messagesUrl }}" class="nav-link px-0 d-flex align-items-center justify-content-between {{ $is('messages.index') ? 'active' : '' }}">
+									<span><i class="bi bi-chat-dots me-2"></i>Mensajes</span>
+									@if($unreadMsgs>0)<span class="badge text-bg-light text-dark ms-2">{{ $unreadMsgs }}</span>@endif
+								</a>
 							@else
 								<span class="nav-link px-0 text-muted" title="Inicia sesión para ver tus mensajes"><i class="bi bi-chat-dots me-2"></i>Mensajes</span>
 							@endif
@@ -106,7 +117,16 @@
 						<li class="nav-item">
 							@php $messagesUrl = (auth()->check() && Route::has('messages.index')) ? route('messages.index') : null; @endphp
 							@if($messagesUrl)
-								<a href="{{ $messagesUrl }}" class="nav-link px-0 {{ $is('messages.index') ? 'active' : '' }}"><i class="bi bi-chat-dots me-2"></i>Mensajes</a>
+								@php
+									$unreadMsgs = 0;
+									if(auth()->check() && \Illuminate\Support\Facades\Schema::hasTable('messages')){
+										try { $unreadMsgs = \App\Models\Message::where('to_id', auth()->id())->whereNull('read_at')->count(); } catch(\Throwable $e) { $unreadMsgs=0; }
+									}
+								@endphp
+								<a href="{{ $messagesUrl }}" class="nav-link px-0 d-flex align-items-center justify-content-between {{ $is('messages.index') ? 'active' : '' }}">
+									<span><i class="bi bi-chat-dots me-2"></i>Mensajes</span>
+									@if($unreadMsgs>0)<span class="badge text-bg-light text-dark ms-2">{{ $unreadMsgs }}</span>@endif
+								</a>
 							@else
 								<span class="nav-link px-0 text-muted" title="Inicia sesión para ver tus mensajes"><i class="bi bi-chat-dots me-2"></i>Mensajes</span>
 							@endif
