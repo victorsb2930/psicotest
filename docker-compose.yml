@@ -13,6 +13,7 @@ services:
     depends_on:
       - db
       - redis
+      - reverb
 
   # Servicio web (Nginx)
   web:
@@ -44,6 +45,22 @@ services:
     image: redis:alpine
     container_name: laravel-redis
     restart: unless-stopped
+
+  reverb:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: laravel-reverb
+    restart: unless-stopped
+    command: php artisan reverb:start --host=0.0.0.0 --port=8081
+    working_dir: /var/www/html
+    volumes:
+      - .:/var/www/html
+      - vendor_data:/var/www/html/vendor
+    depends_on:
+      - redis
+    ports:
+      - "8081:8081"
 
   # Servicio Adminer (UI para base de datos)
   adminer:

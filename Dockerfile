@@ -18,7 +18,7 @@ RUN apk add --no-cache \
     unzip \
     && apk add --no-cache --virtual .build-deps $PHPIZE_DEPS \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install pdo pdo_pgsql gd exif mbstring \
+    && docker-php-ext-install pdo pdo_pgsql gd exif mbstring pcntl posix \
     && pecl install redis \
     && docker-php-ext-enable redis \
     && apk del .build-deps
