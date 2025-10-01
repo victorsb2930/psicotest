@@ -125,6 +125,41 @@
         refreshCounters();
     });
 
+    // Fallback polling: if no realtime event after some seconds, periodically check for new incoming requests
+    let lastIncomingIds = Array.from(document.querySelectorAll('#incoming-list [data-id]')).map(el=>parseInt(el.getAttribute('data-id'),10));
+    async function pollIncoming(){
+        try {
+            const r = await fetch('/friend/requests/pending');
+            const j = await r.json();
+            if(!j.ok) return;
+            const currentIds = j.requests.map(r=>r.id);
+            // Find new ones not in lastIncomingIds
+            const news = j.requests.filter(r => !lastIncomingIds.includes(r.id));
+            if(news.length){
+                const list = document.getElementById('incoming-list');
+                news.forEach(n => {
+                    const div = document.createElement('div'); div.className='list-group-item d-flex justify-content-between align-items-center';
+                    div.innerHTML = `<div><div class='fw-semibold'>${n.from.name}</div><div class='text-muted small'>(nueva)</div></div><div class='btn-group btn-group-sm'><button class='btn btn-success btn-accept' data-id='${n.id}'>Aceptar</button><button class='btn btn-outline-danger btn-reject' data-id='${n.id}'>Rechazar</button></div>`;
+                    list.prepend(div);
+                    window.modalNotification?.('Nueva solicitud', n.from.name, {template:'warning'});
+                });
+                refreshCounters();
+            }
+            lastIncomingIds = currentIds;
+        } catch(_){ }
+    }
+    // Start fallback only if page visible and user is on friends page
+    setInterval(pollIncoming, 15000); // cada 15s
+
+    // Debug logs for realtime connection (opcional)
+    if (window.Echo && window.Echo.connector && window.Echo.connector.pusher) {
+        try {
+            window.Echo.connector.pusher.connection.bind('connected', function(){ console.debug('[Realtime] connected'); });
+            window.Echo.connector.pusher.connection.bind('unavailable', function(){ console.warn('[Realtime] unavailable'); });
+            window.Echo.connector.pusher.connection.bind('failed', function(){ console.error('[Realtime] failed'); });
+        } catch(_){}
+    }
+
     async function refreshCounters(){
         try { const r=await fetch('/api/counters'); const j=await r.json(); if(!j.ok) return; document.dispatchEvent(new CustomEvent('counters:update',{detail:j})); } catch(_){ }
     }
