@@ -38,23 +38,39 @@ class FriendsController extends Controller
     {
         $me = $request->user();
         $q = trim((string)$request->input('q',''));
-        if ($q === '') return response()->json(['ok'=>true,'results'=>[]]);
-        $rel = FriendRequest::query()
-            ->where(function($w) use ($me){ $w->where('from_id',$me->id)->orWhere('to_id',$me->id); })
-            ->pluck('from_id','id')->values()->merge(
-                FriendRequest::query()->where(function($w) use ($me){ $w->where('from_id',$me->id)->orWhere('to_id',$me->id); })
-                ->pluck('to_id')->values()
-            )->push($me->id)->unique()->all();
 
-        $users = User::query()
-            ->whereNotIn('id', $rel)
-            ->where(function($w) use ($q){
-                $w->where('name','ilike',"%$q%")
-                  ->orWhere('email','ilike',"%$q%");
-            })
-            ->orderBy('name')
-            ->limit(20)
-            ->get(['id','name','email']);
-        return response()->json(['ok'=>true,'results'=>$users]);
+        // Gather related user ids (friends in any status) + self
+        $relatedIds = [];
+        FriendRequest::query()
+            ->where(function($w) use ($me){ $w->where('from_id',$me->id)->orWhere('to_id',$me->id); })
+            ->chunkById(200, function($chunk) use (&$relatedIds, $me){
+                foreach($chunk as $fr){
+                    if ($fr->from_id !== $me->id) $relatedIds[] = $fr->from_id;
+                    if ($fr->to_id !== $me->id) $relatedIds[] = $fr->to_id;
+                }
+            });
+        $relatedIds[] = $me->id;
+        $relatedIds = array_values(array_unique($relatedIds));
+
+        $driver = \DB::connection()->getDriverName();
+        $likeOp = $driver === 'pgsql' ? 'ilike' : 'like';
+
+        $query = User::query()->whereNotIn('id', $relatedIds);
+        if ($q !== '') {
+            $query->where(function($w) use ($q, $likeOp){
+                $w->where('name', $likeOp, '%'.$q.'%')
+                  ->orWhere('email', $likeOp, '%'.$q.'%');
+            });
+        }
+
+        // If no search term, return first suggestions (limited)
+        $users = $query->orderBy('name')->limit(20)->get(['id','name','email']);
+
+        return response()->json([
+            'ok'=>true,
+            'results'=>$users,
+            'query'=>$q,
+            'excluded_count'=>count($relatedIds)
+        ]);
     }
 }
