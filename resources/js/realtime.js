@@ -6,6 +6,7 @@ window.Pusher = Pusher;
 // Detect driver using env or meta fallback
 const metaDriver = document.querySelector('meta[name="broadcast-driver"]')?.content;
 const driver = (import.meta.env.VITE_BROADCAST_DRIVER || metaDriver || 'pusher').toLowerCase();
+const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
 console.debug('[Realtime] resolved driver =', driver);
 let echoConfig = null;
 if (driver === 'reverb') {
@@ -17,6 +18,10 @@ if (driver === 'reverb') {
 		wssPort: parseInt(import.meta.env.VITE_REVERB_PORT || '8080',10),
 		forceTLS: false,
 		enabledTransports: ['ws','wss'],
+		authEndpoint: '/broadcasting/auth',
+		auth: {
+			headers: csrfToken ? { 'X-CSRF-TOKEN': csrfToken } : {}
+		}
 	};
 } else {
 	const key = import.meta.env.VITE_PUSHER_KEY;
