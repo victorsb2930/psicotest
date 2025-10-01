@@ -3,20 +3,38 @@ import Pusher from 'pusher-js';
 
 window.Pusher = Pusher;
 
-const key = import.meta.env.VITE_PUSHER_KEY;
-if (key) {
-	window.Echo = new Echo({
-		broadcaster: 'pusher',
-		key: key,
-		cluster: import.meta.env.VITE_PUSHER_CLUSTER || 'mt1',
-		wsHost: import.meta.env.VITE_PUSHER_HOST || window.location.hostname,
-		wsPort: import.meta.env.VITE_PUSHER_PORT || 6001,
-		wssPort: import.meta.env.VITE_PUSHER_PORT || 6001,
+// Detect driver (we expose via meta or fallback to pusher)
+const driver = (import.meta.env.VITE_BROADCAST_DRIVER || 'pusher').toLowerCase();
+let echoConfig = null;
+if (driver === 'reverb') {
+	echoConfig = {
+		broadcaster: 'reverb',
+		key: import.meta.env.VITE_REVERB_APP_KEY || 'reverbkey',
+		wsHost: import.meta.env.VITE_REVERB_HOST || window.location.hostname,
+		wsPort: parseInt(import.meta.env.VITE_REVERB_PORT || '8080',10),
+		wssPort: parseInt(import.meta.env.VITE_REVERB_PORT || '8080',10),
 		forceTLS: false,
 		enabledTransports: ['ws','wss'],
-		// auth headers via sanctum/csrf not configured; fallback token via meta tag
-		auth: { headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content') } }
-	});
+	};
+} else {
+	const key = import.meta.env.VITE_PUSHER_KEY;
+	if (key) {
+		echoConfig = {
+			broadcaster: 'pusher',
+			key,
+			cluster: import.meta.env.VITE_PUSHER_CLUSTER || 'mt1',
+			wsHost: import.meta.env.VITE_PUSHER_HOST || window.location.hostname,
+			wsPort: import.meta.env.VITE_PUSHER_PORT || 6001,
+			wssPort: import.meta.env.VITE_PUSHER_PORT || 6001,
+			forceTLS: false,
+			enabledTransports: ['ws','wss'],
+			auth: { headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content') } }
+		};
+	}
+}
+
+if (echoConfig) {
+	window.Echo = new Echo(echoConfig);
 
 	const userId = window.__authUserId;
 	if (userId) {
@@ -44,5 +62,5 @@ if (key) {
 			});
 	}
 } else {
-	console.warn('Realtime deshabilitado: falta VITE_PUSHER_KEY');
+    console.warn('Realtime deshabilitado: no hay configuración válida (pusher o reverb).');
 }
