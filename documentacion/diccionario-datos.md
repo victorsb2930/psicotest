@@ -35,142 +35,128 @@ Relaciones clave (cardinalidades):
 ```mermaid
 erDiagram
   USERS ||--o{ USER_PHOTOS : has
-  USERS ||--o{ APPOINTMENTS : professional
-  USERS ||--o{ APPOINTMENTS : patient
-  USERS ||--o{ MESSAGES : sent
-  USERS ||--o{ MESSAGES : received
-  USERS ||--o{ FRIEND_REQUESTS : from
-  USERS ||--o{ FRIEND_REQUESTS : to
-  USERS ||--o{ USER_DEVICES : has
-  USERS ||--o{ USER_LOGINS : has
-  USERS ||--o{ DEVICE_REOPEN_ATTEMPTS : has
-  USERS ||--o{ DEVICE_REOPEN_BLOCKS : has
-  USERS ||--o{ PROFESSIONAL_APPLICATIONS : author
-  USERS ||--o{ PROFESSIONAL_APPLICATIONS : reviewer
+  APPOINTMENTS }o--|| USERS : professional_id
+  APPOINTMENTS }o--|| USERS : patient_id
+  MESSAGES }o--|| USERS : from_id
+  MESSAGES }o--|| USERS : to_id
+  FRIEND_REQUESTS }o--|| USERS : from_user
+  FRIEND_REQUESTS }o--|| USERS : to_user
+  USER_DEVICES }o--|| USERS : belongs_to
+  USER_LOGINS }o--|| USERS : belongs_to
+  DEVICE_REOPEN_ATTEMPTS }o--|| USERS : belongs_to
+  DEVICE_REOPEN_BLOCKS }o--|| USERS : belongs_to
+  PROFESSIONAL_APPLICATIONS }o--|| USERS : author
+  PROFESSIONAL_APPLICATIONS }o--|| USERS : reviewer
 
   ROLES ||--o{ MODEL_HAS_ROLES : via
   PERMISSIONS ||--o{ MODEL_HAS_PERMISSIONS : via
   ROLES ||--o{ ROLE_HAS_PERMISSIONS : grants
 
   USERS {
-    bigint id PK
-    varchar name
-    varchar email UNIQUE
-    varchar phone NULL
-    varchar timezone NULL
-    varchar password
-    varchar specialty NULL
-    json appointment_types NULL
-    varchar location NULL
-    numeric rating(3,1) NULL
-    varchar status DEFAULT "online"
-    timestamp email_verified_at NULL
-    timestamp last_seen_at NULL
-    rememberToken
-    timestamps
-    softDeletes
+    int id PK
+    string name
+    string email
+    string phone
+    string timezone
+    string password
+    string specialty
+    json appointment_types
+    string location
+    decimal rating
+    string status
+    timestamp email_verified_at
+    timestamp last_seen_at
   }
 
   APPOINTMENTS {
-    bigint id PK
-    bigint professional_id FK -> users.id
-    bigint patient_id FK -> users.id
-    varchar title NULL
-    timestamp start NULL
-    timestamp end NULL
-    boolean all_day DEFAULT false
-    enum status ['pending','accepted','rejected','cancelled'] DEFAULT 'pending'
-    text notes NULL
-    timestamps
-    softDeletes
+    int id PK
+    int professional_id
+    int patient_id
+    string title
+    timestamp start
+    timestamp end
+    boolean all_day
+    string status
+    text notes
   }
 
   MESSAGES {
-    bigint id PK
-    bigint from_id FK -> users.id
-    bigint to_id FK -> users.id
+    int id PK
+    int from_id
+    int to_id
     text body
-    timestamp read_at NULL
-    timestamps
+    timestamp read_at
   }
 
   FRIEND_REQUESTS {
-    bigint id PK
-    bigint from_id FK -> users.id
-    bigint to_id FK -> users.id
-    enum status ['pending','accepted','rejected'] DEFAULT 'pending'
-    timestamp accepted_at NULL
-    timestamp rejected_at NULL
-    timestamps
-    UNIQUE (from_id, to_id)
+    int id PK
+    int from_id
+    int to_id
+    string status
+    timestamp accepted_at
+    timestamp rejected_at
   }
 
   PROFESSIONAL_APPLICATIONS {
-    bigint id PK
-    bigint user_id FK -> users.id
-    varchar titulo_path NULL
-    varchar cedula_path NULL
-    enum status ['pending','approved','rejected'] DEFAULT 'pending'
-    text notes NULL
-    bigint reviewed_by NULL FK -> users.id
-    timestamp reviewed_at NULL
-    timestamps
+    int id PK
+    int user_id
+    string titulo_path
+    string cedula_path
+    string status
+    text notes
+    int reviewed_by
+    timestamp reviewed_at
   }
 
   USER_DEVICES {
-    bigint id PK
-    bigint user_id FK -> users.id
-    varchar token_hash(64)
-    varchar name NULL
-    varchar ip_address NULL
-    text user_agent NULL
-    timestamp last_seen_at NULL
-    timestamp revoked_at NULL
-    timestamps
+    int id PK
+    int user_id
+    string token_hash
+    string name
+    string ip_address
+    text user_agent
+    timestamp last_seen_at
+    timestamp revoked_at
   }
 
   USER_LOGINS {
-    bigint id PK
-    bigint user_id
-    varchar session_id NULL
-    varchar ip_address NULL
-    text user_agent NULL
-    varchar browser_token_hash(64) NULL
-    timestamp started_at NULL
-    timestamp ended_at NULL
-    int duration_seconds NULL
-    timestamps
+    int id PK
+    int user_id
+    string session_id
+    string ip_address
+    text user_agent
+    string browser_token_hash
+    timestamp started_at
+    timestamp ended_at
+    int duration_seconds
   }
 
   DEVICE_REOPEN_ATTEMPTS {
-    bigint id PK
-    bigint user_id
-    varchar token_hash(64) NULL
-    varchar ip_address(45) NULL
-    text user_agent NULL
-    boolean success NULL
-    varchar action DEFAULT 'confirm'
-    timestamps
+    int id PK
+    int user_id
+    string token_hash
+    string ip_address
+    text user_agent
+    boolean success
+    string action
   }
 
   DEVICE_REOPEN_BLOCKS {
-    bigint id PK
-    bigint user_id
-    varchar token_hash(64) NULL
-    timestamp blocked_until NULL
-    boolean permanent DEFAULT false
-    bigint admin_unlocked_by NULL
-    timestamp admin_unlocked_at NULL
-    timestamps
+    int id PK
+    int user_id
+    string token_hash
+    timestamp blocked_until
+    boolean permanent
+    int admin_unlocked_by
+    timestamp admin_unlocked_at
   }
 
   USER_PHOTOS {
-    bigint id PK
-    bigint user_id FK -> users.id
-    varchar path NULL
-    text caption NULL
-    boolean is_profile DEFAULT false
-    timestamps
+    int id PK
+    int user_id
+    string path
+    text caption
+    boolean is_profile
   }
 ```
 
@@ -386,4 +372,4 @@ role_has_permissions
 - Se puede validar con `php artisan schema:dump` o herramientas como dbdocs.io/dbdiagram.io si se desea exportar.
 
 ---
-Última actualización: automatizada desde el repo a fecha de commit.
+Última actualización: automatizada desde el repo a fecha de commit (10/10/2025).
