@@ -172,8 +172,9 @@ class LoginRegisterController extends Controller
 					if ($encoded === null) $encoded = $contents;
 					$path = null;
 					try {
-						$fname = 'user_photos/' . $user->id . '/' . time() . '_' . bin2hex(random_bytes(6)) . '.jpg';
-						\Illuminate\Support\Facades\Storage::disk('local')->put($fname, $encoded);
+						// unified public profile path
+						$fname = 'user_photos/' . $user->id . '/profile/' . time() . '_' . bin2hex(random_bytes(6)) . '.jpg';
+						\Illuminate\Support\Facades\Storage::disk('public')->put($fname, $encoded);
 						$path = $fname;
 					} catch (\Throwable $_) { $path = null; }
 					if (\Schema::hasTable('user_photos')) {

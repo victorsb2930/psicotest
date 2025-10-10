@@ -27,16 +27,9 @@ class UserPhotoController extends Controller
 				// prefer serving file from 'path' if available, otherwise fallback to DB blob older apps
 					$dataUrl = null;
 					try {
-						if (!empty($p->path) && \Illuminate\Support\Facades\Storage::disk('local')->exists($p->path)) {
-							$bytes = \Illuminate\Support\Facades\Storage::disk('local')->get($p->path);
-							if ($bytes !== null && $bytes !== false && $bytes !== '') {
-								// detect mime
-								$mime = null;
-								try { $f = new \finfo(FILEINFO_MIME_TYPE); $mime = $f->buffer($bytes); } catch (\Throwable$_) { $mime = null; }
-								if (!$mime) { $info = @getimagesizefromstring($bytes); if ($info && !empty($info['mime'])) $mime = $info['mime']; }
-								if (!$mime) $mime = 'application/octet-stream';
-								$dataUrl = 'data:'.$mime.';base64,'.base64_encode($bytes);
-							}
+						// if path exists on public disk, expose public url
+						if (!empty($p->path) && \Illuminate\Support\Facades\Storage::disk('public')->exists($p->path)) {
+							$dataUrl = \Illuminate\Support\Facades\Storage::disk('public')->url($p->path);
 						} else {
 							$raw = $p->foto ?? null;
 							if ($raw !== null) {
@@ -98,8 +91,9 @@ class UserPhotoController extends Controller
 				}
 			}
 			if (!$ext) $ext = 'bin';
-			$fname = 'user_photos/' . $user->id . '/' . time() . '_' . bin2hex(random_bytes(6)) . '.' . $ext;
-			\Illuminate\Support\Facades\Storage::disk('local')->put($fname, $contents);
+			// unified public path: user_photos/{user_id}/profile/...
+			$fname = 'user_photos/' . $user->id . '/profile/' . time() . '_' . bin2hex(random_bytes(6)) . '.' . $ext;
+			\Illuminate\Support\Facades\Storage::disk('public')->put($fname, $contents);
 			$path = $fname;
 		} catch (\Throwable $e) {
 			logger()->warning('Failed to write user photo to disk, falling back to DB blob', ['err' => $e->getMessage(), 'user_id' => $user->id ?? null]);

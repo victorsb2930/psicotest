@@ -7,7 +7,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Database\Seeder;
 
-class DatabaseSeeder extends Seeder {
+class DatabaseSeeder extends Seeder
+{
 	/**
 	 * Seed the application's database.
 	 */
@@ -30,15 +31,15 @@ class DatabaseSeeder extends Seeder {
 				$update['signup_label'] = $r['signup_label'] ?? null;
 			}
 			if (Schema::hasColumn('roles', 'show_in_signup')) {
-				$update['show_in_signup'] = in_array($r['name'], ['user','professional']);
+				$update['show_in_signup'] = in_array($r['name'], ['user', 'professional']);
 			}
 			if (Schema::hasColumn('roles', 'requires_docs')) {
 				$update['requires_docs'] = (bool)($r['requires_docs'] ?? false);
 			}
-			if (Schema::hasColumn('roles','icon_class')) {
+			if (Schema::hasColumn('roles', 'icon_class')) {
 				$update['icon_class'] = $r['icon_class'] ?? null;
 			}
-			if (Schema::hasColumn('roles','badge_color')) {
+			if (Schema::hasColumn('roles', 'badge_color')) {
 				$update['badge_color'] = $r['badge_color'] ?? null;
 			}
 			DB::table('roles')->updateOrInsert(['name' => $r['name']], $update);
@@ -88,7 +89,9 @@ class DatabaseSeeder extends Seeder {
 			} elseif (count($existing) > 1) {
 				// Enforce single-role: default to 'user' unless admin is present
 				$target = $roleIds['admin'] ?? null;
-				if (!$target) { $target = $roleIds['user'] ?? null; }
+				if (!$target) {
+					$target = $roleIds['user'] ?? null;
+				}
 				if ($target) {
 					DB::table('model_has_roles')->where(['model_type' => User::class, 'model_id' => $u->id])->delete();
 					DB::table('model_has_roles')->updateOrInsert(['model_type' => User::class, 'model_id' => $u->id, 'role_id' => $target], []);
@@ -100,20 +103,46 @@ class DatabaseSeeder extends Seeder {
 		if (!empty($adminEmails)) {
 			$ridAdmin = $roleIds['admin'] ?? null;
 			$emailsLower = array_map('strtolower', $adminEmails);
-			$adminUsers = DB::table('users')
+
+			// Traer usuarios existentes por email (indexados por email lowercase)
+			$existing = DB::table('users')
 				->whereIn(DB::raw('LOWER(email)'), $emailsLower)
-				->select('id')
-				->get();
-			if ($adminUsers->count()) {
-				foreach ($adminUsers as $au) {
-					// Asegurar activo
-					DB::table('users')->where('id', $au->id)->update(['is_active' => true, 'deleted_at' => null]);
-					// Rol admin
-					if ($ridAdmin) {
-						// Make admin exclusive
-						DB::table('model_has_roles')->where(['model_type' => User::class, 'model_id' => $au->id])->delete();
-						DB::table('model_has_roles')->updateOrInsert(['model_type' => User::class, 'model_id' => $au->id, 'role_id' => $ridAdmin], []);
+				->get()
+				->keyBy(function ($row) {
+					return strtolower($row->email);
+				});
+
+			foreach ($emailsLower as $email) {
+				if (isset($existing[$email])) {
+					$u = $existing[$email];
+					// Asegurar activo y quitar soft-delete si aplica
+					DB::table('users')->where('id', $u->id)->update(['is_active' => true, 'deleted_at' => null, 'updated_at' => now()]);
+					$userId = $u->id;
+				} else {
+					$name = ucfirst(explode('@', $email)[0] ?: 'admin');
+					$defaultPassword = (string) config('app.admin_password', 'admin123');
+					$userId = DB::table('users')->insertGetId([
+						'name' => $name,
+						'email' => $email,
+						'password' => \Illuminate\Support\Facades\Hash::make($defaultPassword),
+						'email_verified_at' => now(),
+						'is_active' => true,
+						'created_at' => now(),
+						'updated_at' => now(),
+					]);
+					if ($this->command) {
+						$this->command->info("Created admin user: {$email}");
+						$this->command->info("  password: {$defaultPassword} (change after deploy)");
 					}
+				}
+
+				// Asignar rol admin de forma idempotente (y exclusiva)
+				if ($ridAdmin) {
+					DB::table('model_has_roles')->where(['model_type' => User::class, 'model_id' => $userId])->delete();
+					DB::table('model_has_roles')->updateOrInsert(
+						['model_type' => User::class, 'model_id' => $userId, 'role_id' => $ridAdmin],
+						[]
+					);
 				}
 			}
 		}
