@@ -91,15 +91,15 @@ class ProfessionalApplicationController extends Controller
 
 	public function file(Request $request, ProfessionalApplication $application, string $field)
 	{
-		if (! in_array($field, ['titulo', 'cedula'], true)) {
+		if (!in_array($field, ['titulo', 'cedula'], true)) {
 			abort(404);
 		}
 		$path = $field === 'titulo' ? $application->titulo_path : $application->cedula_path;
-		if (! $path || ! Storage::disk('local')->exists($path)) {
+		if (!$path || !Storage::disk('public')->exists($path)) {
 			abort(404);
 		}
-		$stream = Storage::disk('local')->readStream($path);
-		$mime = Storage::disk('local')->mimeType($path) ?: 'application/octet-stream';
+		$stream = Storage::disk('public')->readStream($path);
+		$mime = Storage::disk('public')->mimeType($path) ?: 'application/octet-stream';
 
 		return Response::stream(function () use ($stream) {
 			fpassthru($stream);

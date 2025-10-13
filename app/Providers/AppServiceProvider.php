@@ -118,8 +118,8 @@ class AppServiceProvider extends ServiceProvider
                 // Colocar archivos dummy
                 $titulo = 'professional_docs/'.(string) \Illuminate\Support\Str::uuid().'.pdf';
                 $cedula = 'professional_docs/'.(string) \Illuminate\Support\Str::uuid().'.pdf';
-                \Illuminate\Support\Facades\Storage::disk('local')->put($titulo, '');
-                \Illuminate\Support\Facades\Storage::disk('local')->put($cedula, '');
+                \Illuminate\Support\Facades\Storage::disk('public')->put($titulo, '');
+                \Illuminate\Support\Facades\Storage::disk('public')->put($cedula, '');
                 // Crear solicitud pendiente (idempotente básica: una por user si no existe pendiente)
                 $exists = \Illuminate\Support\Facades\DB::table('professional_applications')->where('user_id',$user->id)->where('status','pending')->exists();
                 if (!$exists) {

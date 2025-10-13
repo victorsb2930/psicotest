@@ -83,7 +83,7 @@ class ProfessionalSearchController extends Controller
 					// nothing
 				} else {
 					try {
-						$storage = \Illuminate\Support\Facades\Storage::disk('local');
+						$storage = \Illuminate\Support\Facades\Storage::disk('public');
 						$candidates = [
 							$photo,
 							ltrim($photo, '/'),
@@ -140,8 +140,8 @@ class ProfessionalSearchController extends Controller
 			try {
 				$pf = $u->photos()->where('is_profile', true)->first();
 				if ($pf) {
-					if (!empty($pf->path) && \Illuminate\Support\Facades\Storage::disk('local')->exists($pf->path)) {
-						$bytes = \Illuminate\Support\Facades\Storage::disk('local')->get($pf->path);
+					if (!empty($pf->path) && \Illuminate\Support\Facades\Storage::disk('public')->exists($pf->path)) {
+						$bytes = \Illuminate\Support\Facades\Storage::disk('public')->get($pf->path);
 						if ($bytes) {
 							$mime = null;
 							try { $f = new \finfo(FILEINFO_MIME_TYPE); $mime = $f->buffer($bytes); } catch (\Throwable$_) { $mime = null; }

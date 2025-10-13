@@ -191,8 +191,8 @@ class UserPhotoController extends Controller
 		}
 		// If the photo had a filesystem path, remove the file
 		try {
-			if (!empty($photo->path) && \Illuminate\Support\Facades\Storage::disk('local')->exists($photo->path)) {
-				\Illuminate\Support\Facades\Storage::disk('local')->delete($photo->path);
+			if (!empty($photo->path) && \Illuminate\Support\Facades\Storage::disk('public')->exists($photo->path)) {
+				\Illuminate\Support\Facades\Storage::disk('public')->delete($photo->path);
 			}
 		} catch (\Throwable $_) {}
 		$photo->delete();

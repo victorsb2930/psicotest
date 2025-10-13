@@ -71,25 +71,8 @@ class User extends Authenticatable
 		if (!$pf) return null;
 		try {
 			// Prefer filesystem path when present
-			if (!empty($pf->path) && \Illuminate\Support\Facades\Storage::disk('local')->exists($pf->path)) {
-				$bytes = \Illuminate\Support\Facades\Storage::disk('local')->get($pf->path);
-				if ($bytes === null || $bytes === false || $bytes === '') return null;
-				$base = base64_encode($bytes);
-				$mime = null;
-				try { $f = new \finfo(FILEINFO_MIME_TYPE); $mime = $f->buffer($bytes); } catch (\Throwable$_) { $mime = null; }
-				if (!$mime) { $info = @getimagesizefromstring($bytes); if ($info && !empty($info['mime'])) $mime = $info['mime']; }
-				if (!$mime) $mime = 'application/octet-stream';
-				return 'data:'.$mime.';base64,' . $base;
-			}
-			// Fallback to blob stored in 'foto'
-			if (isset($pf->foto) && $pf->foto !== null) {
-				$raw = $pf->foto;
-				if (is_resource($raw)) {
-					try { if (ftell($raw) !== false) rewind($raw); } catch (\Throwable$_){}
-					$bytes = @stream_get_contents($raw);
-				} else {
-					$bytes = $raw;
-				}
+			if (!empty($pf->path) && \Illuminate\Support\Facades\Storage::disk('public')->exists($pf->path)) {
+				$bytes = \Illuminate\Support\Facades\Storage::disk('public')->get($pf->path);
 				if ($bytes === null || $bytes === false || $bytes === '') return null;
 				$base = base64_encode($bytes);
 				$mime = null;
