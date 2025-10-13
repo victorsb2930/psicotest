@@ -89,8 +89,8 @@ export function modalNotification(
 		</div>`
 	);
 
-	// Cerrar con botón
-	$el.off('click').on('click', '.btn-close', function (e) {
+	// Cerrar con botón (delegado, con namespace)
+	$el.on('click.modalNotif', '.btn-close', function (e) {
 		e.stopPropagation();
 		$el.remove();
 		updateNotificationPositions();
@@ -99,8 +99,11 @@ export function modalNotification(
 	// Click para ver detalles (solo si corresponde)
 	if (variant === 'danger' && showDetails) {
 		$el.css('cursor', 'pointer');
-		$el.off('click').on('click', function (e) {
-			if ($(e.target).is('.btn-close')) return;
+
+		// bind only the body click handler in its own namespace so we don't remove the .btn-close handler
+		$el.off('click.modalNotifBody').on('click.modalNotifBody', function (e) {
+			// if the close button (or a child) was clicked, do nothing here
+			if ($(e.target).closest('.btn-close').length) return;
 			showErrorDetailModal(detailConfig);
 		});
 	} else {

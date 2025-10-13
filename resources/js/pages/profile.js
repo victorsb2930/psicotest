@@ -49,7 +49,6 @@ async function refreshGallery(){
 						const navAvatar = document.getElementById('nav-avatar-img'); if (navAvatar) navAvatar.src = p.data_url ? p.data_url : ('/storage/' + (p.path || ''));
 						modalNotification?.('Hecho','Foto establecida como perfil',{template:'success'});
 					}).catch((err)=>{
-						console.error(err);
 						modalNotification?.('Error','No se pudo establecer la foto como perfil',{template:'danger'}, true, { xhr: err?.response, body: 'set-profile' });
 					});
 
@@ -76,7 +75,6 @@ async function refreshGallery(){
 							await refreshGallery();
 							modalNotification?.('Eliminada','Foto eliminada correctamente',{template:'success'});
 						}catch(err){
-							console.error(err);
 							modalNotification?.('Error','No se pudo eliminar la foto',{template:'danger'}, true, { xhr: err?.response, body: 'delete' });
 						}
 					};
@@ -88,8 +86,8 @@ async function refreshGallery(){
 				cont.appendChild(wrapper);
 			});
 		}
-	}catch(e){ console.error(e);
-		modalNotification('Error','No se pudo cargar la galería',{template:'danger'}, true, { xhr: e?.response, body: 'list' });
+	}catch(e){
+		modalNotification?.('Error','No se pudo cargar la galería',{template:'danger'}, true, { xhr: e?.response, body: 'list' });
 	}
 }
 
@@ -140,7 +138,7 @@ export function init(){
 				} else {
 					modalNotification?.('Error','No se pudo subir la foto',{template:'danger'});
 				}
-			}catch(e){ console.error(e);
+			}catch(e){
 				modalNotification?.('Error','No se pudo subir la foto',{template:'danger'}, true, { xhr: e?.response, body: 'upload' });
 			} finally {
 				// reset input so same file can be selected again if needed
