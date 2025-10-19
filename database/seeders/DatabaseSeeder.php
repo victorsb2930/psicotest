@@ -146,5 +146,8 @@ class DatabaseSeeder extends Seeder
 				}
 			}
 		}
+
+		// Seed billing plans
+		\Database\Seeders\PlansTableSeeder::class && $this->call(\Database\Seeders\PlansTableSeeder::class);
 	}
 }

@@ -98,6 +98,14 @@ class User extends Authenticatable
 	}
 
 	/**
+	 * Subscriptions for billing (one-to-many)
+	 */
+	public function subscriptions()
+	{
+		return $this->hasMany(\App\Models\Subscription::class, 'user_id');
+	}
+
+	/**
 	 * Force emails to lowercase on assignment to avoid case-sensitivity issues.
 	 * This complements the DB migration that normalizes existing values.
 	 */

@@ -308,6 +308,16 @@ Route::get('/about', function () {
 })->name('about');
 #endregion
 
+// Plans page (require auth by default)
+Route::get('/planes', function () {
+	return view('plans.index');
+})->middleware('auth')->name('plans.index');
+
+// Billing API: subscribe to a plan (simulated provider)
+Route::post('/billing/subscribe', [\App\Http\Controllers\BillingController::class, 'subscribe'])
+	->middleware('auth')
+	->name('billing.subscribe');
+
 // User notifications listing (simple)
 Route::middleware('auth')->group(function(){
 	Route::get('/notifications', function(){

@@ -14,6 +14,10 @@ use Illuminate\Validation\Rule;
 use Spatie\Permission\Models\Role as SpatieRole;
 use App\Models\ProfessionalApplication;
 use Illuminate\Support\Facades\File;
+use App\Models\Plan;
+use App\Models\Subscription;
+use App\Models\Payment;
+use Illuminate\Support\Facades\Schema;
 
 class LoginRegisterController extends Controller
 {
@@ -228,6 +232,51 @@ class LoginRegisterController extends Controller
 				}
 			}
 		} catch (\Throwable $e) { /* noop */ }
+
+		// If the user is a normal 'user' (role id 3 by your convention) assign the free plan
+		try {
+			// Determine if the assigned role is the regular user role
+			$assignedIsUserRole = false;
+			try {
+				// If we have the $rid chosen above and it's 3, assume normal user
+				if (!empty($rid) && (int)$rid === 3) $assignedIsUserRole = true;
+			} catch (\Throwable $_) {}
+			// Also accept role name presence via Spatie roles
+			try { if ($user->hasRole('user')) $assignedIsUserRole = true; } catch (\Throwable $_) {}
+
+			if ($assignedIsUserRole) {
+				// Only create a free subscription if the plans table exists and a free plan is present
+				if (Schema::hasTable('plans')) {
+					$freePlan = Plan::where('key','free')->orWhere('price_cents', 0)->first();
+					if ($freePlan) {
+						$exists = false;
+						try { $exists = $user->subscriptions()->where('plan_id', $freePlan->id)->where('status','active')->exists(); } catch (\Throwable $_) { $exists = false; }
+						if (!$exists) {
+							Subscription::create([
+								'user_id' => $user->id,
+								'plan_id' => $freePlan->id,
+								'status' => 'active',
+								'starts_at' => now(),
+								'ends_at' => null,
+								'meta' => ['granted_on_register' => true],
+							]);
+							// Optionally create a zero-amount payment record for bookkeeping
+							try {
+								Payment::create([
+									'user_id' => $user->id,
+									'subscription_id' => null,
+									'amount_cents' => 0,
+									'currency' => $freePlan->currency ?? 'USD',
+									'provider' => 'system',
+									'provider_charge_id' => null,
+									'status' => 'succeeded',
+								]);
+							} catch (\Throwable $_) { /* ignore payment create errors */ }
+						}
+					}
+				}
+			}
+		} catch (\Throwable $_) { /* best-effort */ }
 
 		// Crear solicitud pendiente si el rol requiere documentos
 		$successMsg = 'Registro exitoso. Ahora puedes iniciar sesión.';

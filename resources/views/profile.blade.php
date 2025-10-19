@@ -36,6 +36,23 @@
 			<div class="col-md-8">
 				<h5>{{ auth()->user()->name }}</h5>
 				<p>{{ auth()->user()->email }}</p>
+				@php
+					// Determine the user's current active plan (best-effort). Fall back to 'No asignado'.
+					$currentPlanName = 'No asignado';
+					if (
+						isset($user) && $user
+					) {
+						try {
+							$sub = $user->subscriptions()->where('status','active')->orderByDesc('starts_at')->first();
+							if ($sub && $sub->plan && !empty($sub->plan->name)) {
+								$currentPlanName = $sub->plan->name;
+							}
+						} catch (\Throwable $_) {
+							// ignore and leave default
+						}
+					}
+				@endphp
+				<p class="mb-2"><strong>Tipo de plan:</strong> {{ $currentPlanName }}</p>
 				@include('components.friend_button', ['user' => auth()->user()])
 				<hr>
 				<h6>Galería</h6>

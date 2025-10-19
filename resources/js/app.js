@@ -30,6 +30,7 @@ const pageModuleMap = {
 	'professional-calendar': './pages/professional.calendar.js'
 	,'user-appointments': './pages/user.appointments.js'
 	,'professionals-search': './pages/professionals.search.js'
+	,'plans': './components/plans.js'
 };
 
 async function initPage() {
@@ -92,6 +93,7 @@ async function initPage() {
 }
 
 // Ejecutar la inicialización al cargar la página (full navigation)
+
 document.addEventListener('DOMContentLoaded', () => {
 	initPage();
 	// Start PJAX after initial page scripts loaded
