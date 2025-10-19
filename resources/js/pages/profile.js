@@ -24,71 +24,35 @@ let _avatarClickHandler = null;
 
 async function refreshGallery(){
 	try{
-		const res = await axios.get(api.list);
-		if(res.data && res.data.photos){
-			const cont = document.getElementById('photo-gallery');
-			if(!cont) return;
-			cont.innerHTML = '';
-			res.data.photos.forEach(p => {
-				const wrapper = document.createElement('div');
-				wrapper.style.display = 'inline-block';
-				wrapper.style.margin = '4px';
-				wrapper.style.position = 'relative';
-
-				const img = document.createElement('img');
-				// prefer data_url (returned by server) to avoid extra filesystem mapping
-				img.src = p.data_url ? p.data_url : ('/storage/' + (p.path || ''));
-				img.width = 80; img.height = 80; img.className = 'rounded'; img.style.objectFit = 'cover'; img.style.cursor = 'pointer';
-				if(p.is_profile) img.style.outline = '3px solid #0d6efd';
-				img.addEventListener('click', async ()=>{
-					// confirm via modalConfirm when available
-					const doSet = () => axios.post(api.set(p.id)).then(async ()=>{
-						await refreshGallery();
-						const avatar = document.getElementById('profile-avatar-img'); if (avatar) avatar.src = p.data_url ? p.data_url : ('/storage/' + (p.path || ''));
-						// Also update navbar avatar if present
-						const navAvatar = document.getElementById('nav-avatar-img'); if (navAvatar) navAvatar.src = p.data_url ? p.data_url : ('/storage/' + (p.path || ''));
-						modalNotification?.('Hecho','Foto establecida como perfil',{template:'success'});
-					}).catch((err)=>{
-						modalNotification?.('Error','No se pudo establecer la foto como perfil',{template:'danger'}, true, { xhr: err?.response, body: 'set-profile' });
-					});
-
-					// Use modalConfirm exclusively (no native confirm fallback)
-					modalConfirm({ title: 'Confirmar', body: '¿Establecer esta foto como perfil?', btnsType: 'ny', onClickYes: doSet });
-				});
-
-				// delete button
-				const delBtn = document.createElement('button');
-				delBtn.type = 'button';
-				delBtn.className = 'btn btn-sm btn-danger';
-				delBtn.style.position = 'absolute';
-				delBtn.style.right = '0px';
-				delBtn.style.top = '0px';
-				delBtn.style.padding = '0.15rem 0.4rem';
-				delBtn.style.borderRadius = '0.25rem';
-				delBtn.title = 'Eliminar foto';
-				delBtn.textContent = '×';
-				delBtn.addEventListener('click', async (ev)=>{
-					ev.stopPropagation();
-					const doDelete = async () => {
-						try{
-							await axios.delete(api.delete(p.id));
-							await refreshGallery();
-							modalNotification?.('Eliminada','Foto eliminada correctamente',{template:'success'});
-						}catch(err){
-							modalNotification?.('Error','No se pudo eliminar la foto',{template:'danger'}, true, { xhr: err?.response, body: 'delete' });
-						}
-					};
-					modalConfirm({ title: 'Confirmar', body: '¿Eliminar esta foto?', btnsType: 'ny', onClickYes: doDelete });
-				});
-
-				wrapper.appendChild(img);
-				wrapper.appendChild(delBtn);
-				cont.appendChild(wrapper);
-			});
+		const res = await window.axios.get(api.list);
+		const data = res.data || {};
+		const photos = data.photos || [];
+		const container = $('#photo-gallery');
+		if(!container) return;
+		container.empty();
+		console.log('Gallery photos:', photos);
+		if(photos.length === 0){
+			container.append('<p class="text-muted">No hay fotos en la galería.</p>');
+			return;
 		}
-	}catch(e){
+		photos.forEach(p => {
+			const origin = window.location?.origin || (window.location.protocol + '//' + window.location.hostname + (window.location.port ? ':'+window.location.port : ''));
+			const src = p.url || p.secure_url || (p.path ? origin + '/storage/' + p.path.replace(/^\/+/, '') : origin + '/images/default-avatar.png');
+			const img = document.createElement('img');
+			img.src = src;
+			img.alt = p.caption || '';
+			img.width = 120;
+			img.height = 120;
+			img.className = 'rounded m-1 object-fit-cover';
+			// opcional: data-attrs para acciones (set profile, delete)
+			img.dataset.photoId = p.id;
+			img.dataset.ownerId = p.owner_id;
+			// use jQuery append on the jQuery container
+			container.append(img);
+        });
+    }catch(e){
 		modalNotification?.('Error','No se pudo cargar la galería',{template:'danger'}, true, { xhr: e?.response, body: 'list' });
-	}
+    }
 }
 
 // Presence polling

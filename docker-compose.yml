@@ -55,7 +55,7 @@ services:
     command: php artisan reverb:start --host=0.0.0.0 --port=8081
     working_dir: /var/www/html
     volumes:
-      - .:/var/www/html
+      - ./:/var/www/html:cached
       - vendor_data:/var/www/html/vendor
     depends_on:
       - redis

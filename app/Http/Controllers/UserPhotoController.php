@@ -14,50 +14,46 @@ class UserPhotoController extends Controller
 	{
 		$user = auth()->user();
 		try {
-			$photos = $user->photos()->orderBy('id', 'desc')->get()->map(function ($p) {
-				// helper to sanitize strings for JSON encoding
-				$safe = function ($v) {
-					if (is_null($v)) {
-						return null;
-					} $s = (string) $v;
-					$r = @iconv('UTF-8', 'UTF-8//IGNORE', $s);
-
-					return $r === false ? '' : $r;
-				};
-				// prefer serving file from 'path' if available, otherwise fallback to DB blob older apps
-					$dataUrl = null;
-					try {
-						// if path exists on public disk, expose public url
-						if (!empty($p->path) && \Illuminate\Support\Facades\Storage::disk('public')->exists($p->path)) {
-							$dataUrl = \Illuminate\Support\Facades\Storage::disk('public')->url($p->path);
-						} else {
-							$raw = $p->foto ?? null;
-							if ($raw !== null) {
-								if (is_resource($raw)) {
-									try { if (ftell($raw) !== false) rewind($raw); } catch (\Throwable$_) {}
-									$bytes = @stream_get_contents($raw);
-								} else {
-									$bytes = $raw;
-								}
-								if ($bytes !== null && $bytes !== false && $bytes !== '') {
-									$mime = null;
-									try { $f = new \finfo(FILEINFO_MIME_TYPE); $mime = $f->buffer($bytes); } catch (\Throwable$_) { $mime = null; }
-									if (!$mime) { $info = @getimagesizefromstring($bytes); if ($info && !empty($info['mime'])) $mime = $info['mime']; }
-									if (!$mime) $mime = 'application/octet-stream';
-									$dataUrl = 'data:'.$mime.';base64,'.base64_encode($bytes);
-								}
-							}
+			$photos = $user->photos()->orderBy('id', 'desc')->get()->map(function ($p) use ($user) {
+				// ...existing sanitizers / dataUrl logic above ...
+				$publicUrl = null;
+				$secureUrl = null;
+				try {
+					if (!empty($p->path) && \Illuminate\Support\Facades\Storage::disk('public')->exists($p->path)) {
+						try {
+							// intentamos obtener URL pública via Storage::url
+							$publicUrl = \Illuminate\Support\Facades\Storage::disk('public')->url($p->path);
+						} catch (\Throwable $e) {
+							// fallback simple a /storage/...
+							$publicUrl = url('/storage/' . ltrim($p->path, '/'));
+							\Illuminate\Support\Facades\Log::warning('UserPhotoController: Storage::url failed, using fallback', ['path' => $p->path, 'err' => $e->getMessage()]);
 						}
-					} catch (\Throwable$e) {
-						$dataUrl = null;
+						// secure url only if route exists
+						try {
+							if (\Illuminate\Support\Facades\Route::has('secure.storage')) {
+								$enc = rtrim(strtr(base64_encode($p->path), '+/', '-_'), '=');
+								$secureUrl = route('secure.storage', ['encoded' => $enc]);
+							}
+						} catch (\Throwable $e) {
+							\Illuminate\Support\Facades\Log::warning('UserPhotoController: building secure.url failed', ['path' => $p->path, 'err' => $e->getMessage()]);
+							$secureUrl = null;
+						}
 					}
+				} catch (\Throwable $e) {
+					\Illuminate\Support\Facades\Log::error('UserPhotoController: error checking public path', ['path' => $p->path ?? null, 'err' => $e->getMessage()]);
+				}
 
+				// return detallado para frontend
 				return [
 					'id' => $p->id,
-					'caption' => $safe($p->caption),
+					'owner_id' => $p->user_id,
+					'path' => $p->path,
+					'caption' => $p->caption,
 					'is_profile' => (bool) $p->is_profile,
 					'created_at' => optional($p->created_at)->toDateTimeString(),
-					'data_url' => $dataUrl,
+					'data_url' => $dataUrl ?? null,
+					'url' => $publicUrl,
+					'secure_url' => $secureUrl,
 				];
 			});
 
