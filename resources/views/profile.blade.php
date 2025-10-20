@@ -9,7 +9,7 @@
 			<div class="col-md-4 text-center">
 				@php
 					$user = auth()->user();
-					$avatar = Vite::asset('resources/images/p.png');
+					$avatar = Vite::asset('resources/images/default-avatar.png');
 					if ($user) {
 						if (!empty($user->profile_photo_data_url)) $avatar = $user->profile_photo_data_url;
 						elseif (!empty($user->photo)) $avatar = '/'.ltrim($user->photo, '/');

@@ -347,6 +347,7 @@ Route::middleware('auth')->group(function(){
 	Route::get('/profile/photos', [\App\Http\Controllers\UserPhotoController::class, 'index'])->name('profile.photos.index');
 	Route::post('/profile/photos', [\App\Http\Controllers\UserPhotoController::class, 'store'])->name('profile.photos.store');
 	Route::post('/profile/photos/{photo}/set-profile', [\App\Http\Controllers\UserPhotoController::class, 'setProfile'])->name('profile.photos.set');
+	Route::post('/profile/photos/{photo}/unset-profile', [\App\Http\Controllers\UserPhotoController::class, 'unsetProfile'])->name('profile.photos.unset');
 	Route::delete('/profile/photos/{photo}', [\App\Http\Controllers\UserPhotoController::class, 'destroy'])->name('profile.photos.destroy');
 
 	// Presence update

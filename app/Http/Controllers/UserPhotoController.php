@@ -14,36 +14,21 @@ class UserPhotoController extends Controller
 	{
 		$user = auth()->user();
 		try {
-			$photos = $user->photos()->orderBy('id', 'desc')->get()->map(function ($p) use ($user) {
-				// ...existing sanitizers / dataUrl logic above ...
+			$photos = $user->photos()->orderBy('id', 'desc')->get()->map(function ($p) {
 				$publicUrl = null;
 				$secureUrl = null;
 				try {
 					if (!empty($p->path) && \Illuminate\Support\Facades\Storage::disk('public')->exists($p->path)) {
-						try {
-							// intentamos obtener URL pública via Storage::url
-							$publicUrl = \Illuminate\Support\Facades\Storage::disk('public')->url($p->path);
-						} catch (\Throwable $e) {
-							// fallback simple a /storage/...
-							$publicUrl = url('/storage/' . ltrim($p->path, '/'));
-							\Illuminate\Support\Facades\Log::warning('UserPhotoController: Storage::url failed, using fallback', ['path' => $p->path, 'err' => $e->getMessage()]);
-						}
-						// secure url only if route exists
-						try {
-							if (\Illuminate\Support\Facades\Route::has('secure.storage')) {
-								$enc = rtrim(strtr(base64_encode($p->path), '+/', '-_'), '=');
-								$secureUrl = route('secure.storage', ['encoded' => $enc]);
-							}
-						} catch (\Throwable $e) {
-							\Illuminate\Support\Facades\Log::warning('UserPhotoController: building secure.url failed', ['path' => $p->path, 'err' => $e->getMessage()]);
-							$secureUrl = null;
+						$publicUrl = \Illuminate\Support\Facades\Storage::disk('public')->url($p->path);
+						if (\Illuminate\Support\Facades\Route::has('secure.storage')) {
+							$enc = rtrim(strtr(base64_encode($p->path), '+/', '-_'), '=');
+							$secureUrl = route('secure.storage', ['encoded' => $enc]);
 						}
 					}
 				} catch (\Throwable $e) {
-					\Illuminate\Support\Facades\Log::error('UserPhotoController: error checking public path', ['path' => $p->path ?? null, 'err' => $e->getMessage()]);
+					\Illuminate\Support\Facades\Log::warning('UserPhotoController: error building urls', ['path' => $p->path ?? null, 'err' => $e->getMessage()]);
 				}
 
-				// return detallado para frontend
 				return [
 					'id' => $p->id,
 					'owner_id' => $p->user_id,
@@ -51,7 +36,7 @@ class UserPhotoController extends Controller
 					'caption' => $p->caption,
 					'is_profile' => (bool) $p->is_profile,
 					'created_at' => optional($p->created_at)->toDateTimeString(),
-					'data_url' => $dataUrl ?? null,
+					'data_url' => null,
 					'url' => $publicUrl,
 					'secure_url' => $secureUrl,
 				];
@@ -59,9 +44,7 @@ class UserPhotoController extends Controller
 
 			return response()->json(['ok' => true, 'photos' => $photos]);
 		} catch (\Throwable $e) {
-			// log and return a safe error response
 			logger()->error('UserPhotoController@index serialization error', ['err' => $e->getMessage(), 'user_id' => $user->id ?? null]);
-
 			return response()->json(['ok' => false, 'message' => 'Error serializing photos'], 500);
 		}
 	}
@@ -176,7 +159,47 @@ class UserPhotoController extends Controller
 		$photo->save();
 
 		// no further updates required; path is already stored if applicable
-		return response()->json(['ok' => true]);
+		// return the new profile photo URL so the client can update UI immediately
+		$profile = UserPhoto::where('user_id', $user->id)->where('is_profile', true)->orderBy('id','desc')->first();
+		$profileUrl = null;
+		try {
+			if ($profile && $profile->path && \Illuminate\Support\Facades\Storage::disk('public')->exists($profile->path)) {
+				$profileUrl = \Illuminate\Support\Facades\Storage::disk('public')->url($profile->path);
+			}
+		} catch (\Throwable $_) { $profileUrl = null; }
+		// fallback to Vite asset if none
+		if (!$profileUrl) {
+			try { $profileUrl = Vite::asset('resources/images/default-avatar.png'); } catch (\Throwable $_) { try { $profileUrl = Vite::asset('resources/images/Avatar-PNG-Image.png'); } catch (\Throwable $_2) { $profileUrl = asset('images/default-avatar.png'); } }
+		}
+
+		return response()->json(['ok' => true, 'profile_photo_url' => $profileUrl]);
+	}
+
+	public function unsetProfile(Request $request, UserPhoto $photo)
+	{
+		$user = auth()->user();
+		if ($photo->user_id !== $user->id) {
+			return response()->json(['ok' => false, 'message' => 'Foto no válida'], 403);
+		}
+		// only clear if this photo is currently profile
+		if ($photo->is_profile) {
+			$photo->is_profile = false;
+			$photo->save();
+		}
+		// find current profile (if any) or null
+		$profile = UserPhoto::where('user_id', $user->id)->where('is_profile', true)->orderBy('id','desc')->first();
+		$profileUrl = null;
+		try {
+			if ($profile && $profile->path && \Illuminate\Support\Facades\Storage::disk('public')->exists($profile->path)) {
+				$profileUrl = \Illuminate\Support\Facades\Storage::disk('public')->url($profile->path);
+			}
+		} catch (\Throwable $_) { $profileUrl = null; }
+		// fallback to Vite asset if none
+		if (!$profileUrl) {
+			try { $profileUrl = Vite::asset('resources/images/default-avatar.png'); } catch (\Throwable $_) { try { $profileUrl = Vite::asset('resources/images/Avatar-PNG-Image.png'); } catch (\Throwable $_2) { $profileUrl = asset('images/default-avatar.png'); } }
+		}
+
+		return response()->json(['ok' => true, 'profile_photo_url' => $profileUrl]);
 	}
 
 	public function destroy(Request $request, UserPhoto $photo)
@@ -191,8 +214,37 @@ class UserPhotoController extends Controller
 				\Illuminate\Support\Facades\Storage::disk('public')->delete($photo->path);
 			}
 		} catch (\Throwable $_) {}
+		$wasProfile = (bool) $photo->is_profile;
 		$photo->delete();
 
-		return response()->json(['ok' => true]);
+		// If the deleted photo was the profile, compute fallback profile URL (or null)
+		$profile = null;
+		try {
+			$profile = UserPhoto::where('user_id', $user->id)->where('is_profile', true)->orderBy('id','desc')->first();
+		} catch (\Throwable $_) { $profile = null; }
+		$profileUrl = null;
+		if ($profile && $profile->path) {
+			try {
+				if (\Illuminate\Support\Facades\Storage::disk('public')->exists($profile->path)) {
+					$profileUrl = \Illuminate\Support\Facades\Storage::disk('public')->url($profile->path);
+				}
+			} catch (\Throwable $_) { $profileUrl = null; }
+		}
+		// If there is no profile photo left, fallback to the app default avatar asset
+		if (!$profileUrl) {
+			try {
+				// Prefer the same Vite-served default used by Blade
+				$profileUrl = Vite::asset('resources/images/default-avatar.png');
+			} catch (\Throwable $_) {
+				try {
+					$profileUrl = Vite::asset('resources/images/Avatar-PNG-Image.png');
+				} catch (\Throwable $_2) {
+					// final fallback to a simple asset() path (relative to app)
+					$profileUrl = asset('images/default-avatar.png');
+				}
+			}
+		}
+
+		return response()->json(['ok' => true, 'profile_photo_url' => $profileUrl, 'was_profile' => $wasProfile]);
 	}
 }

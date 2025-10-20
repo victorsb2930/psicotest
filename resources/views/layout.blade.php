@@ -9,6 +9,7 @@
 	<meta http-equiv="X-UA-Compatible" content="ie=edge">
 	<meta name="csrf-token" content="{{ csrf_token() }}">
 	<meta name="broadcast-driver" content="{{ config('broadcasting.default') }}">
+	<meta name="default-avatar" content="{{ Vite::asset('resources/images/default-avatar.png') }}">
 	@if(auth()->check())<meta name="auth-user-id" content="{{ auth()->id() }}">@endif
 	<title>@yield('title', 'PsicoGuia')</title>
 	<!-- Minimal critical CSS -->
@@ -523,7 +524,7 @@
 				<li class="nav-item dropdown" data-bs-auto-close="outside">
 						@php
 						$user = Auth::user();
-						$avatar = ($user?->photo) ? base64_encode(file_get_contents(public_path($user->photo))) : Vite::asset('resources/images/p.png');
+						$avatar = ($user?->photo) ? base64_encode(file_get_contents(public_path($user->photo))) : Vite::asset('resources/images/default-avatar.png');
 						// prefer profile_photo_data_url (from user_photos.foto) then user->photo path
 						if ($user) {
 							if (!empty($user->profile_photo_data_url)) {
@@ -644,7 +645,11 @@
 	@endif
 
 	@stack('scripts')
-	<script>window.__authUserId = (document.querySelector('meta[name="auth-user-id"]')||{}).content || null;</script>
+	<script>
+		window.__authUserId = (document.querySelector('meta[name="auth-user-id"]')||{}).content || null;
+		// Read default avatar from meta (set via Blade) so editors keep syntax highlighting
+		window.__defaultAvatar = (document.querySelector('meta[name="default-avatar"]') || {}).content || null;
+	</script>
 	@vite(['resources/js/realtime.js'])
 	<script>
 		// Presence dropdown handler: send POST to /profile/presence and update dot color

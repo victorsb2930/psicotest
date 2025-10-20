@@ -7,7 +7,7 @@
             <div class="card">
                 <div class="card-body text-center">
                     <div id="prof-avatar" style="cursor:pointer;">
-                        <img id="prof-avatar-img" src="{{ $avatar ?? Vite::asset('resources/images/p.png') }}" class="rounded-circle" width="140" height="140" alt="avatar">
+                        <img id="prof-avatar-img" src="{{ $avatar ?? Vite::asset('resources/images/Avatar-PNG-Image.png') }}" class="rounded-circle" width="140" height="140" alt="avatar">
                     </div>
                     <h4 class="mt-2">{{ $u->name }}</h4>
                     <div class="text-muted">{{ $u->specialty ?? 'General' }}</div>
