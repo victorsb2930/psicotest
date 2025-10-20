@@ -165,7 +165,7 @@
                 @endphp
                 <li class="nav-item position-relative">
                     <a href="{{ route('friends.index') }}" class="nav-link px-0 d-flex align-items-center justify-content-between {{ $is('friends.index') ? 'active' : '' }}">
-                        <span><i class="bi bi-people me-2"></i>Chat con profesionales</span>
+                        <span><i class="bi bi-people me-2"></i>Chat con {{ auth()->user()->hasRole('professional') ? 'pacientes' : 'profesionales' }}</span>
                         @if($pendingFriends>0)<span class="badge text-bg-danger">{{ $pendingFriends }}</span>@endif
                     </a>
                 </li>
