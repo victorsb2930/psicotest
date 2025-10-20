@@ -1,8 +1,21 @@
 @extends('layouts.app')
-@section('title','Amigos')
+@section('title','Chat con profesionales')
 @section('content')
 <div class="container py-3" id="friends-page">
-    <h1 class="h4 mb-4 d-flex align-items-center gap-2">Amigos <small class="text-muted fw-normal">( {{ $friends->count() }} )</small></h1>
+    <h1 class="h4 mb-4 d-flex align-items-center gap-2">Chats con profesionales <small class="text-muted fw-normal">( {{ $friends->count() }} )</small></h1>
+    @php
+        $currentUser = auth()->user();
+        $currentRoleIds = $currentUser ? $currentUser->roles()->pluck('id')->map(fn($i)=>(int)$i)->toArray() : [];
+        $isType2 = in_array(2, $currentRoleIds, true);
+        $isType3 = in_array(3, $currentRoleIds, true);
+        // Determine the allowed counterpart role: if current is 2 -> target 3; if current is 3 -> target 2
+        $allowedTargetRole = null;
+        if ($isType2 && !$isType3) $allowedTargetRole = 3;
+        elseif ($isType3 && !$isType2) $allowedTargetRole = 2;
+    @endphp
+    @if(is_null($allowedTargetRole))
+        <div class="alert alert-info">La sección de chat entre clientes y profesionales está disponible solo para cuentas tipo cliente (rol 2) o profesional (rol 3). Si tu cuenta no pertenece a estos tipos, no puedes usar este chat.</div>
+    @endif
     <div class="row g-4">
         <div class="col-lg-4">
             <div class="card shadow-sm mb-3">
@@ -16,7 +29,10 @@
             <div class="card shadow-sm mb-3">
                 <div class="card-header fw-semibold">Solicitudes entrantes ({{ $incoming->count() }})</div>
                 <div class="list-group list-group-flush" id="incoming-list">
-                    @forelse($incoming as $req)
+                    @forelse($incoming->filter(function($req) use ($allowedTargetRole){
+                        if (!$allowedTargetRole) return false;
+                        try { return $req->from && $req->from->roles()->where('id', $allowedTargetRole)->exists(); } catch(\Throwable $_) { return false; }
+                    }) as $req)
                         <div class="list-group-item d-flex justify-content-between align-items-center">
                             <div>
                                 <div class="fw-semibold">{{ $req->from->name }}</div>
@@ -35,7 +51,10 @@
             <div class="card shadow-sm mb-3">
                 <div class="card-header fw-semibold">Solicitudes enviadas ({{ $outgoing->count() }})</div>
                 <div class="list-group list-group-flush">
-                    @forelse($outgoing as $req)
+                    @forelse($outgoing->filter(function($req) use ($allowedTargetRole){
+                        if (!$allowedTargetRole) return false;
+                        try { return $req->to && $req->to->roles()->where('id', $allowedTargetRole)->exists(); } catch(\Throwable $_) { return false; }
+                    }) as $req)
                         <div class="list-group-item d-flex justify-content-between align-items-center">
                             <div>
                                 <div class="fw-semibold">{{ $req->to->name }}</div>
@@ -51,11 +70,14 @@
         </div>
         <div class="col-lg-8">
             <div class="card shadow-sm mb-3">
-                <div class="card-header fw-semibold d-flex justify-content-between align-items-center">Tus amigos
+                <div class="card-header fw-semibold d-flex justify-content-between align-items-center">Profesionales agregados
                     <span class="badge rounded-pill text-bg-light text-dark">{{ $friends->count() }}</span>
                 </div>
                 <div class="list-group list-group-flush" id="friends-list">
-                    @forelse($friends as $f)
+                    @forelse($friends->filter(function($f) use ($allowedTargetRole){
+                        if (!$allowedTargetRole) return false;
+                        try { return $f->roles()->where('id', $allowedTargetRole)->exists(); } catch(\Throwable $_) { return false; }
+                    }) as $f)
                         <a href="{{ route('messages.thread',$f->id) }}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
                             <div>
                                 <div class="fw-semibold">{{ $f->name }}</div>
@@ -102,10 +124,42 @@
     document.getElementById('incoming-list')?.addEventListener('click', async e => {
         const t = e.target; const id = t.getAttribute('data-id'); if(!id) return;
         if(t.classList.contains('btn-accept')){
-            try { const r = await fetch(`/friend/request/${id}/accept`,{method:'POST',headers:{'X-CSRF-TOKEN':token}}); const j=await r.json(); if(j.ok){ window.modalNotification?.('Amistad aceptada','Ahora son amigos',{template:'success'}); t.closest('.list-group-item').remove(); } } catch(_){}
+            try {
+                const r = await fetch(`/friend/request/${id}/accept`,{method:'POST',headers:{'X-CSRF-TOKEN':token}});
+                const j = await r.json();
+                if (j.ok) {
+                    window.modalNotification?.('Amistad aceptada','Ahora son amigos',{template:'success'});
+                    // Remove the incoming request row
+                    const row = t.closest('.list-group-item'); if (row) row.remove();
+
+                    // If the server returned friend info, append it to the friends list
+                    if (j.friend) {
+                        const friendsList = document.getElementById('friends-list');
+                        if (friendsList) {
+                            const a = document.createElement('a');
+                            a.href = `/messages/thread/${encodeURIComponent(j.friend.id)}`;
+                            a.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-center';
+                            a.innerHTML = `<div><div class="fw-semibold">${escapeHtml(j.friend.name)}</div><div class="text-muted small">${escapeHtml(j.friend.email)}</div></div><i class="bi bi-chat-dots"></i>`;
+                            // prepend so newest friends show first
+                            friendsList.prepend(a);
+
+                            // Update the friends count badge in the card header if present
+                            try {
+                                const headerBadge = document.querySelector('.card-header .badge');
+                                if (headerBadge) {
+                                    const n = parseInt(headerBadge.textContent || '0', 10) || 0; headerBadge.textContent = String(n + 1);
+                                }
+                            } catch(_){}
+                        }
+                    }
+
+                    // Refresh global counters to keep the left menu in sync
+                    refreshCounters();
+                }
+            } catch(_){ }
         }
         if(t.classList.contains('btn-reject')){
-            try { const r = await fetch(`/friend/request/${id}/reject`,{method:'POST',headers:{'X-CSRF-TOKEN':token}}); const j=await r.json(); if(j.ok){ window.modalNotification?.('Solicitud rechazada','Se ha descartado la solicitud',{template:'info'}); t.closest('.list-group-item').remove(); } } catch(_){}
+            try { const r = await fetch(`/friend/request/${id}/reject`,{method:'POST',headers:{'X-CSRF-TOKEN':token}}); const j=await r.json(); if(j.ok){ window.modalNotification?.('Solicitud rechazada','Se ha descartado la solicitud',{template:'info'}); t.closest('.list-group-item').remove(); refreshCounters(); } } catch(_){ }
         }
     });
 
@@ -163,6 +217,9 @@
     async function refreshCounters(){
         try { const r=await fetch('/api/counters'); const j=await r.json(); if(!j.ok) return; document.dispatchEvent(new CustomEvent('counters:update',{detail:j})); } catch(_){ }
     }
+
+    // small utility to avoid XSS when inserting user-provided names/emails
+    function escapeHtml(s){ if(!s) return ''; return String(s).replace(/[&<>"'`=\/]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#x2F;','`':'&#x60;','=':'&#x3D;'}[c]; }); }
 })();
 </script>
 @endpush

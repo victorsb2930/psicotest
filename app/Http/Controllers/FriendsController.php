@@ -39,6 +39,20 @@ class FriendsController extends Controller
         $me = $request->user();
         $q = trim((string)$request->input('q',''));
 
+        // Determine allowed counterpart role: if current is role 2 -> target 3; if current is role 3 -> target 2
+        $currentRoleIds = [];
+        try { $currentRoleIds = $me ? $me->roles()->pluck('id')->map(fn($i)=>(int)$i)->toArray() : []; } catch (\Throwable $_) { $currentRoleIds = []; }
+        $isType2 = in_array(2, $currentRoleIds, true);
+        $isType3 = in_array(3, $currentRoleIds, true);
+        $allowedTargetRole = null;
+        if ($isType2 && ! $isType3) $allowedTargetRole = 3;
+        elseif ($isType3 && ! $isType2) $allowedTargetRole = 2;
+
+        // If current user is neither pure type2 nor pure type3, return empty results (no cross-role search)
+        if (is_null($allowedTargetRole)) {
+            return response()->json(['ok' => true, 'results' => collect(), 'query' => $q, 'excluded_count' => 0, 'allowed_target_role' => null]);
+        }
+
         // Gather related user ids (friends in any status) + self
         $relatedIds = [];
         FriendRequest::query()
@@ -55,7 +69,7 @@ class FriendsController extends Controller
         $driver = \DB::connection()->getDriverName();
         $likeOp = $driver === 'pgsql' ? 'ilike' : 'like';
 
-        $query = User::query()->whereNotIn('id', $relatedIds);
+    $query = User::query()->whereNotIn('id', $relatedIds)->whereHas('roles', function($w) use ($allowedTargetRole){ $w->where('id', $allowedTargetRole); });
         if ($q !== '') {
             $query->where(function($w) use ($q, $likeOp){
                 $w->where('name', $likeOp, '%'.$q.'%')

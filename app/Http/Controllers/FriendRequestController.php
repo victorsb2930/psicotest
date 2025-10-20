@@ -15,14 +15,27 @@ class FriendRequestController extends Controller {
     }
     public function accept(Request $r, FriendRequest $requestModel){
         $me = $r->user();
-        if ($requestModel->to_id !== $me->id) abort(403);
+        // to_id may come as string from the database; cast to int to avoid
+        // strict comparison mismatches that incorrectly abort with 403.
+        if (((int) $requestModel->to_id) !== (int) $me->id) abort(403);
         $requestModel->status='accepted'; $requestModel->accepted_at=now(); $requestModel->save();
-        broadcast(new FriendRequestAccepted($requestModel->load('to')))->toOthers();
-        return response()->json(['ok'=>true]);
+        // ensure relationships are loaded so we can return friend info
+        $requestModel->load('from','to');
+        // Notify the original sender that their request was accepted
+        try { broadcast(new FriendRequestAccepted($requestModel))->toOthers(); } catch(\Throwable $_) {}
+
+        // Return minimal friend data so the client can update the UI without a full reload
+        $friend = $requestModel->from;
+        $payload = ['ok' => true, 'friend' => null];
+        if ($friend) {
+            $payload['friend'] = ['id' => $friend->id, 'name' => $friend->name, 'email' => $friend->email];
+        }
+        return response()->json($payload);
     }
     public function reject(Request $r, FriendRequest $requestModel){
         $me = $r->user();
-        if ($requestModel->to_id !== $me->id) abort(403);
+        // Ensure identities match after casting to int to avoid type issues.
+        if (((int) $requestModel->to_id) !== (int) $me->id) abort(403);
         $requestModel->status='rejected'; $requestModel->rejected_at=now(); $requestModel->save();
         return response()->json(['ok'=>true]);
     }

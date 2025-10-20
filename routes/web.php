@@ -642,6 +642,38 @@ Route::middleware('auth')->group(function(){
 	Route::get('/messages/thread/{user}', [\App\Http\Controllers\MessagesController::class, 'thread'])->name('messages.thread');
 	Route::post('/messages/thread/{user}', [\App\Http\Controllers\MessagesController::class, 'send'])->name('messages.send');
 
+	// Public-ish endpoint to fetch another user's presence/status and avatar (requires auth)
+	Route::get('/users/{user}/status', function(\App\Models\User $user){
+		// expose a small set of fields safe for authenticated users
+		$lastSeen = null;
+		if (isset($user->last_seen_at)) {
+			if ($user->last_seen_at instanceof \DateTimeInterface) {
+				$lastSeen = $user->last_seen_at->format('Y-m-d H:i:s');
+			} else {
+				$lastSeen = is_string($user->last_seen_at) && $user->last_seen_at !== '' ? $user->last_seen_at : null;
+			}
+		}
+		$profilePhoto = null;
+		try {
+			if (!empty($user->profile_photo_data_url)) $profilePhoto = $user->profile_photo_data_url;
+			elseif (!empty($user->photo)) $profilePhoto = '/storage/' . ltrim($user->photo, '/');
+		} catch (\Throwable $_) { $profilePhoto = null; }
+		$status = $user->status ?? ($user->is_active ? 'online' : 'offline');
+		return response()->json(['ok'=>true,'user_id'=>$user->id,'status'=>$status,'last_seen_at'=>$lastSeen,'profile_photo'=>$profilePhoto]);
+	})->name('users.status');
+
+	// Return a user's public gallery (requires auth)
+	Route::get('/users/{user}/photos', function(\App\Models\User $user){
+		try {
+			$photos = \App\Models\UserPhoto::where('user_id', $user->id)->orderBy('id','desc')->get()->map(function($p){
+				$publicUrl = null; $secureUrl = null;
+				try { if (!empty($p->path) && \Illuminate\Support\Facades\Storage::disk('public')->exists($p->path)) { $publicUrl = \Illuminate\Support\Facades\Storage::disk('public')->url($p->path); if (\Illuminate\Support\Facades\Route::has('secure.storage')) { $enc = rtrim(strtr(base64_encode($p->path), '+/', '-_'), '='); $secureUrl = route('secure.storage', ['encoded' => $enc]); } } } catch (\Throwable $_) {}
+				return [ 'id'=>$p->id, 'caption'=>$p->caption, 'is_profile'=>(bool)$p->is_profile, 'url'=>$publicUrl, 'secure_url'=>$secureUrl, 'created_at'=>optional($p->created_at)->toDateTimeString() ];
+			});
+			return response()->json(['ok'=>true,'photos'=>$photos]);
+		} catch (\Throwable $e) { return response()->json(['ok'=>false,'message'=>'error'],500); }
+	})->name('users.photos');
+
 	// Friend requests
 	Route::post('/friend/{user}/request', [\App\Http\Controllers\FriendRequestController::class, 'send'])->name('friend.request');
 	Route::post('/friend/request/{requestModel}/accept', [\App\Http\Controllers\FriendRequestController::class, 'accept'])->name('friend.request.accept');
