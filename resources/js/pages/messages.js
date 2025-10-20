@@ -8,6 +8,11 @@ let _state = {
 };
 let _els = {};
 let _handlers = {};
+let _presenceInterval = null;
+const PRESENCE = {
+	labels: { online: 'Online', busy: 'Ocupado', dnd: 'No molestar', away: 'Ausente', offline: 'No disponible' },
+	colors: { online: '#28a745', busy: '#fd7e14', dnd: '#dc3545', away: '#ffc107', offline: '#6c757d' }
+};
 
 function el(id) { return document.getElementById(id); }
 
@@ -15,13 +20,25 @@ function getAuthId() {
 	try { return String(window.__authUserId || ''); } catch (_) { return ''; }
 }
 
+function applyPresenceToDot(dotEl, status) {
+	if (!dotEl) return;
+	try {
+		const color = PRESENCE.colors[status] || PRESENCE.colors.offline;
+		const title = PRESENCE.labels[status] || 'No disponible';
+		dotEl.style.background = color;
+		dotEl.setAttribute('title', title);
+	} catch (_) { }
+}
+
 function setPresenceDot(userId, status) {
 	try {
 		const el = document.querySelector('.presence-dot-small[data-user-id="' + userId + '"]');
-		if (!el) return;
-		const map = { online: '#28a745', busy: '#fd7e14', dnd: '#dc3545', away: '#ffc107', offline: '#6c757d' };
-		el.style.background = map[status] || map.offline;
+		applyPresenceToDot(el, status);
 	} catch (_) { }
+}
+
+function setHeaderPresence(status) {
+	try { applyPresenceToDot(_els.chatPartnerPresence, status); } catch (_) { }
 }
 
 function appendMessageToChat(msg, opts = {}) {
@@ -85,7 +102,10 @@ async function hydrateContact(userId) {
 			const btn = document.querySelector('.contact-item[data-user-id="' + userId + '"]');
 			if (btn) btn.querySelector('img')?.setAttribute('src', j.profile_photo);
 		}
-		if (j.status) setPresenceDot(userId, j.status);
+		if (j.status) {
+			setPresenceDot(userId, j.status);
+			if (String(_state.currentPartnerId || '') === String(userId || '')) setHeaderPresence(j.status);
+		}
 	} catch (_) { }
 }
 
@@ -180,11 +200,31 @@ export function init() {
 	// Guard if core container not present
 	if (!_els.contactsList || !_els.chatMessages) return;
 
-	// Initial presence dots to offline
-	try { document.querySelectorAll('.presence-dot-small').forEach(el => { el.style.background = '#6c757d'; }); } catch (_) { }
+	// Initial presence dots to offline (with proper title)
+	try { document.querySelectorAll('.presence-dot-small').forEach(el => { applyPresenceToDot(el, 'offline'); }); } catch (_) { }
 
 	// Hydrate contacts (presence and avatar)
 	try { document.querySelectorAll('.contact-item').forEach(it => { const uid = it.getAttribute('data-user-id'); if (uid) hydrateContact(uid); }); } catch (_) { }
+
+	// Periodic presence polling for contacts and current partner (fallback when no realtime)
+	function startPresencePolling() {
+		if (_presenceInterval) return;
+		const PERIOD = 20000; // 20s
+		const tick = async () => {
+			try {
+				const ids = Array.from(document.querySelectorAll('.contact-item')).map(it => it.getAttribute('data-user-id')).filter(Boolean);
+				// dedupe
+				const unique = Array.from(new Set(ids));
+				await Promise.all(unique.map(uid => hydrateContact(uid)));
+			} catch (_) { }
+		};
+		// immediate + interval
+		tick();
+		_presenceInterval = setInterval(tick, PERIOD);
+	}
+	function stopPresencePolling() { try { if (_presenceInterval) { clearInterval(_presenceInterval); _presenceInterval = null; } } catch (_) { } }
+	_handlers.stopPresencePolling = stopPresencePolling;
+	startPresencePolling();
 
 	// Event handlers
 	_handlers.onContactClick = function (e) {
@@ -269,6 +309,7 @@ export function destroy() {
 	try { _els.chatClose?.removeEventListener('click', _handlers.onClose); } catch (_) { }
 	try { window.removeEventListener('rt:message', _handlers.onRtMessage); } catch (_) { }
 	try { window.removeEventListener('rt:user_presence', _handlers.onPresence); } catch (_) { }
+	try { if (_handlers.stopPresencePolling) _handlers.stopPresencePolling(); } catch (_) { }
 	try { if (_handlers.onPartnerClick && _els.chatPartnerName) _els.chatPartnerName.removeEventListener('click', _handlers.onPartnerClick); } catch (_) { }
 
 	// Reset state
@@ -276,4 +317,5 @@ export function destroy() {
 	_state.renderedMessageIds = new Set();
 	_els = {};
 	_handlers = {};
+	_presenceInterval = null;
 }

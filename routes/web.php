@@ -358,6 +358,7 @@ Route::middleware('auth')->group(function(){
 		if (!in_array($status, $allowed, true)) $status = 'online';
 		$user->status = $status;
 		try { $user->save(); } catch(\Throwable$e) {}
+		try { event(new \App\Events\UserPresenceChanged($user->id, $status)); } catch (\Throwable $_) {}
 		return response()->json(['ok'=>true,'status'=>$status]);
 	})->name('profile.presence');
 
@@ -366,14 +367,25 @@ Route::middleware('auth')->group(function(){
 		$user = auth()->user();
 		if (!$user) return response()->json(['ok'=>false], 401);
 		$lastSeen = null;
+		$recent = false;
 		if (isset($user->last_seen_at)) {
 			if ($user->last_seen_at instanceof \DateTimeInterface) {
 				$lastSeen = $user->last_seen_at->format('Y-m-d H:i:s');
+				$recent = now()->diffInSeconds($user->last_seen_at) <= 90; // within 90s = online
 			} else {
 				$lastSeen = is_string($user->last_seen_at) && $user->last_seen_at !== '' ? $user->last_seen_at : null;
+				try { $recent = $lastSeen ? (now()->diffInSeconds(\Carbon\Carbon::parse($lastSeen)) <= 90) : false; } catch (\Throwable $_) { $recent = false; }
 			}
 		}
-		return response()->json(['ok'=>true,'status'=>$user->status ?? 'offline','last_seen_at'=>$lastSeen]);
+		$base = (string) ($user->status ?? '');
+		// If user explicitly set a non-offline status, honor it
+		if (in_array($base, ['online','busy','dnd','away'], true)) {
+			$effective = $base;
+		} else {
+			// Otherwise, infer from recency
+			$effective = $recent ? 'online' : 'offline';
+		}
+		return response()->json(['ok'=>true,'status'=>$effective,'last_seen_at'=>$lastSeen]);
 	})->name('profile.status');
 
 	// Heartbeat/keepalive endpoint for presence (called periodically by the client)
@@ -383,6 +395,9 @@ Route::middleware('auth')->group(function(){
 		try {
 			$user->last_seen_at = now();
 			$user->saveQuietly();
+
+			// Broadcast a presence update so other clients can reflect online state without refresh
+			try { event(new \App\Events\UserPresenceChanged($user->id, $user->status ?: 'online')); } catch (\Throwable $_) {}
 
 			// Reopen a user_logins row that was closed very recently for this same
 			// session id. This handles page reloads (F5) where the client
@@ -441,7 +456,7 @@ Route::middleware('auth')->group(function(){
 									$ipMatches = $storedIp !== '' && $reqIp === $storedIp;
 									$allowUa = !$strictUa || $uaMatches;
 									$allowIp = !$strictIp || $ipMatches;
-									if ($allowUa && $allowIp) {
+													if ($allowUa && $allowIp) {
 										// reopen and update session_id
 										\Illuminate\Support\Facades\DB::table('user_logins')->where('id', $found->id)->update(['ended_at' => null, 'duration_seconds' => null, 'session_id' => $sid]);
 										try { \Illuminate\Support\Facades\Log::info('user_login.reopened_by_token', ['user_login_id' => $found->id, 'session_id' => $sid, 'user_id' => $user->id ?? null]); } catch (\Throwable $_) {}
@@ -645,12 +660,14 @@ Route::middleware('auth')->group(function(){
 	// Public-ish endpoint to fetch another user's presence/status and avatar (requires auth)
 	Route::get('/users/{user}/status', function(\App\Models\User $user){
 		// expose a small set of fields safe for authenticated users
-		$lastSeen = null;
+		$lastSeen = null; $recent = false;
 		if (isset($user->last_seen_at)) {
 			if ($user->last_seen_at instanceof \DateTimeInterface) {
 				$lastSeen = $user->last_seen_at->format('Y-m-d H:i:s');
+				$recent = now()->diffInSeconds($user->last_seen_at) <= 90; // within 90s = online
 			} else {
 				$lastSeen = is_string($user->last_seen_at) && $user->last_seen_at !== '' ? $user->last_seen_at : null;
+				try { $recent = $lastSeen ? (now()->diffInSeconds(\Carbon\Carbon::parse($lastSeen)) <= 90) : false; } catch (\Throwable $_) { $recent = false; }
 			}
 		}
 		$profilePhoto = null;
@@ -658,7 +675,12 @@ Route::middleware('auth')->group(function(){
 			if (!empty($user->profile_photo_data_url)) $profilePhoto = $user->profile_photo_data_url;
 			elseif (!empty($user->photo)) $profilePhoto = '/storage/' . ltrim($user->photo, '/');
 		} catch (\Throwable $_) { $profilePhoto = null; }
-		$status = $user->status ?? ($user->is_active ? 'online' : 'offline');
+		$base = (string) ($user->status ?? '');
+		if (in_array($base, ['online','busy','dnd','away'], true)) {
+			$status = $base;
+		} else {
+			$status = $recent ? 'online' : 'offline';
+		}
 		return response()->json(['ok'=>true,'user_id'=>$user->id,'status'=>$status,'last_seen_at'=>$lastSeen,'profile_photo'=>$profilePhoto]);
 	})->name('users.status');
 

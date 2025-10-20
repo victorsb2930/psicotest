@@ -69,6 +69,16 @@ if (echoConfig) {
 				window.dispatchEvent(new CustomEvent('rt:friend_request_accepted', { detail: e }));
 				if (window.modalNotification) window.modalNotification('Amistad aceptada', `${e.to_name} ahora es tu amigo`, {template:'success'});
 			});
+
+		// Also listen on a public presence channel for status changes
+		try {
+			window.Echo.channel('presence')
+				.listen('.UserPresenceChanged', (e) => {
+					// normalize payload { user_id, status }
+					const detail = { user_id: e.user_id, status: e.status };
+					window.dispatchEvent(new CustomEvent('rt:user_presence', { detail }));
+				});
+		} catch (err) { console.warn('[Realtime] presence channel subscribe failed', err); }
 	}
 } else {
 	console.warn('Realtime deshabilitado: no hay configuración válida (pusher o reverb). Asegúrate de definir VITE_BROADCAST_DRIVER y variables VITE_REVERB_* o VITE_PUSHER_* y recompilar con npm run dev.');

@@ -36,7 +36,7 @@
 								</div>
 							</div>
 							<div>
-								<span class="presence-dot-small" data-user-id="{{ $partner->id }}" title="Estado"
+								<span class="presence-dot-small" data-user-id="{{ $partner->id }}" title="No disponible"
 									style="width:10px;height:10px;border-radius:50%;background:#6c757d;display:inline-block;margin-top:6px;margin-right:8px"></span>
 								@if($unread)<span class="badge text-bg-primary small">Nuevo</span>@endif
 							</div>
@@ -58,7 +58,7 @@
 						<!-- Chat header: partner name + presence + close -->
 						<div class="d-flex justify-content-between align-items-center mb-2">
 							<div class="d-flex align-items-center gap-2">
-								<span id="chat-partner-presence" class="presence-dot-small" title="Estado"
+										<span id="chat-partner-presence" class="presence-dot-small" title="No disponible"
 									style="width:10px;height:10px;border-radius:50%;background:#6c757d;display:inline-block"></span>
 								<strong id="chat-partner-name"></strong>
 							</div>
