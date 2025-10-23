@@ -338,10 +338,28 @@ Route::middleware('auth')->group(function(){
 	})->name('notifications.markread');
 
 	// Logout should require authentication
-	Route::post('/logout', [LoginRegisterController::class, 'logout'])->name('logout');
+	Route::post('/logout', function(\Illuminate\Http\Request $request){
+		// Before logging out, mark the user as offline and broadcast presence
+		$user = auth()->user();
+		if ($user) {
+			try { $user->status = 'offline'; $user->save(); } catch (\Throwable $_) {}
+			try { event(new \App\Events\UserPresenceChanged($user->id, 'offline')); } catch (\Throwable $_) {}
+		}
+		// Delegate to the controller for the rest of the logout flow
+		return app(\App\Http\Controllers\LoginRegisterController::class)->logout($request);
+	})->name('logout');
 
 	// Endpoint to record session end (used by client sendBeacon on page unload)
-	Route::post('/sessions/end', [LoginRegisterController::class, 'endSession'])->name('sessions.end');
+	Route::post('/sessions/end', function(\Illuminate\Http\Request $request){
+		$user = auth()->user();
+		if ($user) {
+			// Mark user as offline when the page is closed and broadcast presence change
+			try { $user->status = 'offline'; $user->save(); } catch (\Throwable $_) {}
+			try { event(new \App\Events\UserPresenceChanged($user->id, 'offline')); } catch (\Throwable $_) {}
+		}
+		// Delegate to controller for session end bookkeeping
+		return app(\App\Http\Controllers\LoginRegisterController::class)->endSession($request);
+	})->name('sessions.end');
 
 	// User photos management
 	Route::get('/profile/photos', [\App\Http\Controllers\UserPhotoController::class, 'index'])->name('profile.photos.index');

@@ -46,14 +46,14 @@ function appendMessageToChat(msg, opts = {}) {
 	const AUTH_ID = getAuthId();
 	const isMine = String(msg.from_id) === String(AUTH_ID);
 	const wrap = document.createElement('div');
-	wrap.className = 'mb-2 ' + (isMine ? 'text-end' : '');
+	wrap.className = 'msg mb-2 ' + (isMine ? 'text-end msg-me' : 'msg-other');
 	const bubble = document.createElement('div');
-	bubble.className = 'd-inline-block p-2 rounded ' + (isMine ? 'bg-primary text-white' : 'bg-light');
+	bubble.className = 'msg-bubble d-inline-block p-2 rounded ' + (isMine ? 'bg-primary text-white' : 'bg-light');
 	bubble.style.maxWidth = '70%';
 	bubble.style.whiteSpace = 'pre-wrap';
 	bubble.textContent = msg.body || '';
 	const meta = document.createElement('div');
-	meta.className = 'small text-muted mt-1';
+	meta.className = 'msg-meta small text-muted mt-1';
 	meta.textContent = msg.created_at ? (new Date(msg.created_at)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
 	if (msg.id) { _state.renderedMessageIds.add(msg.id); wrap.dataset.msgId = msg.id; }
 	if (opts.tempId) wrap.dataset.tempId = opts.tempId;
@@ -231,6 +231,8 @@ export function init() {
 		const btn = e.target.closest && e.target.closest('.contact-item'); if (!btn) return;
 		const uid = btn.getAttribute('data-user-id');
 		const uname = btn.getAttribute('data-user-name') || btn.querySelector('.fw-semibold')?.textContent || 'Usuario';
+		// Mark active contact visually
+		try { document.querySelectorAll('.contact-item.active').forEach(it => it.classList.remove('active')); btn.classList.add('active'); } catch (_) { }
 		openChatFor(uid, uname);
 	};
 	_els.contactsList.addEventListener('click', _handlers.onContactClick);

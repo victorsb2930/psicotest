@@ -3,7 +3,7 @@
 @section('page', 'login-register')
 @section('content')
 @once
-	@vite(['resources/css/app.css', 'resources/css/loginRegister.css'])
+	@vite(['resources/css/loginRegister.css'])
 @endonce
 <div class="min-vh-100 d-flex align-items-center justify-content-center">
 	<div class="login-container">

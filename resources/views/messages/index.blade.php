@@ -4,6 +4,9 @@
 @section('page','messages')
 
 @section('content')
+@once
+@vite(['resources/css/pages/messages.css'])
+@endonce
 <div class="py-3">
 
 	<h1 class="h4 mb-3">Mensajes</h1>
@@ -19,9 +22,9 @@
 					<div id="contacts-list" class="list-group" style="max-height: 60vh; overflow:auto;">
 						@forelse($lastMessages as $m)
 						@php
-						$partner = $m->from_id === auth()->id() ? $m->to : $m->from;
-						$unread = $m->to_id === auth()->id() && !$m->read_at;
-						$lastBody = $m->body;
+							$partner = $m->from_id === auth()->id() ? $m->to : $m->from;
+							$unread = $m->to_id === auth()->id() && !$m->read_at;
+							$lastBody = $m->body;
 						@endphp
 						<button type="button" data-user-id="{{ $partner->id }}" data-user-name="{{ e($partner->name) }}"
 							class="list-group-item list-group-item-action contact-item d-flex justify-content-between align-items-center">
@@ -58,7 +61,7 @@
 						<!-- Chat header: partner name + presence + close -->
 						<div class="d-flex justify-content-between align-items-center mb-2">
 							<div class="d-flex align-items-center gap-2">
-										<span id="chat-partner-presence" class="presence-dot-small" title="No disponible"
+								<span id="chat-partner-presence" class="presence-dot-small" title="No disponible"
 									style="width:10px;height:10px;border-radius:50%;background:#6c757d;display:inline-block"></span>
 								<strong id="chat-partner-name"></strong>
 							</div>
