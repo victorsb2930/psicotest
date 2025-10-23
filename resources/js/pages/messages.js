@@ -1,3 +1,4 @@
+import ConnectyCube from 'connectycube';
 // Messages page module: initializes chat UI, binds handlers, and cleans up on destroy
 // Inspired by resources/views/messages/index.blade.php inline script, adapted to init/destroy pattern like profile.js
 
@@ -141,7 +142,7 @@ async function openProfileModal(userId, userName) {
 			modalId: `profile-modal-${userId}`,
 			buttons: [{ text: 'Cerrar', className: 'btn-outline-secondary', dismiss: true }]
 		};
-		window.modalConfirm(bodyHtml, 'normal');
+		modalConfirm(bodyHtml, 'normal');
 
 		const img = document.getElementById('modal-profile-img');
 		if (img) img.addEventListener('click', () => openFullscreenViewer(usablePhotos, 0));
@@ -149,7 +150,9 @@ async function openProfileModal(userId, userName) {
 			document.querySelectorAll(`#profile-modal-${userId} .profile-action`).forEach(a => {
 				a.addEventListener('click', function (e) {
 					e.preventDefault(); const act = this.getAttribute('data-action');
-					if (act === 'photos') openFullscreenViewer(usablePhotos, 0); else window.modalNotification?.('Acción', act, { template: 'info' });
+					if (act === 'photos') openFullscreenViewer(usablePhotos, 0);
+					if (act === 'video') makeVideoCall(userId);
+					else modalNotification?.('Acción', act, { template: 'info' });
 				});
 			});
 			document.querySelectorAll(`#profile-modal-${userId} img[data-photo-id]`).forEach((thumb, i) => {
@@ -163,7 +166,7 @@ async function openProfileModal(userId, userName) {
 }
 
 function openFullscreenViewer(photos, startIndex) {
-	if (!photos || !photos.length) return window.modalNotification?.('Sin fotos', 'Este usuario no tiene fotos', { template: 'info' });
+	if (!photos || !photos.length) return modalNotification?.('Sin fotos', 'Este usuario no tiene fotos', { template: 'info' });
 	let idx = startIndex || 0;
 	const overlay = document.createElement('div');
 	overlay.style.position = 'fixed'; overlay.style.left = '0'; overlay.style.top = '0'; overlay.style.right = '0'; overlay.style.bottom = '0'; overlay.style.background = 'rgba(0,0,0,0.9)'; overlay.style.zIndex = 2000; overlay.style.display = 'flex'; overlay.style.alignItems = 'center'; overlay.style.justifyContent = 'center';
@@ -180,6 +183,38 @@ function openFullscreenViewer(photos, startIndex) {
 	}
 	window.addEventListener('keydown', onKey);
 	document.body.appendChild(overlay);
+}
+
+function makeVideoCall(userId){
+	// Placeholder for video call functionality
+	console.log('Video call initiated to user:', userId);
+	const CREDENTIALS = {
+		appId: 21,
+		authKey: "hhf87hfushuiwef",
+	};
+
+	ConnectyCube.init(CREDENTIALS);
+
+	const session = ConnectyCube.videochat.createNewSession([parseInt(userId,10)], {video: true, audio: true});
+
+	const mediaParams = {
+		audio: true,
+		video: {
+			width: { min: 640, ideal: 1280, max: 1920 },
+			height: { min: 480, ideal: 720, max: 1080 }
+		}
+	};
+	console.log(session);
+	/* session.getUserMedia(mediaParams, function(err, stream) {
+		if (err) {
+			console.log(err);
+		} else {
+			console.log('Media stream obtained:', stream);
+			// Aquí se manejaría la transmisión de video
+			ConnectyCube.videochat.attachMediaStream(session, stream);
+			ConnectyCube.videochat.startCall(session);
+		}
+	}); */
 }
 
 export function init() {
