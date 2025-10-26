@@ -11,10 +11,6 @@ const PRESENCE = { labels: { online: 'Online', busy: 'Ocupado', dnd: 'No molesta
 // Estado ConnectyCube/WebRTC
 let _cc = { initialized: false, connected: false, currentSession: null, localStream: null };
 
-function ccConfigOk() { try { const c = window.__ccConfig, u = window.__ccUser; return !!(c && c.appId && c.authKey && u && (u.userId || u.login)); } catch (_) { return false; } }
-
-function mapAppUserToCcId(id) { try { if (window.__ccUserIdMap && window.__ccUserIdMap[id]) return window.__ccUserIdMap[id]; } catch (_) { } const n = parseInt(String(id), 10); return Number.isFinite(n) ? n : null; }
-
 // Resolve a ConnectyCube user id for a given app user id using deterministic login
 async function resolveCcId(appUserId) {
 	try {
@@ -48,7 +44,7 @@ async function resolveCcId(appUserId) {
 			try {
 				window.__ccUserIdMap = window.__ccUserIdMap || {};
 				window.__ccUserIdMap[appUserId] = id;
-			} catch(_){}
+			} catch (_) { }
 			return id;
 		}
 	} catch (e) { /* ignore resolution errors, fallback to null */ }
@@ -56,37 +52,37 @@ async function resolveCcId(appUserId) {
 }
 
 
-		function shouldResolveCcId(appUserId) {
-			try {
-				const map = window.__ccUserIdMap || {};
-				const mapped = map[appUserId];
-				const appNum = parseInt(String(appUserId), 10);
-				if (!mapped) return true;
-				// If mapping equals the app user id, it's a fallback and we should resolve the real CC id
-				if (Number(mapped) === appNum) return true;
-				// Heuristic: real CC ids are large global ints; try to resolve if the id looks too small
-				if (Number(mapped) > 0 && Number(mapped) < 100000) return true;
-			} catch (_) {}
-			return false;
-		}
+function shouldResolveCcId(appUserId) {
+	try {
+		const map = window.__ccUserIdMap || {};
+		const mapped = map[appUserId];
+		const appNum = parseInt(String(appUserId), 10);
+		if (!mapped) return true;
+		// If mapping equals the app user id, it's a fallback and we should resolve the real CC id
+		if (Number(mapped) === appNum) return true;
+		// Heuristic: real CC ids are large global ints; try to resolve if the id looks too small
+		if (Number(mapped) > 0 && Number(mapped) < 100000) return true;
+	} catch (_) { }
+	return false;
+}
 
-		async function prewarmCcMap(appUserIds) {
+async function prewarmCcMap(appUserIds) {
+	try {
+		// Ensure RTC stack ready before prewarm
+		try { if (window.__rtcBootstrapPromise) await window.__rtcBootstrapPromise; } catch (_) { }
+		const ids = Array.from(new Set((appUserIds || []).map(x => String(x))));
+		for (const id of ids) {
 			try {
-				// Ensure RTC stack ready before prewarm
-				try { if (window.__rtcBootstrapPromise) await window.__rtcBootstrapPromise; } catch (_) {}
-				const ids = Array.from(new Set((appUserIds || []).map(x => String(x))));
-				for (const id of ids) {
-					try {
-						if (!shouldResolveCcId(id)) continue;
-						const got = await resolveCcId(id);
-						if (got) {
-							window.__ccUserIdMap = window.__ccUserIdMap || {};
-							window.__ccUserIdMap[id] = got;
-						}
-					} catch (_) { /* continue */ }
+				if (!shouldResolveCcId(id)) continue;
+				const got = await resolveCcId(id);
+				if (got) {
+					window.__ccUserIdMap = window.__ccUserIdMap || {};
+					window.__ccUserIdMap[id] = got;
 				}
-			} catch (_) {}
+			} catch (_) { /* continue */ }
 		}
+	} catch (_) { }
+}
 async function getLocalStream() { if (typeof window.__rtcGetLocalStream === 'function') return await window.__rtcGetLocalStream(); const c = { audio: true, video: { width: { ideal: 1280 }, height: { ideal: 720 } } }; if (ConnectyCube?.videochat?.getUserMedia) { return await ConnectyCube.videochat.getUserMedia(c); } if (navigator?.mediaDevices?.getUserMedia) { return await navigator.mediaDevices.getUserMedia(c); } throw new Error('getUserMedia no disponible en este navegador'); }
 
 function el(id) { return document.getElementById(id); }
@@ -97,7 +93,7 @@ function setHeaderPresence(status) { try { applyPresenceToDot(_els.chatPartnerPr
 
 function appendMessageToChat(msg, opts = {}) { if (msg.id && _state.renderedMessageIds.has(msg.id)) return; const AUTH_ID = getAuthId(); const isMine = String(msg.from_id) === String(AUTH_ID); const wrap = document.createElement('div'); wrap.className = 'msg mb-2 ' + (isMine ? 'text-end msg-me' : 'msg-other'); const bubble = document.createElement('div'); bubble.className = 'msg-bubble d-inline-block p-2 rounded ' + (isMine ? 'bg-primary text-white' : 'bg-light'); bubble.style.maxWidth = '70%'; bubble.style.whiteSpace = 'pre-wrap'; bubble.textContent = msg.body || ''; const meta = document.createElement('div'); meta.className = 'msg-meta small text-muted mt-1'; meta.textContent = msg.created_at ? (new Date(msg.created_at)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''; if (msg.id) { _state.renderedMessageIds.add(msg.id); wrap.dataset.msgId = msg.id; } if (opts.tempId) wrap.dataset.tempId = opts.tempId; wrap.appendChild(bubble); wrap.appendChild(meta); _els.chatMessages.appendChild(wrap); try { const threshold = 120; const atBottom = (_els.chatMessages.scrollHeight - _els.chatMessages.clientHeight - _els.chatMessages.scrollTop) < threshold; if (atBottom) _els.chatMessages.scrollTop = _els.chatMessages.scrollHeight; } catch (_) { _els.chatMessages.scrollTop = _els.chatMessages.scrollHeight; } }
 
-function openChatFor(userId, userName) { _state.currentPartnerId = userId; if (_els.chatPartnerName) _els.chatPartnerName.textContent = userName; if (_els.chatEmpty) _els.chatEmpty.style.display = 'none'; if (_els.chatContainer) _els.chatContainer.style.display = ''; if (_els.chatMessages) _els.chatMessages.innerHTML = ''; _state.renderedMessageIds = new Set(); (async () => { try { const res = await fetch(`/messages/thread/${encodeURIComponent(userId)}?ajax=1`, { headers: { 'Accept': 'application/json' } }); if (!res.ok) return; const j = await res.json(); if (!j.ok) return; j.messages.forEach(m => { if (!m || (m.id && _state.renderedMessageIds.has(m.id))) return; appendMessageToChat(m); }); try { await fetch(`/messages/thread/${encodeURIComponent(userId)}?ajax=1`, { headers: { 'Accept': 'application/json' } }); } catch (_) { } } catch (err) {  } })(); }
+function openChatFor(userId, userName) { _state.currentPartnerId = userId; if (_els.chatPartnerName) _els.chatPartnerName.textContent = userName; if (_els.chatEmpty) _els.chatEmpty.style.display = 'none'; if (_els.chatContainer) _els.chatContainer.style.display = ''; if (_els.chatMessages) _els.chatMessages.innerHTML = ''; _state.renderedMessageIds = new Set(); (async () => { try { const res = await fetch(`/messages/thread/${encodeURIComponent(userId)}?ajax=1`, { headers: { 'Accept': 'application/json' } }); if (!res.ok) return; const j = await res.json(); if (!j.ok) return; j.messages.forEach(m => { if (!m || (m.id && _state.renderedMessageIds.has(m.id))) return; appendMessageToChat(m); }); try { await fetch(`/messages/thread/${encodeURIComponent(userId)}?ajax=1`, { headers: { 'Accept': 'application/json' } }); } catch (_) { } } catch (err) { } })(); }
 
 function closeChat() { _state.currentPartnerId = null; if (_els.chatPartnerName) _els.chatPartnerName.textContent = ''; if (_els.chatContainer) _els.chatContainer.style.display = 'none'; if (_els.chatEmpty) _els.chatEmpty.style.display = ''; if (_els.chatMessages) _els.chatMessages.innerHTML = ''; }
 
@@ -159,11 +155,11 @@ async function makeVideoCall(appUserId) {
 			const resolved = await resolveCcId(appUserId);
 			if (resolved) {
 				opponentCcId = resolved;
-				try { window.__ccUserIdMap = window.__ccUserIdMap || {}; window.__ccUserIdMap[appUserId] = resolved; } catch(_) {}
+				try { window.__ccUserIdMap = window.__ccUserIdMap || {}; window.__ccUserIdMap[appUserId] = resolved; } catch (_) { }
 			}
 		}
 		if (!opponentCcId) return modalNotification('Video', 'No se pudo resolver el ID del destinatario para ConnectyCube.');
-		const session = ConnectyCube.videochat.createNewSession([opponentCcId], ConnectyCube.videochat.CallType.VIDEO); _cc.currentSession = session; const contactBtn = document.querySelector(`.contact-item[data-user-id="${appUserId}"]`); const name = contactBtn?.getAttribute('data-user-name') || _els.chatPartnerName?.textContent || 'Contacto'; RtcUI.showOutgoing(session, { nombre: name, onCancel: () => { try { session.stop({}, () => { }); } catch (_) { } RtcUI.end(); _cc.currentSession = null; } }); try { const constraints = { audio: true, video: { width: { ideal: 1280 }, height: { ideal: 720 } } }; const stream = await session.getUserMedia(constraints); RtcUI.setLocalStream(stream); } catch (e) { return modalNotification('Atención', 'No se pudo acceder a la cámara o micrófono.', { template: 'danger' }); } session.call({}, (err) => {  });
+		const session = ConnectyCube.videochat.createNewSession([opponentCcId], ConnectyCube.videochat.CallType.VIDEO); _cc.currentSession = session; const contactBtn = document.querySelector(`.contact-item[data-user-id="${appUserId}"]`); const name = contactBtn?.getAttribute('data-user-name') || _els.chatPartnerName?.textContent || 'Contacto'; RtcUI.showOutgoing(session, { nombre: name, onCancel: () => { try { session.stop({}, () => { }); } catch (_) { } RtcUI.end(); _cc.currentSession = null; } }); try { const constraints = { audio: true, video: { width: { ideal: 1280 }, height: { ideal: 720 } } }; const stream = await session.getUserMedia(constraints); RtcUI.setLocalStream(stream); } catch (e) { return modalNotification('Atención', 'No se pudo acceder a la cámara o micrófono.', { template: 'danger' }); } session.call({}, (err) => { });
 	} catch (e) { modalNotification('Video', 'Error iniciando la llamada.', { template: 'danger' }); }
 }
 
@@ -176,8 +172,8 @@ export function init() {
 	// Precalentar mapeo CC para contactos visibles
 	try {
 		const ids = Array.from(new Set(Array.from(document.querySelectorAll('.contact-item')).map(it => it.getAttribute('data-user-id')).filter(Boolean)));
-		(async ()=>{ try { if (window.__rtcBootstrapPromise) await window.__rtcBootstrapPromise; } catch(_){}; prewarmCcMap(ids); })();
-	} catch (_) {}
+		(async () => { try { if (window.__rtcBootstrapPromise) await window.__rtcBootstrapPromise; } catch (_) { }; prewarmCcMap(ids); })();
+	} catch (_) { }
 	_handlers.onContactClick = function (e) { const btn = e.target.closest && e.target.closest('.contact-item'); if (!btn) return; const uid = btn.getAttribute('data-user-id'); const uname = btn.getAttribute('data-user-name') || btn.querySelector('.fw-semibold')?.textContent || 'Usuario'; try { document.querySelectorAll('.contact-item.active').forEach(it => it.classList.remove('active')); btn.classList.add('active'); } catch (_) { } openChatFor(uid, uname); }; _els.contactsList.addEventListener('click', _handlers.onContactClick);
 	_handlers.onSend = async function (e) { e.preventDefault(); if (!_els.chatSendForm) return; const fd = new FormData(_els.chatSendForm); const body = (fd.get('body') || '').toString().trim(); if (!body) return; const tempId = 't' + Date.now() + Math.floor(Math.random() * 1000); appendMessageToChat({ from_id: getAuthId(), body: body, created_at: new Date().toISOString() }, { tempId }); try { _els.chatSendForm.querySelector('[name=body]').value = ''; } catch (_) { } try { const res = await fetch(`/messages/thread/${encodeURIComponent(_state.currentPartnerId)}`, { method: 'POST', headers: { 'X-CSRF-TOKEN': fd.get('_token') }, body: fd }); const j = await res.json(); if (j.ok && j.message) { const tempEl = _els.chatMessages.querySelector('[data-temp-id="' + tempId + '"]'); if (tempEl) tempEl.remove(); appendMessageToChat(j.message); try { await fetch('/api/counters').then(r => r.json()).then(d => document.dispatchEvent(new CustomEvent('counters:update', { detail: d }))); } catch (_) { } } else { const tempEl = _els.chatMessages.querySelector('[data-temp-id="' + tempId + '"]'); if (tempEl) tempEl.querySelector('.d-inline-block')?.classList.add('bg-danger', 'text-white'); } } catch (err) { const tempEl = _els.chatMessages.querySelector('[data-temp-id="' + tempId + '"]'); if (tempEl) tempEl.querySelector('.d-inline-block')?.classList.add('bg-danger', 'text-white'); } };
 	_els.chatSendForm?.addEventListener('submit', _handlers.onSend);

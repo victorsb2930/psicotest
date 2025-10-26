@@ -9,6 +9,10 @@ let state = {
 	osc: null,
 	gain: null,
 	session: null,
+	localStream: null,
+	audioEnabled: true,
+	videoEnabled: true,
+  endCb: null,
 };
 
 function createModalBody() {
@@ -97,6 +101,57 @@ function stopRingtone() {
 
 function setControls(html) { const c = elControls(); if (c) c.innerHTML = html; }
 
+function computeMediaStatesFromStream(strm) {
+	try {
+		const a = (strm?.getAudioTracks?.() || []).some(t => t?.enabled !== false);
+		const v = (strm?.getVideoTracks?.() || []).some(t => t?.enabled !== false);
+		return { audioEnabled: a, videoEnabled: v };
+	} catch (_) { return { audioEnabled: true, videoEnabled: true }; }
+}
+
+function setAudioEnabled(on) {
+	try { (state.localStream?.getAudioTracks?.() || []).forEach(t => { try { t.enabled = !!on; } catch (_) { } }); } catch (_) { }
+	state.audioEnabled = !!on;
+	renderConnectedControls();
+}
+
+function setVideoEnabled(on) {
+	try { (state.localStream?.getVideoTracks?.() || []).forEach(t => { try { t.enabled = !!on; } catch (_) { } }); } catch (_) { }
+	state.videoEnabled = !!on;
+	renderConnectedControls();
+}
+
+function toggleAudio() { setAudioEnabled(!state.audioEnabled); }
+function toggleVideo() { setVideoEnabled(!state.videoEnabled); }
+
+function renderConnectedControls() {
+	if (state.mode !== 'connected') return;
+	const micIcon = state.audioEnabled ? 'bi-mic' : 'bi-mic-mute';
+	const micClass = state.audioEnabled ? 'btn-outline-secondary' : 'btn-outline-danger';
+	const camIcon = state.videoEnabled ? 'bi-camera-video' : 'bi-camera-video-off';
+	const camClass = state.videoEnabled ? 'btn-outline-secondary' : 'btn-outline-danger';
+	setControls(`
+		<div class="d-flex gap-2">
+			<button id="cc-ui-toggle-audio" class="btn btn-sm ${micClass}" title="${state.audioEnabled ? 'Silenciar micrófono' : 'Activar micrófono'}"><i class="bi ${micIcon}"></i></button>
+			<button id="cc-ui-toggle-video" class="btn btn-sm ${camClass}" title="${state.videoEnabled ? 'Desactivar cámara' : 'Activar cámara'}"><i class="bi ${camIcon}"></i></button>
+			<button id="cc-ui-end" class="btn btn-danger btn-sm"><i class="bi bi-telephone-x"></i> Colgar</button>
+		</div>
+	`);
+	// wire
+	setTimeout(() => {
+		const mic = document.getElementById('cc-ui-toggle-audio');
+		const cam = document.getElementById('cc-ui-toggle-video');
+		if (mic) mic.addEventListener('click', (e) => { e.preventDefault(); toggleAudio(); });
+		if (cam) cam.addEventListener('click', (e) => { e.preventDefault(); toggleVideo(); });
+		// Always (re)wire end button after re-render
+		const endBtn = document.getElementById('cc-ui-end');
+		if (endBtn) endBtn.addEventListener('click', ()=>{
+			try { if (typeof state.endCb === 'function') state.endCb(); else if (state.session && state.session.stop) state.session.stop({}, ()=>{}); } catch(_){}
+			try { RtcUI.end(); } catch(_){}
+		});
+	}, 50);
+}
+
 const RtcUI = {
 	showIncoming(session, { onAccept, onReject, timeoutMs = 30000, nombre = 'Contacto' } = {}) {
 		state.mode = 'incoming'; state.session = session; clearTimeoutIfAny();
@@ -127,27 +182,29 @@ const RtcUI = {
 		state.timeoutId = setTimeout(() => { try { stopRingtone(); if (onCancel) onCancel(); } catch (_) { } }, Math.max(5000, timeoutMs));
 	},
 
-	setLocalStream(stream) { try { attachStreamToVideo(elLocal(), stream); } catch (_) { } },
+	setLocalStream(stream) { try { state.localStream = stream; const st = computeMediaStatesFromStream(stream); state.audioEnabled = st.audioEnabled; state.videoEnabled = st.videoEnabled; attachStreamToVideo(elLocal(), stream); if (state.mode === 'connected') renderConnectedControls(); } catch (_) { } },
 	onRemoteStream(stream) { try { attachStreamToVideo(elRemote(), stream); } catch (_) { } },
 
 	showConnected() {
 		state.mode = 'connected'; clearTimeoutIfAny(); stopRingtone();
-		setControls(`<button id="cc-ui-end" class="btn btn-danger btn-sm"><i class="bi bi-telephone-x"></i> Colgar</button>`);
+		// If we already have a localStream, derive the initial toggle state; otherwise use defaults
+		try { if (state.localStream) { const st = computeMediaStatesFromStream(state.localStream); state.audioEnabled = st.audioEnabled; state.videoEnabled = st.videoEnabled; } } catch (_) { }
+		renderConnectedControls();
 	},
 
 	onEnd(cb) {
-		// attach once to current end button if present
-		setTimeout(() => {
-			const b = document.getElementById('cc-ui-end');
-			if (b) b.addEventListener('click', () => {
-				try { if (cb) cb(); } catch (_) { }
-				// Always close UI locally so backdrop/body lock are cleared immediately
-				try { RtcUI.end(); } catch (_) { }
-			});
-		}, 50);
+			// remember callback and (re)wire button now and on future re-renders
+			state.endCb = cb;
+			setTimeout(()=>{
+				const b = document.getElementById('cc-ui-end');
+				if (b) b.addEventListener('click', () => {
+					try { if (typeof state.endCb === 'function') state.endCb(); else if (state.session && state.session.stop) state.session.stop({}, ()=>{}); } catch(_){}
+					try { RtcUI.end(); } catch(_){}
+				});
+			}, 50);
 	},
 
-	end() { clearTimeoutIfAny(); stopRingtone(); closeModal(); state.mode = null; state.session = null; },
+	  end() { clearTimeoutIfAny(); stopRingtone(); closeModal(); state.mode = null; state.session = null; state.localStream = null; state.audioEnabled = true; state.videoEnabled = true; state.endCb = null; },
 };
 
 export default RtcUI;

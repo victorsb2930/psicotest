@@ -10,91 +10,91 @@ let currentTargetInput = null;
 const colorClasses = ['bg-primary', 'bg-secondary', 'bg-success', 'bg-danger', 'bg-warning', 'bg-info', 'bg-dark', 'bg-light'];
 
 async function getAllBootstrapIcons() {
-		// First try loading a pre-generated JSON listing in /bootstrap-icons-list.json
-		const fromJson = async () => {
+	// First try loading a pre-generated JSON listing in /bootstrap-icons-list.json
+	const fromJson = async () => {
+		try {
+			const url = '/bootstrap-icons-list.json';
+			const cacheKey = 'bootstrap-icons-list-v1';
+			// Try localStorage cached copy
 			try {
-				const url = '/bootstrap-icons-list.json';
-				const cacheKey = 'bootstrap-icons-list-v1';
-				// Try localStorage cached copy
-				try {
-					const cached = localStorage.getItem(cacheKey);
-					if (cached) return JSON.parse(cached);
-				} catch (e) { /* ignore localStorage errors */ }
-				const res = await fetch(url, { cache: 'no-cache' });
-				if (!res.ok) return null;
-				const obj = await res.json();
-				if (obj && Array.isArray(obj.icons)) {
-					try { localStorage.setItem(cacheKey, JSON.stringify(obj.icons)); } catch (e) { }
-					return obj.icons;
-				}
-				return null;
-			} catch (e) { return null; }
-		};
-
-		const jsonIcons = await fromJson();
-		if (jsonIcons && jsonIcons.length) return jsonIcons;
-
-		// Try reading from CSSOM first; if blocked, fetch the CSS href and parse
-		const fromCssom = () => {
-			try {
-				const out = new Set();
-				for (const sheet of Array.from(document.styleSheets)) {
-					try {
-						const rules = sheet.cssRules || [];
-						for (const rule of Array.from(rules)) {
-							if (!rule.selectorText) continue;
-							const sels = rule.selectorText.split(',');
-							for (const raw of sels) {
-								const s = raw.trim();
-								// Accept .bi-xxx::before or .bi-xxx:before optionally with spaces
-								const m = s.match(/\.bi-([a-z0-9-]+)(\s*::?\s*before)?$/i);
-								if (m && m[1]) out.add(`bi-${m[1]}`);
-							}
-						}
-					} catch (innerErr) {
-						// Cross-origin or inaccessible stylesheet — skip
-						continue;
-					}
-				}
-				return Array.from(out).sort();
-			} catch (e) {
-				return null;
+				const cached = localStorage.getItem(cacheKey);
+				if (cached) return JSON.parse(cached);
+			} catch (e) { /* ignore localStorage errors */ }
+			const res = await fetch(url, { cache: 'no-cache' });
+			if (!res.ok) return null;
+			const obj = await res.json();
+			if (obj && Array.isArray(obj.icons)) {
+				try { localStorage.setItem(cacheKey, JSON.stringify(obj.icons)); } catch (e) { }
+				return obj.icons;
 			}
-		};
-		const cssom = fromCssom();
-		if (cssom && cssom.length) return cssom;
+			return null;
+		} catch (e) { return null; }
+	};
 
-		// Fallback: find the bootstrap-icons <link> and fetch its CSS
-		const link = Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
-			.find(l => /bootstrap-icons/i.test(l.href || ''));
-		if (link && link.href) {
-			try {
-				const res = await fetch(link.href, { credentials: 'omit' });
-				const css = await res.text();
-				const set = new Set();
-				// Match .bi-<name>::before { ... } allowing optional spaces and single/double colon
-				const re = /\.bi-([a-z0-9-]+)\s*::?\s*before\s*\{/gi;
-				let m;
-				while ((m = re.exec(css)) !== null) {
-					set.add(`bi-${m[1]}`);
+	const jsonIcons = await fromJson();
+	if (jsonIcons && jsonIcons.length) return jsonIcons;
+
+	// Try reading from CSSOM first; if blocked, fetch the CSS href and parse
+	const fromCssom = () => {
+		try {
+			const out = new Set();
+			for (const sheet of Array.from(document.styleSheets)) {
+				try {
+					const rules = sheet.cssRules || [];
+					for (const rule of Array.from(rules)) {
+						if (!rule.selectorText) continue;
+						const sels = rule.selectorText.split(',');
+						for (const raw of sels) {
+							const s = raw.trim();
+							// Accept .bi-xxx::before or .bi-xxx:before optionally with spaces
+							const m = s.match(/\.bi-([a-z0-9-]+)(\s*::?\s*before)?$/i);
+							if (m && m[1]) out.add(`bi-${m[1]}`);
+						}
+					}
+				} catch (innerErr) {
+					// Cross-origin or inaccessible stylesheet — skip
+					continue;
 				}
-				return Array.from(set).sort();
-			} catch (e) { }
+			}
+			return Array.from(out).sort();
+		} catch (e) {
+			return null;
 		}
-		// Last resort small list (if CSSOM and local link parsing both fail)
-		return ['bi-people', 'bi-person', 'bi-shield-lock', 'bi-briefcase', 'bi-house', 'bi-gear'];
+	};
+	const cssom = fromCssom();
+	if (cssom && cssom.length) return cssom;
+
+	// Fallback: find the bootstrap-icons <link> and fetch its CSS
+	const link = Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
+		.find(l => /bootstrap-icons/i.test(l.href || ''));
+	if (link && link.href) {
+		try {
+			const res = await fetch(link.href, { credentials: 'omit' });
+			const css = await res.text();
+			const set = new Set();
+			// Match .bi-<name>::before { ... } allowing optional spaces and single/double colon
+			const re = /\.bi-([a-z0-9-]+)\s*::?\s*before\s*\{/gi;
+			let m;
+			while ((m = re.exec(css)) !== null) {
+				set.add(`bi-${m[1]}`);
+			}
+			return Array.from(set).sort();
+		} catch (e) { }
 	}
+	// Last resort small list (if CSSOM and local link parsing both fail)
+	return ['bi-people', 'bi-person', 'bi-shield-lock', 'bi-briefcase', 'bi-house', 'bi-gear'];
+}
 
 function getModalConfirm() {
-		if (typeof modalConfirm !== 'undefined') return modalConfirm;
-		// Minimal fallback implementation: create a Bootstrap modal skeleton and show it
-		return function (opts, type = 'dialog', cfg = {}) {
-				const modalId = opts.modalId || ('modal_' + Math.random().toString(36).slice(2,8));
-				let $m = $('#' + modalId);
-				if ($m.length === 0) {
-						const body = opts.body || '';
-						const title = opts.title || '';
-						const html = `
+	if (typeof modalConfirm !== 'undefined') return modalConfirm;
+	// Minimal fallback implementation: create a Bootstrap modal skeleton and show it
+	return function (opts, type = 'dialog', cfg = {}) {
+		const modalId = opts.modalId || ('modal_' + Math.random().toString(36).slice(2, 8));
+		let $m = $('#' + modalId);
+		if ($m.length === 0) {
+			const body = opts.body || '';
+			const title = opts.title || '';
+			const html = `
 						<div class="modal fade" id="${modalId}" tabindex="-1" aria-hidden="true">
 							<div class="modal-dialog ${cfg.size === 'lg' ? 'modal-lg' : ''} ${cfg.centered ? 'modal-dialog-centered' : ''}">
 								<div class="modal-content">
@@ -104,79 +104,79 @@ function getModalConfirm() {
 								</div>
 							</div>
 						</div>`;
-						$('body').append(html);
-						$m = $('#' + modalId);
-				}
-				const bs = new bootstrap.Modal($m[0], { backdrop: 'static' });
-				$m.on('hidden.bs.modal', function () { try { $m.remove(); } catch (e) {} });
-				$m.find('.modal-footer').empty();
-				if (opts.btnsType === 'ac') {
-						const $ok = $('<button/>', { type: 'button', class: 'btn btn-primary' }).text('OK');
-						$ok.on('click', function () { if (typeof opts.onClickYes === 'function') opts.onClickYes(); bs.hide(); });
-						const $cancel = $('<button/>', { type: 'button', class: 'btn btn-secondary', 'data-bs-dismiss': 'modal' }).text('Cancelar');
-						$m.find('.modal-footer').append($cancel, $ok);
-				}
-				bs.show();
-		};
+			$('body').append(html);
+			$m = $('#' + modalId);
+		}
+		const bs = new bootstrap.Modal($m[0], { backdrop: 'static' });
+		$m.on('hidden.bs.modal', function () { try { $m.remove(); } catch (e) { } });
+		$m.find('.modal-footer').empty();
+		if (opts.btnsType === 'ac') {
+			const $ok = $('<button/>', { type: 'button', class: 'btn btn-primary' }).text('OK');
+			$ok.on('click', function () { if (typeof opts.onClickYes === 'function') opts.onClickYes(); bs.hide(); });
+			const $cancel = $('<button/>', { type: 'button', class: 'btn btn-secondary', 'data-bs-dismiss': 'modal' }).text('Cancelar');
+			$m.find('.modal-footer').append($cancel, $ok);
+		}
+		bs.show();
+	};
 }
 
 const modalConfirmInstance = getModalConfirm();
 
 function openIconPicker(targetId) {
-		currentTargetInput = document.getElementById(targetId);
-		const $body = $(`
+	currentTargetInput = document.getElementById(targetId);
+	const $body = $(`
 	<div>
 		<input type="text" class="form-control mb-3" placeholder="Buscar icono..." id="iconFilter">
 		<div id="iconGrid" class="row row-cols-2 row-cols-sm-3 row-cols-md-4 g-2" style="max-height:60vh; overflow:auto"></div>
 	</div>
 	`);
 	modalConfirmInstance({
-			modalId: 'biIconPicker',
-			title: 'Elegir icono',
-			body: $body[0].outerHTML,
-			btnsType: 'ac',
-			onClickYes: () => { },
-		}, 'dialog', { size: 'lg', scrollable: true, centered: true });
-		const $mIcon = $('#biIconPicker');
-		const $iconGrid = $mIcon.find('#iconGrid');
-		const $iconFilter = $mIcon.find('#iconFilter');
-		getAllBootstrapIcons().then((allIcons) => {
-			const render = (list) => {
-				$iconGrid.empty();
-				if (!Array.isArray(list) || list.length === 0) {
-					$iconGrid.append(`<div class="col-12"><div class="alert alert-secondary mb-0">No se encontraron iconos locales. Asegúrate de ejecutar <code>npm run generate-icons</code> y recargar.</div></div>`);
-					return;
-				}
-				const $frag = $(document.createDocumentFragment());
-				list.forEach(cls => {
-					const $col = $('<div/>', { class: 'col' });
-					const $btn = $(`
+		modalId: 'biIconPicker',
+		title: 'Elegir icono',
+		body: $body[0].outerHTML,
+		btnsType: 'ac',
+		onClickYes: () => { },
+	}, 'dialog', { size: 'lg', scrollable: true, centered: true });
+	const $mIcon = $('#biIconPicker');
+	const $iconGrid = $mIcon.find('#iconGrid');
+	const $iconFilter = $mIcon.find('#iconFilter');
+	getAllBootstrapIcons().then((allIcons) => {
+		const render = (list) => {
+			$iconGrid.empty();
+			if (!Array.isArray(list) || list.length === 0) {
+				$iconGrid.append(`<div class="col-12"><div class="alert alert-secondary mb-0">No se encontraron iconos locales. Asegúrate de ejecutar <code>npm run generate-icons</code> y recargar.</div></div>`);
+				return;
+			}
+			const $frag = $(document.createDocumentFragment());
+			list.forEach(cls => {
+				const $col = $('<div/>', { class: 'col' });
+				const $btn = $(`
 			<button type="button" class="btn btn-light w-100 d-flex align-items-center justify-content-start gap-2" data-icon="${cls}">
 			<i class="bi ${cls}"></i><span class="small">bi ${cls}</span>
 			</button>
 		`);
-					$btn.on('click', () => {
-						if (currentTargetInput) currentTargetInput.value = `bi ${cls}`;
-						const $m = $('#biIconPicker');
-						const inst = bootstrap.Modal.getInstance($m[0]);
-						inst?.hide();
-					});
-					$col.append($btn);
-					$frag.append($col);
+				$btn.on('click', () => {
+					if (currentTargetInput) currentTargetInput.value = `bi ${cls}`;
+					const $m = $('#biIconPicker');
+					const inst = bootstrap.Modal.getInstance($m[0]);
+					inst?.hide();
 				});
-				$iconGrid.append($frag);
-			};
-			render(allIcons);
-			$iconFilter.on('input', function () {
-				const q = (this.value || '').toLowerCase();
-				render(allIcons.filter(i => i.toLowerCase().includes(q)));
+				$col.append($btn);
+				$frag.append($col);
 			});
+			$iconGrid.append($frag);
+		};
+		render(allIcons);
+		$iconFilter.on('input', function () {
+			const q = (this.value || '').toLowerCase();
+			render(allIcons.filter(i => i.toLowerCase().includes(q)));
 		});
+	});
 }
 
 function openColorPicker(targetId) {
-		currentTargetInput = document.getElementById(targetId);
-		const $body = $(`
+	currentTargetInput = document.getElementById(targetId);
+	const $body = $(`
 	<div>
 		<div class="mb-3">
 		<label class="form-label">Clases de Bootstrap</label>
@@ -188,30 +188,30 @@ function openColorPicker(targetId) {
 		</div>
 	</div>
 	`);
-		modalConfirmInstance({
-			modalId: 'badgeColorPicker',
-			title: 'Elegir color',
-			body: $body[0].outerHTML,
-			btnsType: 'ac',
-			onClickYes: () => { },
-		}, 'dialog', { centered: true });
-		const $mColor = $('#badgeColorPicker');
-		const $colorClassGrid = $mColor.find('#colorClassGrid');
-		const $colorHexInput = $mColor.find('#colorHexInput');
-		$colorClassGrid.empty();
-		colorClasses.forEach(c => {
-			const $btn = $('<button/>', { type: 'button', class: `btn btn-sm ${c}`, title: c }).css('minWidth', '3rem');
-			$btn.on('click', () => {
-				if (currentTargetInput) currentTargetInput.value = c;
-				const $m = $('#badgeColorPicker');
-				const inst = bootstrap.Modal.getInstance($m[0]);
-				inst?.hide();
-			});
-			$colorClassGrid.append($btn);
+	modalConfirmInstance({
+		modalId: 'badgeColorPicker',
+		title: 'Elegir color',
+		body: $body[0].outerHTML,
+		btnsType: 'ac',
+		onClickYes: () => { },
+	}, 'dialog', { centered: true });
+	const $mColor = $('#badgeColorPicker');
+	const $colorClassGrid = $mColor.find('#colorClassGrid');
+	const $colorHexInput = $mColor.find('#colorHexInput');
+	$colorClassGrid.empty();
+	colorClasses.forEach(c => {
+		const $btn = $('<button/>', { type: 'button', class: `btn btn-sm ${c}`, title: c }).css('minWidth', '3rem');
+		$btn.on('click', () => {
+			if (currentTargetInput) currentTargetInput.value = c;
+			const $m = $('#badgeColorPicker');
+			const inst = bootstrap.Modal.getInstance($m[0]);
+			inst?.hide();
 		});
-		$colorHexInput.on('input', function () {
-			if (currentTargetInput) currentTargetInput.value = this.value;
-		});
+		$colorClassGrid.append($btn);
+	});
+	$colorHexInput.on('input', function () {
+		if (currentTargetInput) currentTargetInput.value = this.value;
+	});
 }
 
 function attachHandlers() {

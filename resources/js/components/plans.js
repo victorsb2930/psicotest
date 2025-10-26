@@ -123,7 +123,7 @@ function attachPlanHandlers() {
 				btn.replaceWith(span);
 				return; // no handler attached
 			}
-		} catch (e) {}
+		} catch (e) { }
 
 		const handler = function (e) {
 			e.preventDefault();
@@ -198,7 +198,7 @@ export function destroy() {
 			}
 			try { delete btn.__plansAttached; } catch (e) { btn.__plansAttached = undefined; }
 		});
-	} catch (e) {  }
+	} catch (e) { }
 	// Close any plan modal left open
 	try { const $m = document.getElementById('rejectReasonModal'); if ($m) { const inst = bootstrap.Modal.getInstance($m); inst?.hide(); } } catch (e) { }
 }

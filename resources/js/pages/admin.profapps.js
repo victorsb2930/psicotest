@@ -45,12 +45,12 @@ function attachHandlers() {
 }
 
 function detachHandlers() {
-	try { $(document).off(NS); } catch (e) {}
+	try { $(document).off(NS); } catch (e) { }
 	if (waitInterval) { clearInterval(waitInterval); waitInterval = null; }
 	try {
 		const $m = $('#rejectReasonModal');
 		if ($m.length) { const inst = bootstrap.Modal.getInstance($m[0]); inst?.hide(); $m.remove(); }
-	} catch (e) {}
+	} catch (e) { }
 }
 
 export function init() { attachHandlers(); }
