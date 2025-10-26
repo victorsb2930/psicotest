@@ -1,5 +1,7 @@
 // Globals: jQuery, Bootstrap, Axios, tom-select, uuid, global functions, utils
 import './bootstrap';
+// RTC bootstrap/connect globally so incoming calls can reach the user on any page
+import './rtc';
 import './partials/quickLogin';
 import './notifications';
 import './partials/reopen2fa';

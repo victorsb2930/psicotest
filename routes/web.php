@@ -675,6 +675,131 @@ Route::middleware('auth')->group(function(){
 	Route::get('/messages/thread/{user}', [\App\Http\Controllers\MessagesController::class, 'thread'])->name('messages.thread');
 	Route::post('/messages/thread/{user}', [\App\Http\Controllers\MessagesController::class, 'send'])->name('messages.send');
 
+	// RTC/ConnectyCube bootstrap endpoints (authenticated)
+	Route::get('/rtc/config', function(){
+		$config = [
+			'appId' => (int) config('services.connectycube.app_id'),
+			'authKey' => config('services.connectycube.auth_key'),
+			'authSecret' => config('services.connectycube.auth_secret'),
+			'apiEndpoint' => config('services.connectycube.api_endpoint'),
+			'chatEndpoint' => config('services.connectycube.chat_endpoint'),
+		];
+		return response()->json(['ok' => true, 'config' => $config]);
+	})->name('rtc.config');
+
+	Route::get('/rtc/user', function(){
+		$user = auth()->user();
+		$ccId = null; $login = null; $password = config('services.connectycube.default_password');
+		try {
+			if (\Illuminate\Support\Facades\Schema::hasColumn('users','cc_user_id')) {
+				$ccId = $user->cc_user_id ?: null;
+			}
+			if (!$ccId && \Illuminate\Support\Facades\Schema::hasColumn('users','connectycube_user_id')) {
+				$ccId = $user->connectycube_user_id ?: null;
+			}
+		} catch (\Throwable $_) { $ccId = null; }
+		if (!$ccId) { $ccId = (int) $user->id; }
+		try {
+			if (\Illuminate\Support\Facades\Schema::hasColumn('users','cc_login')) { $login = $user->cc_login ?: null; }
+		} catch (\Throwable $_) { $login = null; }
+		if (!$login) { $login = 'pg'.config('services.connectycube.app_id').'_'.$ccId; }
+		$payload = ['userId' => (int)$ccId, 'login' => (string)$login, 'password' => (string)$password];
+		return response()->json(['ok' => true, 'user' => $payload]);
+	})->name('rtc.user');
+
+	Route::get('/rtc/map', function(){
+		$auth = auth()->user(); $uid = $auth->id;
+		$ids = [];
+		try {
+			if (\Illuminate\Support\Facades\Schema::hasTable('messages')) {
+				$partners = \App\Models\Message::query()
+					->select(['from_id','to_id'])
+					->where(function($q) use ($uid){ $q->where('from_id',$uid)->orWhere('to_id',$uid); })
+					->latest('id')->limit(200)->get();
+				foreach ($partners as $m) { $ids[] = (int) ($m->from_id == $uid ? $m->to_id : $m->from_id); }
+			}
+		} catch (\Throwable $_) {}
+		$ids = array_values(array_unique(array_filter($ids)));
+		$map = [];
+		foreach ($ids as $id) {
+			$ccId = null;
+			try {
+				$u = \App\Models\User::find($id);
+				if ($u) {
+					if (\Illuminate\Support\Facades\Schema::hasColumn('users','cc_user_id') && !empty($u->cc_user_id)) { $ccId = (int)$u->cc_user_id; }
+					elseif (\Illuminate\Support\Facades\Schema::hasColumn('users','connectycube_user_id') && !empty($u->connectycube_user_id)) { $ccId = (int)$u->connectycube_user_id; }
+				}
+			} catch (\Throwable $_) { $ccId = null; }
+			if (!$ccId) $ccId = (int)$id; // fallback same id
+			$map[(string)$id] = (int)$ccId;
+		}
+		return response()->json(['ok'=>true,'map'=>$map]);
+	})->name('rtc.map');
+
+	Route::get('/rtc/bootstrap', function(){
+		// Compose all pieces into a single payload
+		$config = [
+			'appId' => (int) config('services.connectycube.app_id'),
+			'authKey' => config('services.connectycube.auth_key'),
+			'authSecret' => config('services.connectycube.auth_secret'),
+			'apiEndpoint' => config('services.connectycube.api_endpoint'),
+			'chatEndpoint' => config('services.connectycube.chat_endpoint'),
+		];
+		$user = auth()->user();
+		$ccId = null; $login = null; $password = config('services.connectycube.default_password');
+		try { if (\Illuminate\Support\Facades\Schema::hasColumn('users','cc_user_id')) { $ccId = $user->cc_user_id ?: null; } } catch (\Throwable $_) {}
+		try { if (!$ccId && \Illuminate\Support\Facades\Schema::hasColumn('users','connectycube_user_id')) { $ccId = $user->connectycube_user_id ?: null; } } catch (\Throwable $_) {}
+		if (!$ccId) $ccId = (int)$user->id;
+		try { if (\Illuminate\Support\Facades\Schema::hasColumn('users','cc_login')) { $login = $user->cc_login ?: null; } } catch (\Throwable $_) {}
+		if (!$login) $login = 'pg'.config('services.connectycube.app_id').'_'.$ccId;
+		$ccUser = ['userId' => (int)$ccId, 'login' => (string)$login, 'password' => (string)$password];
+		// Build map like /rtc/map
+		$ids = [];
+		try {
+			if (\Illuminate\Support\Facades\Schema::hasTable('messages')) {
+				$partners = \App\Models\Message::query()
+					->select(['from_id','to_id'])
+					->where(function($q) use ($user){ $q->where('from_id',$user->id)->orWhere('to_id',$user->id); })
+					->latest('id')->limit(200)->get();
+				foreach ($partners as $m) { $ids[] = (int) ($m->from_id == $user->id ? $m->to_id : $m->from_id); }
+			}
+		} catch (\Throwable $_) {}
+		$ids = array_values(array_unique(array_filter($ids)));
+		$map = [];
+		foreach ($ids as $id) {
+			$cid = null;
+			try {
+				$u = \App\Models\User::find($id);
+				if ($u) {
+					if (\Illuminate\Support\Facades\Schema::hasColumn('users','cc_user_id') && !empty($u->cc_user_id)) { $cid = (int)$u->cc_user_id; }
+					elseif (\Illuminate\Support\Facades\Schema::hasColumn('users','connectycube_user_id') && !empty($u->connectycube_user_id)) { $cid = (int)$u->connectycube_user_id; }
+				}
+			} catch (\Throwable $_) { $cid = null; }
+			if (!$cid) $cid = (int)$id;
+			$map[(string)$id] = (int)$cid;
+		}
+		return response()->json(['ok'=>true,'ccConfig'=>$config,'ccUser'=>$ccUser,'userIdMap'=>$map]);
+	})->name('rtc.bootstrap');
+
+	// Sync CC identifiers back to DB when the client discovers them (no new migrations; use columns if they exist)
+	Route::post('/rtc/sync', function(\Illuminate\Http\Request $r){
+		$user = auth()->user();
+		$ccUserId = (int) ($r->input('cc_user_id') ?? 0);
+		$ccLogin = trim((string) ($r->input('cc_login') ?? ''));
+		$changed = false;
+		try {
+			if ($ccUserId > 0) {
+				if (\Illuminate\Support\Facades\Schema::hasColumn('users','connectycube_user_id')) { if (empty($user->connectycube_user_id)) { $user->connectycube_user_id = $ccUserId; $changed = true; } }
+				if (\Illuminate\Support\Facades\Schema::hasColumn('users','cc_user_id')) { if (empty($user->cc_user_id)) { $user->cc_user_id = $ccUserId; $changed = true; } }
+			}
+			if ($ccLogin !== '') {
+				if (\Illuminate\Support\Facades\Schema::hasColumn('users','cc_login')) { if (empty($user->cc_login)) { $user->cc_login = $ccLogin; $changed = true; } }
+			}
+			if ($changed) { $user->save(); }
+		} catch (\Throwable $_) {}
+		return response()->json(['ok'=>true,'changed'=>$changed]);
+	})->name('rtc.sync');
+
 	// Public-ish endpoint to fetch another user's presence/status and avatar (requires auth)
 	Route::get('/users/{user}/status', function(\App\Models\User $user){
 		// expose a small set of fields safe for authenticated users
