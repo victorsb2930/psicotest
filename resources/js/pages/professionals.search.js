@@ -1,38 +1,73 @@
+// Consume JSON from /professionals/search and render cards client-side
+
+function ensureCardHelperStyles() {
+	try {
+		if (document.getElementById('card-component-helpers')) return;
+		const css = `
+				/* Injected: card helpers to match Blade component */
+				.card-compact { padding: 1rem !important; }
+				.card-anim-lift { transition: transform 0.2s ease, box-shadow 0.2s ease; will-change: transform; }
+				.card-anim-lift:hover { transform: translateY(-6px); box-shadow: 0 10px 20px rgba(245,129,152,.35) !important; }
+				.card-square-md { width: 100%; }
+				.card-square-md .card-body { display: flex; flex-direction: column; justify-content: center; align-items: center; }
+				@media (min-width: 768px) { .card-square-md { width: 260px; aspect-ratio: 1 / 1; } }
+				@media (prefers-reduced-motion: reduce) { .card-anim-lift { transition: none; } .card-anim-lift:hover { transform: none; } }
+				`;
+		const style = document.createElement('style');
+		style.id = 'card-component-helpers';
+		style.textContent = css;
+		document.head.appendChild(style);
+	} catch (_) { }
+}
+
+function escapeHtml(s) {
+	try { if (window.escapeHtml) return window.escapeHtml(s); } catch (_) { }
+	const el = document.createElement('div'); el.innerText = s || ''; return el.innerHTML;
+}
+
 function renderCard(p) {
 	const photo = p.photo || '/images/default-avatar.png';
 	const specialty = p.specialty || 'General';
-	const rating = (p.rating !== null && p.rating !== undefined) ? `<span class="badge bg-success">${p.rating.toFixed ? p.rating.toFixed(1) : p.rating}</span>` : '';
-	const types = p.appointment_types ? (Array.isArray(p.appointment_types) ? p.appointment_types.join(', ') : p.appointment_types) : 'Presencial / Virtual';
-	const typesArr = p.appointment_types ? (Array.isArray(p.appointment_types) ? p.appointment_types : String(p.appointment_types).split(',').map(s => s.trim())) : [];
+	const rating = (p.rating !== null && p.rating !== undefined)
+		? `<span class="badge bg-success">${(typeof p.rating === 'number' && p.rating.toFixed) ? p.rating.toFixed(1) : escapeHtml(String(p.rating))}</span>`
+		: '';
+	const typesArr = Array.isArray(p.appointment_types)
+		? p.appointment_types
+		: (p.appointment_types ? String(p.appointment_types).split(',').map(s => s.trim()).filter(Boolean) : []);
+	const types = typesArr.length ? typesArr.join(', ') : 'Presencial / Virtual';
 	const location = p.location || 'No especificada';
 
+	// Markup mirrors our Blade Card classes (card, card-compact, card-anim-lift)
 	return `
-    <div class="col-md-6 col-lg-4">
-        <div class="card h-100">
-            <div class="card-body d-flex">
-                <div class="me-3" style="width:72px;flex:0 0 72px;">
-                    <img src="${photo}" class="rounded pf-thumb" style="width:72px;height:72px;object-fit:cover;cursor:pointer;" data-photo-src="${photo}">
-                </div>
-                <div class="flex-grow-1">
-                    <div class="d-flex justify-content-between align-items-start">
-                        <div>
-                            <h5 class="mb-1 text-primary">${p.name}</h5>
-                            <div class="text-muted small">${p.email || ''}</div>
-                        </div>
-                        <div>${rating}</div>
-                    </div>
-                    <div class="mt-2 small text-muted">Especialidad: <strong>${specialty}</strong></div>
-                    <div class="mt-1 small">Tipo: <strong>${types}</strong></div>
-                    <div class="mt-1 small">Ubicación: <strong>${location}</strong></div>
-                    <div class="mt-3">
-                        <a href="/professional/profile/${p.id}" class="btn btn-sm btn-outline-primary">Ver perfil</a>
-                        <button data-id="${p.id}" data-types='${JSON.stringify(typesArr)}' data-name="${window.escapeHtml ? window.escapeHtml(p.name) : p.name}" data-title="${window.escapeHtml ? window.escapeHtml(p.specialty || '') : (p.specialty || '')}" class="btn btn-sm btn-primary ms-2 btn-request">Solicitar cita</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    `;
+		<div class="col-md-6 col-lg-4">
+			<div class="card h-100 shadow-brand mx-auto card-anim-lift">
+				<div class="card-body card-compact d-flex">
+					<div class="me-3" style="width:72px;flex:0 0 72px;">
+						<img src="${escapeHtml(photo)}" class="rounded pf-thumb" style="width:72px;height:72px;object-fit:cover;cursor:pointer;" data-photo-src="${escapeHtml(photo)}">
+					</div>
+					<div class="flex-grow-1">
+						<div class="d-flex justify-content-between align-items-start">
+							<div>
+								<h5 class="mb-1 card-title fw-bold text-primary">${escapeHtml(p.name || 'Profesional')}</h5>
+								<div class="card-text text-muted small">${escapeHtml(p.email || '')}</div>
+							</div>
+							<div>${rating}</div>
+						</div>
+						<div class="mt-2 small text-muted">Especialidad: <strong>${escapeHtml(specialty)}</strong></div>
+						<div class="mt-1 small">Tipo: <strong>${escapeHtml(types)}</strong></div>
+						<div class="mt-1 small">Ubicación: <strong>${escapeHtml(location)}</strong></div>
+						<div class="mt-3">
+							<a href="/professional/profile/${encodeURIComponent(p.id)}" class="btn btn-sm btn-outline-primary">Ver perfil</a>
+							<button data-id="${escapeHtml(String(p.id))}"
+											data-types='${JSON.stringify(typesArr)}'
+											data-name="${escapeHtml(p.name || '')}"
+											data-title="${escapeHtml(specialty)}"
+											class="btn btn-sm btn-primary ms-2 btn-request">Solicitar cita</button>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>`;
 }
 
 export default function init() {
@@ -44,6 +79,7 @@ export default function init() {
 	const $empty = document.getElementById('pf_empty');
 
 	async function doSearch() {
+		ensureCardHelperStyles();
 		const params = {
 			q: $q?.value || '',
 			specialty: $spec?.value || '',
@@ -53,8 +89,8 @@ export default function init() {
 		try {
 			const url = document.querySelector('meta[name="professionals-search-url"]')?.getAttribute('content') || '/professionals/search';
 			const res = await axios.get(url, { params });
-			const data = res.data || [];
-			if (!data || data.length === 0) {
+			const data = res?.data || [];
+			if (!Array.isArray(data) || data.length === 0) {
 				$results.innerHTML = '';
 				$empty.classList.remove('d-none');
 				return;
@@ -65,21 +101,21 @@ export default function init() {
 			// inject modal container for image preview if missing
 			if (!document.getElementById('pfImagePreviewModal')) {
 				const modalHtml = `
-                                <div class="modal fade" id="pfImagePreviewModal" tabindex="-1" aria-hidden="true">
-                                    <div class="modal-dialog modal-dialog-centered modal-lg">
-                                        <div class="modal-content">
-                                            <div class="modal-body text-center p-0">
-                                                <img id="pfImagePreviewModalImg" src="" style="width:100%; height:auto;" alt="preview">
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>`;
+					<div class="modal fade" id="pfImagePreviewModal" tabindex="-1" aria-hidden="true">
+						<div class="modal-dialog modal-dialog-centered modal-lg">
+							<div class="modal-content">
+								<div class="modal-body text-center p-0">
+									<img id="pfImagePreviewModalImg" src="" style="width:100%; height:auto;" alt="preview">
+								</div>
+							</div>
+						</div>
+					</div>`;
 				document.body.insertAdjacentHTML('beforeend', modalHtml);
 			}
 
 			// wire thumbs to open modal preview
 			Array.from(document.querySelectorAll('.pf-thumb')).forEach(img => {
-				img.addEventListener('click', (ev) => {
+				img.addEventListener('click', () => {
 					const src = img.getAttribute('data-photo-src') || img.src;
 					const modalImg = document.getElementById('pfImagePreviewModalImg');
 					if (modalImg) modalImg.src = src;
@@ -153,7 +189,6 @@ export default function init() {
 
 		} catch (e) {
 			$results.innerHTML = '<div class="col-12 text-danger">Error al buscar</div>';
-			//console.error(e);
 		}
 	}
 
