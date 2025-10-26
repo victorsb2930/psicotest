@@ -208,9 +208,9 @@
     // Debug logs for realtime connection (opcional)
     if (window.Echo && window.Echo.connector && window.Echo.connector.pusher) {
         try {
-            window.Echo.connector.pusher.connection.bind('connected', function(){ console.debug('[Realtime] connected'); });
-            window.Echo.connector.pusher.connection.bind('unavailable', function(){ console.warn('[Realtime] unavailable'); });
-            window.Echo.connector.pusher.connection.bind('failed', function(){ console.error('[Realtime] failed'); });
+            window.Echo.connector.pusher.connection.bind('connected', function(){  });
+            window.Echo.connector.pusher.connection.bind('unavailable', function(){  });
+            window.Echo.connector.pusher.connection.bind('failed', function(){  });
         } catch(_){}
     }
 

@@ -86,7 +86,7 @@
 				if (tempEl) tempEl.querySelector('.d-inline-block')?.classList.add('bg-danger','text-white');
 			}
 		} catch(err){
-			console.warn(err);
+			// console.warn(err);
 			const tempEl = box.querySelector('[data-temp-id="'+tempId+'"]');
 			if (tempEl) tempEl.querySelector('.d-inline-block')?.classList.add('bg-danger','text-white');
 		}

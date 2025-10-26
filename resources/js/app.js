@@ -77,7 +77,7 @@ async function initPage() {
 		currentPageModule = mod;
 		// Si exporta init(), llamarla
 		if (typeof mod.init === 'function') {
-			try { mod.init(); } catch (e) { console.error('page init error', page, e); }
+			try { mod.init(); } catch (e) {  }
 		} else if (typeof mod.default === 'function') {
 			// compatibilidad con módulos que exportan una función por defecto
 			try { mod.default(); } catch (e) { /* ignore */ }
@@ -89,7 +89,6 @@ async function initPage() {
 			currentPageModuleDestroy = null;
 		}
 	} catch (e) {
-		console.error('initPage import error', page, e);
 		currentPageModule = null;
 		currentPageModuleDestroy = null;
 	}
@@ -289,7 +288,7 @@ function enablePJAX() {
 				if (typeof currentPageModuleDestroy === 'function') {
 					currentPageModuleDestroy();
 				}
-			} catch (e) { console.warn('error running destroy for current page', e); }
+			} catch (e) {  }
 
 			// Update container
 			container.innerHTML = newContent.innerHTML;
@@ -323,7 +322,7 @@ function enablePJAX() {
 				try { pushToNavStack((new URL(url, location.href)).pathname); } catch(_){}
 			}
 			// Re-run page-specific initialization
-			try { await initPage(); } catch (e) { console.error('initPage after swap error', e); }
+			try { await initPage(); } catch (e) {  }
 			// Update left-menu back button visibility after init
 			try { updateLeftmenuBackButton(); } catch (e) {}
 
@@ -337,7 +336,6 @@ function enablePJAX() {
 			// Scroll top
 			window.scrollTo(0, 0);
 		} catch (e) {
-			console.error('PJAX error', e);
 			window.location.href = url;
 		}
 	};

@@ -9,7 +9,7 @@ function ensureJQuery(cb) {
 		tries++;
 		if (typeof window.$ !== 'undefined' || typeof window.jQuery !== 'undefined') {
 			clearInterval(waitInterval); waitInterval = null; cb();
-		} else if (tries > 100) { clearInterval(waitInterval); waitInterval = null; console.warn('[admin.profapps] jQuery not found; handlers not attached.'); }
+		} else if (tries > 100) { clearInterval(waitInterval); waitInterval = null; }
 	}, 50);
 }
 

@@ -7,7 +7,6 @@ window.Pusher = Pusher;
 const metaDriver = document.querySelector('meta[name="broadcast-driver"]')?.content;
 const driver = (import.meta.env.VITE_BROADCAST_DRIVER || metaDriver || 'pusher').toLowerCase();
 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-console.debug('[Realtime] resolved driver =', driver);
 let echoConfig = null;
 if (driver === 'reverb') {
 	echoConfig = {
@@ -41,12 +40,11 @@ if (driver === 'reverb') {
 }
 
 if (echoConfig) {
-	try { window.Echo = new Echo(echoConfig); } catch(err){ console.error('[Realtime] Echo init failed', err); }
+	try { window.Echo = new Echo(echoConfig); } catch(err){  }
 
 	const userId = window.__authUserId;
 	if (userId) {
 		const channelName = `user.${userId}`;
-		console.debug('[Realtime] subscribing to', channelName);
 		window.Echo.private(channelName)
 			.listen('MessageSent', (e) => {
 				window.dispatchEvent(new CustomEvent('rt:message', { detail: e }));
@@ -78,8 +76,8 @@ if (echoConfig) {
 					const detail = { user_id: e.user_id, status: e.status };
 					window.dispatchEvent(new CustomEvent('rt:user_presence', { detail }));
 				});
-		} catch (err) { console.warn('[Realtime] presence channel subscribe failed', err); }
+		} catch (err) {  }
 	}
 } else {
-	console.warn('Realtime deshabilitado: no hay configuración válida (pusher o reverb). Asegúrate de definir VITE_BROADCAST_DRIVER y variables VITE_REVERB_* o VITE_PUSHER_* y recompilar con npm run dev.');
+	
 }

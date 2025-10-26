@@ -171,7 +171,7 @@ export async function openAppointmentModal(options = {}) {
                 }
                 if (calendar && typeof calendar.refetchEvents === 'function') calendar.refetchEvents();
             } catch (err) {
-                console.error(err);
+                //console.error(err);
                 window.modalNotification?.('Error','No se pudo procesar la solicitud',{template:'danger'});
             }
         }, closeOnClick: false }

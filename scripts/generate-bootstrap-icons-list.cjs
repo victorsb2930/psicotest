@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-function log(...args) { console.log('[generate-icons]', ...args); }
+function log(...args) {  }
 
 const projectRoot = path.resolve(__dirname, '..');
 const pkgPath = path.join(projectRoot, 'package.json');
@@ -38,6 +38,6 @@ try {
   fs.writeFileSync(outPath, JSON.stringify(out, null, 2), 'utf8');
   log('Wrote', outPath, 'with', icons.length, 'icons');
 } catch (e) {
-  console.error('[generate-icons] error:', e);
+  // console.error('[generate-icons] error:', e);
   process.exit(1);
 }

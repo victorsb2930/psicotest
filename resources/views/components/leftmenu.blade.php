@@ -220,7 +220,7 @@
                     updateBtnState();
                     if (typeof window.modalNotification === 'function') window.modalNotification('No hay historial', 'No hay una página previa interna a la que regresar.', { template: 'info', delayAutoClose: 2500 });
                 }
-            } catch (err) { console.warn('leftmenu back error', err); }
+            } catch (err) {  }
         });
 
         updateBtnState();

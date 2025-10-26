@@ -712,7 +712,7 @@
 				try {
 					await window.axios.post('{{ route('profile.presence') }}', { status: status });
 				} catch(e){
-					console.error('updatePresence error', e);
+					// console.error('updatePresence error', e);
 					throw e;
 				}
 				window.__userPresence = status;

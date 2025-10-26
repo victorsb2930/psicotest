@@ -38,6 +38,6 @@ try {
   fs.writeFileSync(outPath, JSON.stringify(out, null, 2), 'utf8');
   log('Wrote', outPath, 'with', icons.length, 'icons');
 } catch (e) {
-  console.error('[generate-icons] error:', e);
+  // console.error('[generate-icons] error:', e);
   process.exit(1);
 }

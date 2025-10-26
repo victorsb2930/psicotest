@@ -28,7 +28,7 @@ async function refreshGallery() {
 		const container = $('#photo-gallery');
 		if (!container) return;
 		container.empty();
-		console.log('Gallery photos:', photos);
+		// console.log('Gallery photos:', photos);
 		if (photos.length === 0) {
 			container.append('<p class="text-muted">No hay fotos en la galería.</p>');
 			return;
@@ -251,7 +251,7 @@ export function init() {
 				modalConfirm({ title: 'Eliminar foto', body: '<p>¿Deseas eliminar esta foto de tu galería?</p>', buttons: [{ text: 'Cancelar', className: 'btn-outline-secondary', dismiss: true }, { text: 'Eliminar', className: 'btn-danger', onClick: ($m) => { try { const inst = bootstrap.Modal.getInstance($m[0]); inst?.hide(); } catch (e) { }; doDelete(); } }] }, 'normal');
 				return;
 			}
-		} catch (e) { console.error(e); }
+		} catch (e) {  }
 	};
 	const galleryEl = document.getElementById('photo-gallery');
 	if (galleryEl) galleryEl.addEventListener('click', _galleryClickHandler);

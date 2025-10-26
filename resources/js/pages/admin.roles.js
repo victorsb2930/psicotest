@@ -225,14 +225,14 @@ function attachHandlers() {
 				attachHandlers();
 			} else if (tries > 100) {
 				clearInterval(waitInterval); waitInterval = null;
-				console.warn('[admin.roles] jQuery not found after waiting; pickers will not be initialized.');
+				// console.warn('[admin.roles] jQuery not found after waiting; pickers will not be initialized.');
 			}
 		}, 50);
 		return;
 	}
 
 	if (typeof modalConfirm === 'undefined') {
-		console.warn('[admin.roles] modalConfirm helper not found; icon/color picker modals may fail.');
+		// console.warn('[admin.roles] modalConfirm helper not found; icon/color picker modals may fail.');
 	}
 
 	$(document).on('click' + NS, '[data-role="open-icon-picker"]', function () {

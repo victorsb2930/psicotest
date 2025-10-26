@@ -18,6 +18,8 @@ function mapAppUserToCcId(id) { try { if (window.__ccUserIdMap && window.__ccUse
 // Resolve a ConnectyCube user id for a given app user id using deterministic login
 async function resolveCcId(appUserId) {
 	try {
+		// Ensure RTC bootstrap (endpoints + session) before hitting Users API to avoid 403 and wrong region
+		try { if (window.__rtcBootstrapPromise) await window.__rtcBootstrapPromise; } catch (_) { }
 		// If already cached and looks like a real CC id, return immediately
 		try {
 			const existing = window.__ccUserIdMap?.[appUserId];
@@ -28,7 +30,17 @@ async function resolveCcId(appUserId) {
 		if (!cfg || !cfg.appId) return null;
 		const login = `pg${cfg.appId}_${appUserId}`;
 		// Use ConnectyCube Users API to fetch by login
-		const res = await ConnectyCube.users.get({ login });
+		let res;
+		try {
+			if (ConnectyCube?.users?.getByLogin) {
+				res = await ConnectyCube.users.getByLogin(login);
+			} else {
+				res = await ConnectyCube.users.get({ login }); // fallback for older SDKs
+			}
+		} catch (e) {
+			// If unauthorized/forbidden (e.g., 401/403), give up silently and let caller fallback later
+			return null;
+		}
 		// SDK may return {items:[{user}]} or a plain user depending on filter
 		const user = (res && (res.user || (Array.isArray(res.items) ? (res.items[0] && (res.items[0].user || res.items[0])) : null))) || null;
 		const id = user && (user.id || user._id || user.user_id);
@@ -60,6 +72,8 @@ async function resolveCcId(appUserId) {
 
 		async function prewarmCcMap(appUserIds) {
 			try {
+				// Ensure RTC stack ready before prewarm
+				try { if (window.__rtcBootstrapPromise) await window.__rtcBootstrapPromise; } catch (_) {}
 				const ids = Array.from(new Set((appUserIds || []).map(x => String(x))));
 				for (const id of ids) {
 					try {
@@ -162,7 +176,7 @@ export function init() {
 	// Precalentar mapeo CC para contactos visibles
 	try {
 		const ids = Array.from(new Set(Array.from(document.querySelectorAll('.contact-item')).map(it => it.getAttribute('data-user-id')).filter(Boolean)));
-		prewarmCcMap(ids);
+		(async ()=>{ try { if (window.__rtcBootstrapPromise) await window.__rtcBootstrapPromise; } catch(_){}; prewarmCcMap(ids); })();
 	} catch (_) {}
 	_handlers.onContactClick = function (e) { const btn = e.target.closest && e.target.closest('.contact-item'); if (!btn) return; const uid = btn.getAttribute('data-user-id'); const uname = btn.getAttribute('data-user-name') || btn.querySelector('.fw-semibold')?.textContent || 'Usuario'; try { document.querySelectorAll('.contact-item.active').forEach(it => it.classList.remove('active')); btn.classList.add('active'); } catch (_) { } openChatFor(uid, uname); }; _els.contactsList.addEventListener('click', _handlers.onContactClick);
 	_handlers.onSend = async function (e) { e.preventDefault(); if (!_els.chatSendForm) return; const fd = new FormData(_els.chatSendForm); const body = (fd.get('body') || '').toString().trim(); if (!body) return; const tempId = 't' + Date.now() + Math.floor(Math.random() * 1000); appendMessageToChat({ from_id: getAuthId(), body: body, created_at: new Date().toISOString() }, { tempId }); try { _els.chatSendForm.querySelector('[name=body]').value = ''; } catch (_) { } try { const res = await fetch(`/messages/thread/${encodeURIComponent(_state.currentPartnerId)}`, { method: 'POST', headers: { 'X-CSRF-TOKEN': fd.get('_token') }, body: fd }); const j = await res.json(); if (j.ok && j.message) { const tempEl = _els.chatMessages.querySelector('[data-temp-id="' + tempId + '"]'); if (tempEl) tempEl.remove(); appendMessageToChat(j.message); try { await fetch('/api/counters').then(r => r.json()).then(d => document.dispatchEvent(new CustomEvent('counters:update', { detail: d }))); } catch (_) { } } else { const tempEl = _els.chatMessages.querySelector('[data-temp-id="' + tempId + '"]'); if (tempEl) tempEl.querySelector('.d-inline-block')?.classList.add('bg-danger', 'text-white'); } } catch (err) { const tempEl = _els.chatMessages.querySelector('[data-temp-id="' + tempId + '"]'); if (tempEl) tempEl.querySelector('.d-inline-block')?.classList.add('bg-danger', 'text-white'); } };

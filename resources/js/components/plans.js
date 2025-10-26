@@ -84,7 +84,7 @@ function showPaymentModal({ key, title, desc, priceCents }) {
 							}
 							showNotification('Error', 'Respuesta inesperada del servidor');
 						} catch (err) {
-							console.error(err);
+							// console.error(err);
 							showNotification('Error', 'No se pudo conectar con el servidor');
 						} finally {
 							try { $modal.find('button').prop('disabled', false); } catch (e) { }
@@ -198,7 +198,7 @@ export function destroy() {
 			}
 			try { delete btn.__plansAttached; } catch (e) { btn.__plansAttached = undefined; }
 		});
-	} catch (e) { console.warn('[plans] destroy error', e); }
+	} catch (e) {  }
 	// Close any plan modal left open
 	try { const $m = document.getElementById('rejectReasonModal'); if ($m) { const inst = bootstrap.Modal.getInstance($m); inst?.hide(); } } catch (e) { }
 }

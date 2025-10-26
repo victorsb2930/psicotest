@@ -32,6 +32,20 @@ import RtcUI from './rtc-ui';
     const initParams = { appId: cfg.appId, authKey: cfg.authKey };
     if (cfg.authSecret) initParams.authSecret = cfg.authSecret; // tolerar paneles sin secret explícito
     ConnectyCube.init(initParams);
+    // Try to disable SDK internal logs to keep console clean
+    try {
+      if (typeof ConnectyCube.setLogLevel === 'function') {
+        // Some SDKs accept strings or numeric levels
+        try { ConnectyCube.setLogLevel('OFF'); } catch(_) {}
+        try { ConnectyCube.setLogLevel(0); } catch(_) {}
+      }
+      if (ConnectyCube.logger && typeof ConnectyCube.logger.setLevel === 'function') {
+        try { ConnectyCube.logger.setLevel(0); } catch(_) {}
+      }
+      if (typeof ConnectyCube.setDebug === 'function') {
+        try { ConnectyCube.setDebug(false); } catch(_) {}
+      }
+    } catch(_) {}
     // Configurar endpoints regionales si están definidos (usar hostnames sin esquema)
     try{
       if (cfg.apiEndpoint || cfg.chatEndpoint) {
