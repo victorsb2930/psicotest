@@ -31,7 +31,6 @@ import RtcUI from './rtc-ui';
     const cfg = window.__ccConfig || {};
     const initParams = { appId: cfg.appId, authKey: cfg.authKey };
     if (cfg.authSecret) initParams.authSecret = cfg.authSecret; // tolerar paneles sin secret explícito
-    console.info('[RTC] init', { appId: initParams.appId, hasAuthKey: !!initParams.authKey, hasSecret: !!initParams.authSecret });
     ConnectyCube.init(initParams);
     // Configurar endpoints regionales si están definidos (usar hostnames sin esquema)
     try{
@@ -54,7 +53,7 @@ import RtcUI from './rtc-ui';
             : endpoints.chat.replace(/^chat\./,'muc.chat.');
           endpoints.muc = mucHost;
         }
-        console.info('[RTC] setConfig endpoints', endpoints);
+
         // Nota: para cambiar API base, el SDK usa set({ endpoints }), no setConfig
         try { ConnectyCube.set({ endpoints }); } catch(_) {}
       }
@@ -81,12 +80,9 @@ import RtcUI from './rtc-ui';
   let sessionToken = null; let lastLoginSession = null; let hasUserToken = false; let discoveredCcId = null;
     // First, try to obtain an app session token; if this fails (422), config is likely invalid
     try{
-      console.info('[RTC] createSession...');
       const sess = await ConnectyCube.createSession();
       sessionToken = (sess && (sess.token || sess.session?.token)) || null;
-      console.info('[RTC] createSession OK (app session)');
     }catch(e){
-      console.warn('[RTC] createSession failed. Revisa CONNECTYCUBE_APP_ID/AUTH_KEY/AUTH_SECRET en .env', e);
       // Without a session token, don't attempt chat connect with default password (likely wrong)
     }
     try{
@@ -126,27 +122,25 @@ import RtcUI from './rtc-ui';
                 const csrf = (document.querySelector('meta[name="csrf-token"]')||{}).getAttribute?.('content') || '';
                 fetch('/rtc/sync', { method:'POST', headers:{ 'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest','Accept':'application/json','X-CSRF-TOKEN': csrf }, credentials:'include', body: JSON.stringify({ cc_user_id: ccUserId, cc_login: user.login }) });
               } catch(_){ }
-            }catch(e2){ console.warn('CC signup/login failed', e1, e2); }
+            }catch(e2){  }
           } else {
-            console.warn('[RTC] Login de CC falló (422). El usuario puede existir con otra contraseña. Usaremos sessionToken si está disponible.');
+
           }
         }
       }
       if (!ccUserId) ccUserId = user.userId || null;
-      console.info('[RTC] using ccUserId =', ccUserId, 'login =', user.login);
+
       // Prefer session token for XMPP auth to avoid password mismatches
       if (sessionToken && hasUserToken){
         try{
-          console.info('[RTC] chat.connect via user token...');
           await ConnectyCube.chat.connect({ userId: ccUserId, password: sessionToken });
           await waitForChatConnected();
-          ccConnected = true; console.info('[RTC] chat.connect OK');
+          ccConnected = true;
         }
         catch(e3){
           // as a fallback, try the provided password if present
           if (user.password){
             await safeChatDisconnect();
-            console.info('[RTC] chat.connect via password fallback...');
             await ConnectyCube.chat.connect({ userId: ccUserId, password: user.password });
             await waitForChatConnected();
             ccConnected = true;
@@ -157,14 +151,13 @@ import RtcUI from './rtc-ui';
         // No token; only attempt password connect if we explicitly have one
         if (user.password){
           await safeChatDisconnect();
-          console.info('[RTC] chat.connect via password (no token)...');
           await ConnectyCube.chat.connect({ userId: ccUserId, password: user.password });
           await waitForChatConnected();
           ccConnected = true;
         }
         else throw new Error('No session token y sin contraseña de CC');
       }
-    }catch(e){ console.warn('CC chat connect failed', e); throw e; }
+    }catch(e){ throw e; }
     finally { ccConnecting = false; }
   }
 
@@ -189,8 +182,15 @@ import RtcUI from './rtc-ui';
       currentSession = session;
       RtcUI.showIncoming(session, {
         onAccept: async () => {
-          try { await ensureLocalStream(); RtcUI.setLocalStream(localStream); } catch(_) {}
-          session.accept({}, (err)=>{ if (err) console.warn('accept error', err); });
+          try {
+            // Prefer session-bound getUserMedia so SDK attaches tracks correctly
+            const constraints = { audio:true, video:{ width:{ ideal:1280 }, height:{ ideal:720 } } };
+            const s = await session.getUserMedia(constraints);
+            try { RtcUI.setLocalStream(s); } catch(_) {}
+          } catch(e) {
+
+          }
+          try { session.accept({}, (err)=>{  }); } catch(e) { }
           RtcUI.showConnected();
           RtcUI.onEnd(()=>{ try{ if(currentSession) currentSession.stop({},()=>{}); }catch(_){} });
         },
@@ -219,12 +219,11 @@ import RtcUI from './rtc-ui';
   async function start(){
     try { window.__rtcBootstrapReady = false; } catch(_){}
     const p = (async ()=>{
-      console.info('[RTC] bootstrap start');
       const ok = await bootstrap();
-      if (!ok){ console.warn('[RTC] bootstrap failed'); try { window.__rtcBootstrapReady = false; } catch(_){ } return false; }
+      if (!ok){ try { window.__rtcBootstrapReady = false; } catch(_){ } return false; }
       let connected = false;
-      try { await ensureConnected(); connected = true; } catch(e){ console.warn('[RTC] ensureConnected failed', e); connected = false; }
-      try { window.__rtcBootstrapReady = !!(ok && connected && ccConnected); console.info('[RTC] ready =', window.__rtcBootstrapReady); } catch(_){ }
+      try { await ensureConnected(); connected = true; } catch(e){ connected = false; }
+      try { window.__rtcBootstrapReady = !!(ok && connected && ccConnected);  } catch(_){ }
       try { attachGlobalRtcUiListeners(); } catch(_){ }
       return !!(ok && connected);
     })();

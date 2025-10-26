@@ -52,11 +52,11 @@ function _ensurePgModalFocusHandlers() {
 				const active = document.activeElement;
 				const modal = target.closest('.modal');
 				if (active && modal && active.closest && active.closest('.modal') === modal) {
-					try { active.blur(); } catch (_) {}
+					try { active.blur(); } catch (_) { }
 					try { ensureSentinel().focus(); } catch (_) { document.body.focus(); }
 				}
 			}
-		} catch (_) {}
+		} catch (_) { }
 	}, true);
 
 	document.addEventListener('keydown', function (ev) {
@@ -64,17 +64,17 @@ function _ensurePgModalFocusHandlers() {
 			if (ev.key === 'Escape' || ev.key === 'Esc' || ev.keyCode === 27) {
 				const active = document.activeElement;
 				if (active && active.closest && active.closest('.modal')) {
-					try { active.blur(); } catch (_) {}
+					try { active.blur(); } catch (_) { }
 					try { ensureSentinel().focus(); } catch (_) { document.body.focus(); }
 				}
 			}
-		} catch (_) {}
+		} catch (_) { }
 	}, true);
 }
 
 export function modalConfirm(bodyHtml, modalType = 'normal', options = {}) {
 	// Ensure global focus-safety handlers are installed (idempotent)
-	try { _ensurePgModalFocusHandlers(); } catch(_){}
+	try { _ensurePgModalFocusHandlers(); } catch (_) { }
 
 	const opts = { ...modalConfirm.defaults, ...options };
 	// Soporta bodyHtml.icona o bodyHtml.icon (alias)
@@ -92,7 +92,7 @@ export function modalConfirm(bodyHtml, modalType = 'normal', options = {}) {
 	const overrideCancel = (typeof bodyHtml.cancelLabel === 'string') ? bodyHtml.cancelLabel : (typeof bodyHtml.noLabel === 'string' ? bodyHtml.noLabel : null);
 	const overrideConfirm = (typeof bodyHtml.confirmLabel === 'string') ? bodyHtml.confirmLabel : (typeof bodyHtml.yesLabel === 'string' ? bodyHtml.yesLabel : null);
 	const base = defaultLabels[btnsType] || defaultLabels.ny;
-	const labels = [ overrideCancel ?? base[0], overrideConfirm ?? base[1] ];
+	const labels = [overrideCancel ?? base[0], overrideConfirm ?? base[1]];
 
 	let $modal = $(`#${modalId}`);
 
@@ -120,7 +120,7 @@ export function modalConfirm(bodyHtml, modalType = 'normal', options = {}) {
 				const parts = bodyHtml.buttons.map((b, i) => {
 					const id = `modalBtn_${modalId}_${i}`;
 					const cls = b.className || b.cls || (b.primary ? 'btn-primary' : 'btn-secondary');
-					const text = b.text || b.label || `Button ${i+1}`;
+					const text = b.text || b.label || `Button ${i + 1}`;
 					const dismiss = b.dismiss || b.closeOnClick ? ' data-bs-dismiss="modal"' : '';
 					return `<button type="button" id="${id}" class="btn ${cls}"${dismiss}>${text}</button>`;
 				});
@@ -144,8 +144,8 @@ export function modalConfirm(bodyHtml, modalType = 'normal', options = {}) {
 			opts.dialogClasses || ''
 		].filter(Boolean).join(' ');
 
-	const contentCls = ['modal-content shadow-lg rounded-4', opts.contentClasses || ''].filter(Boolean).join(' ');
-	const bodyCls = ['modal-body py-4 px-5', opts.bodyClasses || ''].filter(Boolean).join(' ');
+		const contentCls = ['modal-content shadow-lg rounded-4', opts.contentClasses || ''].filter(Boolean).join(' ');
+		const bodyCls = ['modal-body py-4 px-5', opts.bodyClasses || ''].filter(Boolean).join(' ');
 
 		const template = `
 			<div class="modal fade" id="${modalId}" tabindex="-1" aria-hidden="true" role="dialog">
@@ -217,10 +217,10 @@ export function modalConfirm(bodyHtml, modalType = 'normal', options = {}) {
 							const res = b.onClick($modal, ev);
 							// If the handler returns a Promise, catch errors
 							if (res && typeof res.then === 'function') {
-								res.catch(()=>{});
+								res.catch(() => { });
 							}
 						}
-					} catch (_) {}
+					} catch (_) { }
 					// Decide whether to close modals after click
 					const shouldClose = ('closeOnClick' in b) ? !!b.closeOnClick : (b.dismiss || b.dismissOnClick || false);
 					if (shouldClose) {
@@ -247,7 +247,7 @@ export function modalConfirm(bodyHtml, modalType = 'normal', options = {}) {
 		try {
 			const active = document.activeElement;
 			if (active && active.closest && active.closest('.modal') === $modal[0]) {
-				try { active.blur(); } catch (_) {}
+				try { active.blur(); } catch (_) { }
 			}
 			// ensure sentinel exists and focus it
 			let sentinel = document.getElementById('pg-modal-focus-sentinel');
@@ -262,13 +262,13 @@ export function modalConfirm(bodyHtml, modalType = 'normal', options = {}) {
 				sentinel.style.overflow = 'hidden';
 				document.body.appendChild(sentinel);
 			}
-			try { sentinel.focus(); } catch (_) { try { document.body.focus(); } catch(_){} }
+			try { sentinel.focus(); } catch (_) { try { document.body.focus(); } catch (_) { } }
 			// Hide the modal instance (this will set aria-hidden on the modal)
 			try {
 				const inst = bootstrap.Modal.getInstance($modal[0]);
 				inst?.hide();
-			} catch (_) {}
-		} catch (_) {}
+			} catch (_) { }
+		} catch (_) { }
 	}
 
 	// Intercept clicks on elements that would normally dismiss the modal
@@ -292,11 +292,11 @@ export function modalConfirm(bodyHtml, modalType = 'normal', options = {}) {
 		try {
 			const active = document.activeElement;
 			if (active && active.closest && active.closest('.modal') === $modal[0]) {
-				try { active.blur(); } catch (_) {}
+				try { active.blur(); } catch (_) { }
 			}
 			const sentinel = document.getElementById('pg-modal-focus-sentinel');
-			if (sentinel) try { sentinel.focus(); } catch (_) {}
-		} catch (_) {}
+			if (sentinel) try { sentinel.focus(); } catch (_) { }
+		} catch (_) { }
 		// allow submission to continue
 	});
 
@@ -388,14 +388,14 @@ export function modalConfirm(bodyHtml, modalType = 'normal', options = {}) {
 				ev.preventDefault();
 				startDrag(ev.originalEvent || ev);
 			});
-		} catch (_) {}
+		} catch (_) { }
 	}
 	bsModal.show();
 
 	// Remember the element that had focus when opening so we can restore it
 	try {
 		$modal[0].__modalConfirmOpener = document.activeElement;
-	} catch (_) {}
+	} catch (_) { }
 
 	// Before the modal is hidden, ensure focus is moved away from any focused
 	// element inside the modal. This avoids the "descendant retained focus"
@@ -426,7 +426,7 @@ export function modalConfirm(bodyHtml, modalType = 'normal', options = {}) {
 			// but blurring reduces the race window).
 			const active = document.activeElement;
 			if (active && active.closest && active.closest('.modal')) {
-				try { active.blur(); } catch (_) {}
+				try { active.blur(); } catch (_) { }
 			}
 
 			// Focus the sentinel so that when the modal is hidden there is no
@@ -449,24 +449,24 @@ export function modalConfirm(bodyHtml, modalType = 'normal', options = {}) {
 			// Blur any focused element that might still be inside
 			const active = document.activeElement;
 			if (active && active.closest && active.closest('.modal')) {
-				try { active.blur(); } catch(_){}
+				try { active.blur(); } catch (_) { }
 			}
 			// Dispose bootstrap instance
 			const inst = bootstrap.Modal.getInstance(this);
-			try { inst?.dispose(); } catch(_){}
+			try { inst?.dispose(); } catch (_) { }
 			// Unbind all jQuery events attached to this modal
-			try { $(this).off(); } catch(_){}
+			try { $(this).off(); } catch (_) { }
 			// If this modal was generated by modalConfirm, remove it from DOM so
 			// subsequent calls recreate a fresh instance. If it was not generated
 			// (e.g., a static modal in the page), keep the element but clean state.
 			const $self = $(this);
 			if ($self.attr('data-modal-confirm-generated') === '1') {
-				try { $self.remove(); } catch(_){}
+				try { $self.remove(); } catch (_) { }
 			} else {
 				// For static modals, ensure aria-hidden/display attributes are reset
 				try {
 					$self.removeClass('show').attr('aria-hidden', 'true').css('display', 'none');
-				} catch(_){}
+				} catch (_) { }
 			}
 
 			// If we created a sentinel for focus, remove it when no modals are open
@@ -476,16 +476,16 @@ export function modalConfirm(bodyHtml, modalType = 'normal', options = {}) {
 				// no other visible modals.
 				const anyOpen = document.querySelectorAll('.modal.show').length > 0;
 				if (!anyOpen && sentinel && this.__modalConfirmCreatedSentinel) {
-					try { sentinel.remove(); } catch(_){}
+					try { sentinel.remove(); } catch (_) { }
 				}
-			} catch (_) {}
+			} catch (_) { }
 		} catch (e) {
 			// best-effort cleanup
 		}
 	});
 
 	// Resetear transform y estado al cerrar, para próxima apertura centrada
-	$modal.off('hidden.bs.modal.reset').on('hidden.bs.modal.reset', function(){
+	$modal.off('hidden.bs.modal.reset').on('hidden.bs.modal.reset', function () {
 		const $dialog = $(this).find('.modal-dialog');
 		$dialog.css({ transform: '', willChange: '' }).removeData('tx').removeData('ty');
 	});

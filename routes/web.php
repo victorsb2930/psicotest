@@ -689,21 +689,17 @@ Route::middleware('auth')->group(function(){
 
 	Route::get('/rtc/user', function(){
 		$user = auth()->user();
-		$ccId = null; $login = null; $password = config('services.connectycube.default_password');
+		// Always use deterministic login based on our app user id
+		$deterministicLogin = 'pg'.config('services.connectycube.app_id').'_'.((int)$user->id);
+		$password = (string) config('services.connectycube.default_password');
+		// Prefer stored cc_user_id if present for convenience; client will discover the real one via createSession
+		$ccId = null;
 		try {
-			if (\Illuminate\Support\Facades\Schema::hasColumn('users','cc_user_id')) {
-				$ccId = $user->cc_user_id ?: null;
-			}
-			if (!$ccId && \Illuminate\Support\Facades\Schema::hasColumn('users','connectycube_user_id')) {
-				$ccId = $user->connectycube_user_id ?: null;
-			}
+			if (\Illuminate\Support\Facades\Schema::hasColumn('users','cc_user_id') && !empty($user->cc_user_id)) { $ccId = (int) $user->cc_user_id; }
+			elseif (\Illuminate\Support\Facades\Schema::hasColumn('users','connectycube_user_id') && !empty($user->connectycube_user_id)) { $ccId = (int) $user->connectycube_user_id; }
 		} catch (\Throwable $_) { $ccId = null; }
 		if (!$ccId) { $ccId = (int) $user->id; }
-		try {
-			if (\Illuminate\Support\Facades\Schema::hasColumn('users','cc_login')) { $login = $user->cc_login ?: null; }
-		} catch (\Throwable $_) { $login = null; }
-		if (!$login) { $login = 'pg'.config('services.connectycube.app_id').'_'.$ccId; }
-		$payload = ['userId' => (int)$ccId, 'login' => (string)$login, 'password' => (string)$password];
+		$payload = ['userId' => (int)$ccId, 'login' => $deterministicLogin, 'password' => $password];
 		return response()->json(['ok' => true, 'user' => $payload]);
 	})->name('rtc.user');
 
@@ -745,14 +741,15 @@ Route::middleware('auth')->group(function(){
 			'apiEndpoint' => config('services.connectycube.api_endpoint'),
 			'chatEndpoint' => config('services.connectycube.chat_endpoint'),
 		];
-		$user = auth()->user();
-		$ccId = null; $login = null; $password = config('services.connectycube.default_password');
-		try { if (\Illuminate\Support\Facades\Schema::hasColumn('users','cc_user_id')) { $ccId = $user->cc_user_id ?: null; } } catch (\Throwable $_) {}
-		try { if (!$ccId && \Illuminate\Support\Facades\Schema::hasColumn('users','connectycube_user_id')) { $ccId = $user->connectycube_user_id ?: null; } } catch (\Throwable $_) {}
-		if (!$ccId) $ccId = (int)$user->id;
-		try { if (\Illuminate\Support\Facades\Schema::hasColumn('users','cc_login')) { $login = $user->cc_login ?: null; } } catch (\Throwable $_) {}
-		if (!$login) $login = 'pg'.config('services.connectycube.app_id').'_'.$ccId;
-		$ccUser = ['userId' => (int)$ccId, 'login' => (string)$login, 'password' => (string)$password];
+	$user = auth()->user();
+	$password = (string) config('services.connectycube.default_password');
+	$deterministicLogin = 'pg'.config('services.connectycube.app_id').'_'.((int)$user->id);
+	// Prefer stored cc_user_id if present; client will learn the authoritative user_id from CC
+	$ccId = null;
+	try { if (\Illuminate\Support\Facades\Schema::hasColumn('users','cc_user_id') && !empty($user->cc_user_id)) { $ccId = (int)$user->cc_user_id; } } catch (\Throwable $_) {}
+	try { if (!$ccId && \Illuminate\Support\Facades\Schema::hasColumn('users','connectycube_user_id') && !empty($user->connectycube_user_id)) { $ccId = (int)$user->connectycube_user_id; } } catch (\Throwable $_) {}
+	if (!$ccId) $ccId = (int)$user->id;
+	$ccUser = ['userId' => (int)$ccId, 'login' => $deterministicLogin, 'password' => $password];
 		// Build map like /rtc/map
 		$ids = [];
 		try {
@@ -789,11 +786,11 @@ Route::middleware('auth')->group(function(){
 		$changed = false;
 		try {
 			if ($ccUserId > 0) {
-				if (\Illuminate\Support\Facades\Schema::hasColumn('users','connectycube_user_id')) { if (empty($user->connectycube_user_id)) { $user->connectycube_user_id = $ccUserId; $changed = true; } }
-				if (\Illuminate\Support\Facades\Schema::hasColumn('users','cc_user_id')) { if (empty($user->cc_user_id)) { $user->cc_user_id = $ccUserId; $changed = true; } }
+				if (\Illuminate\Support\Facades\Schema::hasColumn('users','connectycube_user_id')) { if ((int)($user->connectycube_user_id ?? 0) !== $ccUserId) { $user->connectycube_user_id = $ccUserId; $changed = true; } }
+				if (\Illuminate\Support\Facades\Schema::hasColumn('users','cc_user_id')) { if ((int)($user->cc_user_id ?? 0) !== $ccUserId) { $user->cc_user_id = $ccUserId; $changed = true; } }
 			}
 			if ($ccLogin !== '') {
-				if (\Illuminate\Support\Facades\Schema::hasColumn('users','cc_login')) { if (empty($user->cc_login)) { $user->cc_login = $ccLogin; $changed = true; } }
+				if (\Illuminate\Support\Facades\Schema::hasColumn('users','cc_login')) { if ((string)($user->cc_login ?? '') !== $ccLogin) { $user->cc_login = $ccLogin; $changed = true; } }
 			}
 			if ($changed) { $user->save(); }
 		} catch (\Throwable $_) {}
