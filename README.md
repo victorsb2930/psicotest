@@ -252,3 +252,75 @@ If you discover a security vulnerability within Laravel, please send an e-mail t
 ## License
 
 The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+
+## Variables de entorno (.env)
+
+Esta sección describe para qué sirve cada variable y en qué categoría cae. Copia `.env.example` a `.env` y ajusta valores para tu entorno local; no compartas secretos reales.
+
+Aplicación
+- APP_NAME: Nombre de la app (para vistas, correos, títulos).
+- APP_ENV: Entorno de ejecución (local, staging, production).
+- APP_KEY: Clave de cifrado de Laravel. Obligatoria en producción.
+- APP_DEBUG: Activa logs y trazas detalladas en errores (true/false).
+- APP_URL: URL pública base de la aplicación.
+- APP_LOCALE / APP_FALLBACK_LOCALE / APP_FAKER_LOCALE: Idioma por defecto, idioma de reserva y locale de Faker.
+- APP_TIMEZONE: Zona horaria de la app.
+- APP_MAINTENANCE_DRIVER / APP_MAINTENANCE_STORE: Mecanismo de “modo mantenimiento”.
+- PHP_CLI_SERVER_WORKERS / BCRYPT_ROUNDS: Ajustes de servidor embebido PHP y coste de hash.
+
+Logging
+- LOG_CHANNEL / LOG_STACK / LOG_DEPRECATIONS_CHANNEL / LOG_LEVEL: Configuración de logging y nivel de detalle.
+
+Base de datos
+- DB_CONNECTION / DB_HOST / DB_PORT / DB_DATABASE / DB_USERNAME / DB_PASSWORD: Conexión a la BD (pgsql/mysql/sqlite).
+
+Sesiones
+- SESSION_DRIVER: Driver de sesión (database/redis/file).
+- SESSION_LIFETIME: Minutos de duración de sesión.
+- SESSION_ENCRYPT: Cifrado del payload de sesión (true/false).
+- SESSION_PATH / SESSION_DOMAIN: Alcance de la cookie de sesión.
+
+Archivos, colas y caché
+- FILESYSTEM_DISK: Disco por defecto (local/s3/etc.).
+- QUEUE_CONNECTION: Conexión de colas (sync/redis/etc.).
+- CACHE_STORE / CACHE_DRIVER / CACHE_PREFIX: Ajustes de caché.
+- REDIS_CLIENT / REDIS_HOST / REDIS_PASSWORD / REDIS_PORT: Conexión a Redis.
+- MEMCACHED_HOST: Host de Memcached (si aplicase).
+
+Correo
+- MAIL_MAILER: Driver de correo (smtp/log/ses/etc.).
+- MAIL_HOST / MAIL_PORT / MAIL_USERNAME / MAIL_PASSWORD / MAIL_ENCRYPTION: Config SMTP.
+- MAIL_FROM_ADDRESS / MAIL_FROM_NAME: Remitente por defecto.
+
+Administración (semillas/desarrollo)
+- ADMIN_EMAILS: Lista CSV de emails con rol admin durante seeders.
+- ADMIN_PASSWORD: Password de admin para entorno de desarrollo.
+- HR_EMAILS: Lista CSV de emails con rol RRHH (si aplica).
+
+AWS (opcional)
+- AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY / AWS_DEFAULT_REGION: Credenciales/Región.
+- AWS_BUCKET / AWS_USE_PATH_STYLE_ENDPOINT: Bucket y modo de path.
+
+Vite
+- VITE_APP_NAME: Nombre de app expuesto al cliente.
+
+Broadcast y WebSockets
+- BROADCAST_DRIVER / BROADCAST_CONNECTION: Driver y conexión de broadcast.
+- PUSHER_APP_ID / PUSHER_APP_KEY / PUSHER_APP_SECRET / PUSHER_APP_CLUSTER / PUSHER_HOST / PUSHER_PORT / PUSHER_SCHEME: Compatibilidad con Pusher.
+- REVERB_APP_ID / REVERB_APP_KEY / REVERB_APP_SECRET / REVERB_HOST / REVERB_PORT / REVERB_SCHEME / REVERB_SERVER_HOST / REVERB_SERVER_PORT / REVERB_SERVER / REVERB_SCALING_ENABLED: Config de Reverb (WebSockets nativo de Laravel).
+- VITE_BROADCAST_DRIVER / VITE_REVERB_APP_KEY / VITE_REVERB_HOST / VITE_REVERB_PORT / VITE_REVERB_SCHEME: Variables expuestas a cliente para conectar a websockets.
+
+ConnectyCube (RTC)
+- CONNECTYCUBE_APP_ID / CONNECTYCUBE_AUTH_KEY / CONNECTYCUBE_API_KEY / CONNECTYCUBE_AUTH_SECRET / CONNECTYCUBE_DEFAULT_PASSWORD: Credenciales e identidad de la app.
+- CONNECTYCUBE_API_ENDPOINT / CONNECTYCUBE_CHAT_ENDPOINT: Endpoints por región (API/XMPP).
+
+Presencia y sesión de navegador
+- PRESENCE_ONLINE_SECONDS: Umbral (en segundos) para considerar “online” por recencia.
+- BROWSER_TOKEN_COOKIE_NAME / BROWSER_TOKEN_TTL_DAYS: Token de navegador y TTL.
+- BROWSER_TOKEN_STRICT_UA / BROWSER_TOKEN_STRICT_IP: Restringir token por User-Agent/IP.
+- SESSION_REOPEN_GRACE_SECONDS: Ventana de gracia para reabrir sesión.
+
+Twilio (opcional)
+- TWILIO_SID / TWILIO_TOKEN / TWILIO_FROM: Envío de SMS/2FA.
+
+Nota: No compartas `.env` reales. Usa `.env.example` como base y rellena tus credenciales localmente.
