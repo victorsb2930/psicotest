@@ -670,12 +670,6 @@ Route::middleware('auth')->group(function(){
 	Route::post('/appointments/{appointment}/accept', [\App\Http\Controllers\AppointmentController::class, 'accept'])->name('appointments.patient.accept');
 	Route::post('/appointments/{appointment}/reject', [\App\Http\Controllers\AppointmentController::class, 'reject'])->name('appointments.patient.reject');
 
-	// Simple messaging (user to user)
-	// Consolidate UI at /chat; keep thread/send APIs. Redirect legacy /messages to the chat hub.
-	Route::get('/messages', function(){ return redirect()->route('chat.index'); })->name('messages.index');
-	Route::get('/messages/thread/{user}', [\App\Http\Controllers\MessagesController::class, 'thread'])->name('messages.thread');
-	Route::post('/messages/thread/{user}', [\App\Http\Controllers\MessagesController::class, 'send'])->name('messages.send');
-
 	// Unified chat hub (combines conversations + friends UI)
 	Route::get('/chat', function(){
 		$userId = auth()->id();
