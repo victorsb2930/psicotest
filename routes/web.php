@@ -683,6 +683,67 @@ Route::middleware('auth')->group(function(){
 		return view('chat.index', compact('lastMessages'));
 	})->name('chat.index');
 
+	// Messages API used by chat.js
+	// Get conversation thread with a specific user (JSON)
+	Route::get('/messages/thread/{user}', function(\Illuminate\Http\Request $r, \App\Models\User $user){
+		$me = auth()->user();
+		// Basic guard: avoid self-thread
+		if ($me->id === $user->id) {
+			return response()->json(['ok' => true, 'messages' => []]);
+		}
+		try {
+			$messages = \App\Models\Message::query()
+				->where(function($q) use ($me, $user){ $q->where('from_id', $me->id)->where('to_id', $user->id); })
+				->orWhere(function($q) use ($me, $user){ $q->where('from_id', $user->id)->where('to_id', $me->id); })
+				->orderBy('created_at', 'asc')
+				->limit(200)
+				->get();
+			// Mark as read all messages from the other user to me
+			try { \App\Models\Message::where('from_id', $user->id)->where('to_id', $me->id)->whereNull('read_at')->update(['read_at' => now()]); } catch (\Throwable $_) {}
+			$items = $messages->map(function($m){
+				return [
+					'id' => $m->id,
+					'from_id' => (int) $m->from_id,
+					'to_id' => (int) $m->to_id,
+					'body' => (string) $m->body,
+					'created_at' => $m->created_at ? $m->created_at->toIso8601String() : null,
+					'read_at' => $m->read_at ? $m->read_at->toIso8601String() : null,
+				];
+			});
+			return response()->json(['ok' => true, 'messages' => $items]);
+		} catch (\Throwable $e) {
+			return response()->json(['ok' => false, 'error' => 'thread_error'], 500);
+		}
+	})->name('messages.thread');
+
+	// Send a new message to a specific user (JSON)
+	Route::post('/messages/thread/{user}', function(\Illuminate\Http\Request $r, \App\Models\User $user){
+		$me = auth()->user();
+		$body = (string) $r->input('body', '');
+		$body = trim($body);
+		if ($body === '') return response()->json(['ok' => false, 'error' => 'empty'], 422);
+		try {
+			$msg = new \App\Models\Message();
+			$msg->from_id = $me->id;
+			$msg->to_id = $user->id;
+			$msg->body = mb_substr($body, 0, 4000);
+			$msg->save();
+			// Broadcast event if available (non-fatal if it fails)
+			try { event(new \App\Events\MessageSent($msg)); } catch (\Throwable $_) { }
+			$payload = [
+				'id' => $msg->id,
+				'from_id' => (int) $msg->from_id,
+				'to_id' => (int) $msg->to_id,
+				'body' => (string) $msg->body,
+				'created_at' => $msg->created_at ? $msg->created_at->toIso8601String() : null,
+				'read_at' => $msg->read_at ? $msg->read_at->toIso8601String() : null,
+			];
+			return response()->json(['ok' => true, 'message' => $payload]);
+		} catch (\Throwable $e) {
+			return response()->json(['ok' => false, 'error' => 'send_error'], 500);
+		}
+	})->name('messages.thread.send');
+
 	// JSON: accepted friends list with last message snippet for sorting/rendering in Chat hub
 	Route::get('/friends/list', function(){
 		$me = auth()->user();
