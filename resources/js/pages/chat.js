@@ -182,9 +182,150 @@ export function init() {
 	_handlers.onRtMessage = function (ev) { try { const d = ev.detail; if (!d) return; const fromId = String(d.from_id); if (String(_state.currentPartnerId) === fromId) { appendMessageToChat({ id: d.id, from_id: d.from_id, body: d.body, created_at: d.created_at }); try { fetch(`/messages/thread/${encodeURIComponent(_state.currentPartnerId)}?ajax=1`, { headers: { 'Accept': 'application/json' } }); } catch (_) { } } const contactBtn = document.querySelector('.contact-item[data-user-id="' + fromId + '"]'); if (contactBtn) { let badge = contactBtn.querySelector('.badge'); if (!badge) { badge = document.createElement('span'); badge.className = 'badge text-bg-primary small'; badge.textContent = 'Nuevo'; contactBtn.appendChild(badge); } _els.contactsList.prepend(contactBtn); } } catch (_) { } }; window.addEventListener('rt:message', _handlers.onRtMessage);
 	_handlers.onPresence = function (ev) { try { const d = ev.detail; if (d && d.user_id) setPresenceDot(d.user_id, d.status || 'offline'); } catch (_) { } }; window.addEventListener('rt:user_presence', _handlers.onPresence);
 	if (_els.chatPartnerName) { _els.chatPartnerName.style.cursor = 'pointer'; _handlers.onPartnerClick = function () { if (_state.currentPartnerId) openProfileModal(_state.currentPartnerId, _els.chatPartnerName.textContent || 'Usuario'); }; _els.chatPartnerName.addEventListener('click', _handlers.onPartnerClick); }
+
+	// Support the Chat hub's "Añadir contacto" button even when PJAX swaps content
+	try {
+		const gotoBtn = document.getElementById('goto-search');
+		if (gotoBtn) {
+			_handlers.onGotoSearch = function() {
+				try {
+					const input = document.getElementById('friend-search');
+					if (!input) return;
+					if (typeof input.scrollIntoView === 'function') {
+						input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+					}
+					try { input.focus(); } catch (_) {}
+				} catch (_) {}
+			};
+			gotoBtn.addEventListener('click', _handlers.onGotoSearch);
+		}
+	} catch (_) { }
+
+	// Integrated friends management (search + incoming/outgoing)
+	(function setupFriendsArea(){
+		const tokenMeta = document.querySelector('meta[name="csrf-token"]');
+		const csrf = tokenMeta ? tokenMeta.getAttribute('content') : null;
+		const incomingList = document.getElementById('incoming-list');
+		const outgoingList = document.getElementById('outgoing-list');
+		const incomingCount = document.getElementById('incoming-count');
+		const outgoingCount = document.getElementById('outgoing-count');
+		const friendSearch = document.getElementById('friend-search');
+		const friendSearchResults = document.getElementById('friend-search-results');
+
+		if (!incomingList && !outgoingList && !friendSearch) return;
+
+		function escapeHtml(s){ if(!s) return ''; return String(s).replace(/[&<>"'`=\/]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;','/':'&#x2F;','`':'&#x60;','=':'&#x3D;'}[c]; }); }
+
+		async function refreshCounters(){
+			try { const r = await fetch('/api/counters'); const j = await r.json(); if(!j.ok) return; document.dispatchEvent(new CustomEvent('counters:update',{detail:j})); } catch(_){ }
+		}
+
+		async function loadIncoming(){
+			if(!incomingList) return;
+			try{
+				const r = await fetch('/friend/requests/pending');
+				const j = await r.json();
+				incomingList.innerHTML = '';
+				if(!j.ok || !j.requests?.length){
+					incomingList.innerHTML = '<div class="list-group-item text-muted small">Sin solicitudes.</div>';
+					if (incomingCount) incomingCount.textContent='0';
+					return;
+				}
+				if (incomingCount) incomingCount.textContent = String(j.requests.length);
+				j.requests.forEach(n => {
+					const div = document.createElement('div'); div.className='list-group-item d-flex justify-content-between align-items-center';
+					div.innerHTML = `<div><div class='fw-semibold'>${escapeHtml(n.from.name)}</div><div class='text-muted small'>(nueva)</div></div><div class='btn-group btn-group-sm'><button class='btn btn-success btn-accept' data-id='${n.id}'>Aceptar</button><button class='btn btn-outline-danger btn-rechazar' data-id='${n.id}'>Rechazar</button></div>`;
+					incomingList.appendChild(div);
+				});
+			}catch(_){ }
+		}
+
+		async function loadOutgoing(){
+			if(!outgoingList) return;
+			try{
+				const r = await fetch('/friend/requests/outgoing');
+				const j = await r.json();
+				outgoingList.innerHTML = '';
+				if(!j.ok || !j.requests?.length){
+					outgoingList.innerHTML = '<div class="list-group-item text-muted small">Ninguna.</div>';
+					if (outgoingCount) outgoingCount.textContent = '0';
+					return;
+				}
+				if (outgoingCount) outgoingCount.textContent = String(j.requests.length);
+				j.requests.forEach(n => {
+					const div = document.createElement('div'); div.className='list-group-item d-flex justify-content-between align-items-center';
+					div.innerHTML = `<div><div class='fw-semibold'>${escapeHtml(n.to.name)}</div><div class='text-muted small'>(enviada)</div></div><span class='badge text-bg-warning'>Pendiente</span>`;
+					outgoingList.appendChild(div);
+				});
+			}catch(_){ }
+		}
+
+		if (incomingList) {
+			_handlers.onIncomingClick = async function(e){
+				const t = e.target; if (!t) return; const id = t.getAttribute('data-id'); if(!id) return;
+				if (t.classList.contains('btn-accept')){
+					try { const r = await fetch(`/friend/request/${id}/accept`, { method:'POST', headers: csrf ? {'X-CSRF-TOKEN': csrf} : {} }); const j = await r.json(); if (j.ok) { window.modalNotification?.('Amistad aceptada','Ahora son amigos',{template:'success'}); loadIncoming(); refreshCounters(); } } catch(_){ }
+				}
+				if (t.classList.contains('btn-reject') || t.classList.contains('btn-rechazar')){
+					try { const r = await fetch(`/friend/request/${id}/reject`, { method:'POST', headers: csrf ? {'X-CSRF-TOKEN': csrf} : {} }); const j = await r.json(); if (j.ok) { window.modalNotification?.('Solicitud rechazada','Se ha descartado la solicitud',{template:'info'}); loadIncoming(); refreshCounters(); } } catch(_){ }
+				}
+			};
+			incomingList.addEventListener('click', _handlers.onIncomingClick);
+		}
+
+		if (friendSearch && friendSearchResults) {
+			_handlers.onFriendSearch = function(){
+				const v = this.value.trim();
+				if (!v) { friendSearchResults.innerHTML = ''; return; }
+				(async function search(q){
+					try{
+						const res = await fetch(`/friends/search?q=${encodeURIComponent(q)}`);
+						const j = await res.json();
+						friendSearchResults.innerHTML = '';
+						if (!j.ok) return;
+						if (!j.results.length) { friendSearchResults.innerHTML = '<div class="list-group-item text-muted">Sin resultados</div>'; return; }
+						j.results.forEach(u => {
+							const a = document.createElement('button'); a.type='button'; a.className='list-group-item list-group-item-action d-flex justify-content-between align-items-center';
+							a.innerHTML = `<span><strong>${escapeHtml(u.name)}</strong><br><span class='text-muted small'>${escapeHtml(u.email)}</span></span><span class='badge text-bg-primary'>+</span>`;
+							a.addEventListener('click', async ()=>{
+								try{
+									const r = await fetch(`/friend/${u.id}/request`, { method:'POST', headers: csrf ? {'X-CSRF-TOKEN': csrf} : {} });
+									const jj = await r.json();
+									if (jj.ok) { window.modalNotification?.('Solicitud enviada', u.name, {template:'success'}); a.remove(); loadIncoming(); loadOutgoing(); refreshCounters(); }
+								}catch(_){ }
+							});
+							friendSearchResults.appendChild(a);
+						});
+					}catch(_){ }
+				})(v);
+			};
+			friendSearch.addEventListener('input', _handlers.onFriendSearch);
+		}
+
+		_handlers.onRtFriendRequest = function(){ loadIncoming(); refreshCounters(); };
+		_handlers.onRtFriendAccepted = function(){ loadIncoming(); refreshCounters(); };
+		window.addEventListener('rt:friend_request', _handlers.onRtFriendRequest);
+		window.addEventListener('rt:friend_request_accepted', _handlers.onRtFriendAccepted);
+
+		loadIncoming();
+		loadOutgoing();
+	})();
 }
 
 export function destroy() {
-	try { _els.contactsList?.removeEventListener('click', _handlers.onContactClick); } catch (_) { } try { _els.chatSendForm?.removeEventListener('submit', _handlers.onSend); } catch (_) { } try { _els.searchInput?.removeEventListener('input', _handlers.onSearch); } catch (_) { } try { _els.chatClose?.removeEventListener('click', _handlers.onClose); } catch (_) { } try { window.removeEventListener('rt:message', _handlers.onRtMessage); } catch (_) { } try { window.removeEventListener('rt:user_presence', _handlers.onPresence); } catch (_) { } try { if (_handlers.stopPresencePolling) _handlers.stopPresencePolling(); } catch (_) { } try { if (_handlers.onPartnerClick && _els.chatPartnerName) _els.chatPartnerName.removeEventListener('click', _handlers.onPartnerClick); } catch (_) { }
+	try { _els.contactsList?.removeEventListener('click', _handlers.onContactClick); } catch (_) { }
+	try { _els.chatSendForm?.removeEventListener('submit', _handlers.onSend); } catch (_) { }
+	try { _els.searchInput?.removeEventListener('input', _handlers.onSearch); } catch (_) { }
+	try { _els.chatClose?.removeEventListener('click', _handlers.onClose); } catch (_) { }
+	try { window.removeEventListener('rt:message', _handlers.onRtMessage); } catch (_) { }
+	try { window.removeEventListener('rt:user_presence', _handlers.onPresence); } catch (_) { }
+	try { if (_handlers.stopPresencePolling) _handlers.stopPresencePolling(); } catch (_) { }
+	try { if (_handlers.onPartnerClick && _els.chatPartnerName) _els.chatPartnerName.removeEventListener('click', _handlers.onPartnerClick); } catch (_) { }
+	// Friends area teardown
+	try { const inc = document.getElementById('incoming-list'); if (inc && _handlers.onIncomingClick) inc.removeEventListener('click', _handlers.onIncomingClick); } catch (_){ }
+	try { const fs = document.getElementById('friend-search'); if (fs && _handlers.onFriendSearch) fs.removeEventListener('input', _handlers.onFriendSearch); } catch (_){ }
+	try { window.removeEventListener('rt:friend_request', _handlers.onRtFriendRequest); } catch (_){ }
+	try { window.removeEventListener('rt:friend_request_accepted', _handlers.onRtFriendAccepted); } catch (_){ }
+	try { const b = document.getElementById('goto-search'); if (b && _handlers.onGotoSearch) b.removeEventListener('click', _handlers.onGotoSearch); } catch (_) { }
 	_state.currentPartnerId = null; _state.renderedMessageIds = new Set(); _els = {}; _handlers = {}; _presenceInterval = null;
 }

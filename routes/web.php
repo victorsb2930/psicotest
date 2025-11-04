@@ -671,9 +671,23 @@ Route::middleware('auth')->group(function(){
 	Route::post('/appointments/{appointment}/reject', [\App\Http\Controllers\AppointmentController::class, 'reject'])->name('appointments.patient.reject');
 
 	// Simple messaging (user to user)
-	Route::get('/messages', [\App\Http\Controllers\MessagesController::class, 'index'])->name('messages.index');
+	// Consolidate UI at /chat; keep thread/send APIs. Redirect legacy /messages to the chat hub.
+	Route::get('/messages', function(){ return redirect()->route('chat.index'); })->name('messages.index');
 	Route::get('/messages/thread/{user}', [\App\Http\Controllers\MessagesController::class, 'thread'])->name('messages.thread');
 	Route::post('/messages/thread/{user}', [\App\Http\Controllers\MessagesController::class, 'send'])->name('messages.send');
+
+	// Unified chat hub (combines conversations + friends UI)
+	Route::get('/chat', function(){
+		$userId = auth()->id();
+		$lastMessages = \App\Models\Message::with(['from','to'])
+			->where(function($q) use ($userId){ $q->where('from_id', $userId)->orWhere('to_id', $userId); })
+			->orderBy('created_at','desc')
+			->limit(100)
+			->get()
+			->unique(function($m){ return $m->from_id === auth()->id() ? $m->to_id : $m->from_id; })
+			->values();
+		return view('chat.index', compact('lastMessages'));
+	})->name('chat.index');
 
 	// RTC/ConnectyCube bootstrap endpoints (authenticated)
 	Route::get('/rtc/config', function(){
@@ -842,8 +856,71 @@ Route::middleware('auth')->group(function(){
 	Route::post('/friend/request/{requestModel}/reject', [\App\Http\Controllers\FriendRequestController::class, 'reject'])->name('friend.request.reject');
 	Route::get('/friend/requests/pending', [\App\Http\Controllers\FriendRequestController::class, 'pending'])->name('friend.requests.pending');
 	// Friends list & search
-	Route::get('/friends', [\App\Http\Controllers\FriendsController::class, 'index'])->name('friends.index');
+	// Legacy friends page: redirect to unified chat hub
+	Route::get('/friends', function(){ return redirect()->route('chat.index'); });
 	Route::get('/friends/search', [\App\Http\Controllers\FriendsController::class, 'search'])->name('friends.search');
+
+	// Outgoing friend requests (for unified chat hub)
+	Route::get('/friend/requests/outgoing', function(){
+		$u = auth()->user();
+		try {
+			if (!\Illuminate\Support\Facades\Schema::hasTable('friend_requests')) {
+				return response()->json(['ok'=>true,'requests'=>[]]);
+			}
+			$rows = \App\Models\FriendRequest::with('to')
+				->where('from_id', $u->id)
+				->where('status','pending')
+				->latest()
+				->limit(50)
+				->get();
+			$requests = $rows->map(function($r){
+				return [
+					'id' => (int)$r->id,
+					'to' => $r->to ? [ 'id'=>(int)$r->to->id, 'name'=>$r->to->name, 'email'=>$r->to->email ] : null,
+				];
+			});
+			return response()->json(['ok'=>true,'requests'=>$requests]);
+		} catch (\Throwable $e) {
+			return response()->json(['ok'=>false,'error'=>'server'], 500);
+		}
+	})->name('friend.requests.outgoing');
+
+	// Create a new friend request
+	Route::post('/friend/{user}/request', function(\App\Models\User $user){
+		$me = auth()->user();
+		if ($me->id === $user->id) { return response()->json(['ok'=>false,'error'=>'self'], 422); }
+		try {
+			if (!\Illuminate\Support\Facades\Schema::hasTable('friend_requests')) {
+				return response()->json(['ok'=>false,'error'=>'unavailable'], 503);
+			}
+			// Optional role gating: allow only user<->professional (2<->3) if roles table is present
+			try {
+				$myRoles = method_exists($me, 'roles') ? $me->roles()->pluck('id')->map(fn($i)=>(int)$i)->toArray() : [];
+				$targetRoles = method_exists($user, 'roles') ? $user->roles()->pluck('id')->map(fn($i)=>(int)$i)->toArray() : [];
+				$is2 = in_array(2, $myRoles, true); $is3 = in_array(3, $myRoles, true);
+				$targetIs2 = in_array(2, $targetRoles, true); $targetIs3 = in_array(3, $targetRoles, true);
+				if (($is2 && !$targetIs3) || ($is3 && !$targetIs2)) {
+					return response()->json(['ok'=>false,'error'=>'role_mismatch'], 403);
+				}
+			} catch (\Throwable $_) { /* ignore gating if roles absent */ }
+
+			// Prevent duplicates (pending either direction)
+			$exists = \App\Models\FriendRequest::where(function($q) use ($me,$user){
+				$q->where([['from_id',$me->id],['to_id',$user->id]])
+				 ->orWhere([['from_id',$user->id],['to_id',$me->id]]);
+			})->where('status','pending')->exists();
+			if ($exists) { return response()->json(['ok'=>true,'duplicate'=>true]); }
+
+			\App\Models\FriendRequest::create([
+				'from_id' => $me->id,
+				'to_id' => $user->id,
+				'status' => 'pending',
+			]);
+			return response()->json(['ok'=>true]);
+		} catch (\Throwable $e) {
+			return response()->json(['ok'=>false,'error'=>'server'], 500);
+		}
+	})->name('friend.request.create');
 });
 
 	// Simple JSON endpoints for AJAX notifications polling and marking

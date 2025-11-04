@@ -11,8 +11,7 @@ export default defineConfig(({ mode }) => ({
 				// CSS PAGES
 				'resources/css/loginRegister.css',
 				'resources/css/layout.css',
-				'resources/css/admin.css',
-				'resources/css/pages/messages.css'
+				'resources/css/admin.css'
 			],
 			refresh: true,
 		}),

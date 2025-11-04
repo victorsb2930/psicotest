@@ -137,6 +137,16 @@
 			border-radius: 0;
 		}
 
+		/* Apply same visual to mobile offcanvas menu */
+		#leftmenu-offcanvas .card {
+			background: linear-gradient(90deg, var(--brand-600) 0%, var(--brand-500) 60%, var(--brand-400) 100%);
+			background-color: var(--brand-600);
+			color: var(--brand-100);
+			border: 0;
+			box-shadow: none;
+			border-radius: 0;
+		}
+
 		#left-menu .card .card-body {
 			padding: 1rem;
 		}
@@ -461,6 +471,13 @@
 	<header class="site-header py-3 mb-0 border-bottom w-100"
 		style="background: linear-gradient(90deg, var(--brand-600) 0%, var(--brand-500) 60%, var(--brand-400) 100%); background-color: var(--brand-600);">
 	<div class="container-fluid d-flex align-items-center justify-content-between">
+			{{-- Mobile left menu toggle --}}
+			<button class="btn btn-ghost btn-sm d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#leftMenuOffcanvas" aria-controls="leftMenuOffcanvas" aria-label="Abrir menú">
+				<i class="bi bi-list"></i>
+				<span class="ms-1">Menú</span>
+			</button>
+
+			{{-- Brand link --}}
 			<a href="{{ auth()->check() ? ( auth()->user()->hasRole('admin') ? '/adminarea' : (auth()->user()->hasRole('professional') ? '/professionalarea' : '/userarea') ) : '/' }}"
 				class="brand d-flex align-items-center mb-0 text-white text-decoration-none">
 				<img src="{{ Vite::asset('resources/images/p.png') }}" alt="Logo" width="40" height="32" class="me-2 align-self-center nav-brand-img">
@@ -605,6 +622,17 @@
 			</ul>
 		</div>
 	</header>
+
+	{{-- Offcanvas mobil para el menú lateral (visible solo en pantallas pequeñas) --}}
+	<div class="offcanvas offcanvas-start d-lg-none" tabindex="-1" id="leftMenuOffcanvas" aria-labelledby="leftMenuOffcanvasLabel">
+		<div class="offcanvas-header">
+			<h5 class="offcanvas-title" id="leftMenuOffcanvasLabel">Menú</h5>
+			<button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
+		</div>
+		<div class="offcanvas-body" id="leftmenu-offcanvas">
+			@include('components.leftmenu_content')
+		</div>
+	</div>
 	@endif
 
 	<main class="flex-grow-1 bg-brand-soft">
@@ -849,6 +877,22 @@
 			document.querySelectorAll('.presence-submenu, .presence-submenu .presence-select').forEach(function(el){
 				el.addEventListener('click', function(evt){ evt.stopPropagation(); });
 			});
+		});
+	</script>
+	<script>
+		// Mobile offcanvas UX: close the menu when a nav link is clicked
+		document.addEventListener('DOMContentLoaded', function(){
+			var ocEl = document.getElementById('leftMenuOffcanvas');
+			if (!ocEl) return;
+			var closeOnClick = function(e){
+				try {
+					if (window.bootstrap && typeof window.bootstrap.Offcanvas === 'function') {
+						var inst = window.bootstrap.Offcanvas.getInstance(ocEl) || new window.bootstrap.Offcanvas(ocEl);
+						inst.hide();
+					}
+				} catch (_) { /* noop */ }
+			};
+			ocEl.querySelectorAll('a.nav-link').forEach(function(a){ a.addEventListener('click', closeOnClick); });
 		});
 	</script>
 </body>

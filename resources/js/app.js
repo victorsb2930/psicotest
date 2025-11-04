@@ -33,7 +33,7 @@ const pageModuleMap = {
 	,'user-appointments': './pages/user.appointments.js'
 	,'professionals-search': './pages/professionals.search.js'
 	,'plans': './components/plans.js'
-	,'messages': './pages/messages.js'
+	,'chat': './pages/chat.js'
 };
 
 async function initPage() {
