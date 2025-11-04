@@ -9,6 +9,10 @@ import RtcUI from './rtc-ui';
 	let localStream = null;
 	let currentSession = null;
 
+	function isAuthed() {
+		try { return !!window.__authUserId; } catch (_) { return false; }
+	}
+
 	function ccConfigOk() {
 		// Solo validamos credenciales de app y la identidad del usuario; la contraseña puede omitirse si usamos token de sesión
 		try { const c = window.__ccConfig; const u = window.__ccUser; return !!(c && c.appId && c.authKey && u && (u.userId || u.login)); } catch (_) { return false; }
@@ -232,6 +236,8 @@ import RtcUI from './rtc-ui';
 	}
 
 	async function start() {
+		// Do not attempt to bootstrap RTC for guests; endpoints require auth and would 401
+		if (!isAuthed()) { try { window.__rtcBootstrapReady = false; } catch (_) { } return; }
 		try { window.__rtcBootstrapReady = false; } catch (_) { }
 		const p = (async () => {
 			const ok = await bootstrap();
@@ -248,10 +254,10 @@ import RtcUI from './rtc-ui';
 
 	// Start immediately to avoid missing DOMContentLoaded (e.g., with PJAX or late load)
 	try {
-		if (!window.__rtcBootstrapPromise) start();
-	} catch (_) { start(); }
+		if (!window.__rtcBootstrapPromise && isAuthed()) start();
+	} catch (_) { if (isAuthed()) start(); }
 	// Also start on DOMContentLoaded as a fallback when scripts are bundled differently
-	document.addEventListener('DOMContentLoaded', () => { try { if (!window.__rtcBootstrapPromise) start(); } catch (_) { } });
+	document.addEventListener('DOMContentLoaded', () => { try { if (!window.__rtcBootstrapPromise && isAuthed()) start(); } catch (_) { } });
 	// Expose global helper to avoid duplicating media access logic per page
 	try { window.__rtcGetLocalStream = ensureLocalStream; } catch (_) { }
 })();
