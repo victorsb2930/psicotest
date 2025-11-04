@@ -166,9 +166,31 @@ async function makeVideoCall(appUserId) {
 export function init() {
 	_els = { contactsList: el('contacts-list'), searchInput: el('contacts-search'), chatPanel: el('chat-panel'), chatEmpty: el('chat-empty'), chatContainer: el('chat-container'), chatMessages: el('chat-messages'), chatSendForm: el('chat-send-form'), chatPartnerName: el('chat-partner-name'), chatPartnerPresence: el('chat-partner-presence'), chatClose: el('chat-close') };
 	if (!_els.contactsList || !_els.chatMessages) return;
+	// Fast-filter bookkeeping: keep a cached list and lowercase fields to avoid repeated DOM reads
+	const _filter = { items: [], tId: null };
+	const rebuildFilterIndex = () => {
+		try {
+			_filter.items = Array.from(_els.contactsList.querySelectorAll('.contact-item'));
+			_filter.items.forEach(it => {
+				if (!it.dataset.nameLc) {
+					const nm = (it.getAttribute('data-user-name') || it.querySelector('.fw-semibold')?.textContent || '').toLowerCase();
+					it.dataset.nameLc = nm;
+				}
+				if (!it.dataset.lastLc) {
+					const truncs = it.querySelectorAll('.text-truncate');
+					const msg = truncs && truncs.length ? (truncs[truncs.length - 1].textContent || '') : '';
+					it.dataset.lastLc = msg.toLowerCase();
+				}
+			});
+		} catch (_) { }
+	};
 	try { document.querySelectorAll('.presence-dot-small').forEach(el => { applyPresenceToDot(el, 'offline'); }); } catch (_) { }
 	try { document.querySelectorAll('.contact-item').forEach(it => { const uid = it.getAttribute('data-user-id'); if (uid) hydrateContact(uid); }); } catch (_) { }
-	function startPresencePolling() { if (_presenceInterval) return; const PERIOD = 20000; const tick = async () => { try { const ids = Array.from(document.querySelectorAll('.contact-item')).map(it => it.getAttribute('data-user-id')).filter(Boolean); const unique = Array.from(new Set(ids)); await Promise.all(unique.map(uid => hydrateContact(uid))); } catch (_) { } }; tick(); _presenceInterval = setInterval(tick, PERIOD); } function stopPresencePolling() { try { if (_presenceInterval) { clearInterval(_presenceInterval); _presenceInterval = null; } } catch (_) { } } _handlers.stopPresencePolling = stopPresencePolling; startPresencePolling();
+	function startPresencePolling() { if (_presenceInterval) return; const PERIOD = 20000; const tick = async () => { try { const ids = Array.from(document.querySelectorAll('.contact-item')).map(it => it.getAttribute('data-user-id')).filter(Boolean); const unique = Array.from(new Set(ids)); await Promise.all(unique.map(uid => hydrateContact(uid))); } catch (_) { } }; tick(); _presenceInterval = setInterval(tick, PERIOD); }
+	function stopPresencePolling() { try { if (_presenceInterval) { clearInterval(_presenceInterval); _presenceInterval = null; } } catch (_) { } }
+	_handlers.startPresencePolling = startPresencePolling;
+	_handlers.stopPresencePolling = stopPresencePolling;
+	startPresencePolling();
 	// Precalentar mapeo CC para contactos visibles
 	try {
 		const ids = Array.from(new Set(Array.from(document.querySelectorAll('.contact-item')).map(it => it.getAttribute('data-user-id')).filter(Boolean)));
@@ -200,6 +222,9 @@ export function init() {
 				btn.className = 'list-group-item list-group-item-action contact-item d-flex justify-content-between align-items-center';
 				btn.setAttribute('data-user-id', String(f.id));
 				btn.setAttribute('data-user-name', f.name || 'Usuario');
+				// Cache lowercase strings for fast filtering
+				btn.dataset.nameLc = nameL;
+				btn.dataset.lastLc = lastL;
 				if (current && String(f.id) === current) btn.classList.add('active');
 				const avatar = f.profile_photo || (window.__defaultAvatar || '');
 				btn.innerHTML = `
@@ -222,6 +247,9 @@ export function init() {
 			} else {
 				_els.contactsList.appendChild(frag);
 			}
+			// Rebuild fast-filter index and re-apply if a query is present
+			rebuildFilterIndex();
+			try { if (_els.searchInput && _els.searchInput.value) { _handlers.applyFilter?.(); } } catch(_){}
 			// Pre-warm CC map and hydrate presence for new DOM
 			try { prewarmCcMap(ids); } catch (_) { }
 			try { await Promise.all(ids.map(hydrateContact)); } catch (_) { }
@@ -232,7 +260,56 @@ export function init() {
 	_els.contactsList.addEventListener('click', _handlers.onContactClick);
 	_handlers.onSend = async function (e) { e.preventDefault(); if (!_els.chatSendForm) return; const fd = new FormData(_els.chatSendForm); const body = (fd.get('body') || '').toString().trim(); if (!body) return; const tempId = 't' + Date.now() + Math.floor(Math.random() * 1000); appendMessageToChat({ from_id: getAuthId(), body: body, created_at: new Date().toISOString() }, { tempId }); try { _els.chatSendForm.querySelector('[name=body]').value = ''; } catch (_) { } try { const res = await fetch(`/messages/thread/${encodeURIComponent(_state.currentPartnerId)}`, { method: 'POST', headers: { 'X-CSRF-TOKEN': fd.get('_token') }, body: fd }); const j = await res.json(); if (j.ok && j.message) { const tempEl = _els.chatMessages.querySelector('[data-temp-id="' + tempId + '"]'); if (tempEl) tempEl.remove(); appendMessageToChat(j.message); try { await fetch('/api/counters').then(r => r.json()).then(d => document.dispatchEvent(new CustomEvent('counters:update', { detail: d }))); } catch (_) { } } else { const tempEl = _els.chatMessages.querySelector('[data-temp-id="' + tempId + '"]'); if (tempEl) tempEl.querySelector('.d-inline-block')?.classList.add('bg-danger', 'text-white'); } } catch (err) { const tempEl = _els.chatMessages.querySelector('[data-temp-id="' + tempId + '"]'); if (tempEl) tempEl.querySelector('.d-inline-block')?.classList.add('bg-danger', 'text-white'); } };
 	_els.chatSendForm?.addEventListener('submit', _handlers.onSend);
-	_handlers.onSearch = function () { const q = (this.value || '').toLowerCase().trim(); document.querySelectorAll('.contact-item').forEach(it => { const name = (it.querySelector('.fw-semibold')?.textContent || '').toLowerCase(); const msg = (it.querySelector('.text-truncate')?.textContent || '').toLowerCase(); it.style.display = (!q || name.indexOf(q) !== -1 || msg.indexOf(q) !== -1) ? '' : 'none'; }); }; _els.searchInput?.addEventListener('input', _handlers.onSearch);
+	// Fast, debounced contacts filter using cached dataset fields, batched to avoid layout thrash
+	_handlers.applyFilter = function () {
+		const q = (_els.searchInput?.value || '').toLowerCase().trim();
+		const list = _els.contactsList;
+		if (!list) return;
+		const items = (_filter.items && _filter.items.length) ? _filter.items : Array.from(list.querySelectorAll('.contact-item'));
+		// Hide container to minimize reflow while toggling many rows
+		const prevDisplay = list.style.display;
+		list.style.display = 'none';
+		let visible = 0;
+		for (const it of items) {
+			const name = it.dataset?.nameLc || '';
+			const last = it.dataset?.lastLc || '';
+			const show = (!q || name.includes(q) || last.includes(q));
+			if (show) { visible++; if (it.classList.contains('d-none')) it.classList.remove('d-none'); }
+			else { if (!it.classList.contains('d-none')) it.classList.add('d-none'); }
+		}
+		// Toggle placeholder for no matches
+		let empty = list.querySelector('#contacts-no-matches');
+		if (visible === 0) {
+			if (!empty) {
+				empty = document.createElement('div');
+				empty.id = 'contacts-no-matches';
+				empty.className = 'text-muted small px-2 py-1';
+				empty.textContent = 'Sin contactos coincidentes.';
+				list.appendChild(empty);
+			}
+		} else if (empty) {
+			try { empty.remove(); } catch (_) { }
+		}
+		list.style.display = prevDisplay || '';
+	};
+	_handlers.onSearch = function () {
+		// Pause background polling while typing to avoid contention
+		try { _handlers.stopPresencePolling?.(); } catch (_) {}
+		try { _handlers.stopFriendsPolling?.(); } catch (_) {}
+		try { if (_filter.tId) clearTimeout(_filter.tId); } catch (_) {}
+		_filter.tId = setTimeout(() => {
+			_handlers.applyFilter();
+			// Resume polling shortly after applying filter
+			setTimeout(() => {
+				try { _handlers.startPresencePolling?.(); } catch (_) {}
+				try { _handlers.startFriendsPolling?.(); } catch (_) {}
+			}, 400);
+		}, 80);
+	};
+	_els.searchInput?.addEventListener('input', _handlers.onSearch);
+	_els.searchInput?.addEventListener('compositionend', _handlers.onSearch);
+	// If input already has value on init (e.g., persisted by browser), build index and apply once
+	try { rebuildFilterIndex(); if (_els.searchInput && _els.searchInput.value) { _handlers.applyFilter(); } } catch(_){ }
 	_handlers.onClose = function () { closeChat(); }; _els.chatClose?.addEventListener('click', _handlers.onClose);
 	_handlers.onRtMessage = function (ev) { try { const d = ev.detail; if (!d) return; const fromId = String(d.from_id); if (String(_state.currentPartnerId) === fromId) { appendMessageToChat({ id: d.id, from_id: d.from_id, body: d.body, created_at: d.created_at }); try { fetch(`/messages/thread/${encodeURIComponent(_state.currentPartnerId)}?ajax=1`, { headers: { 'Accept': 'application/json' } }); } catch (_) { } } const contactBtn = document.querySelector('.contact-item[data-user-id="' + fromId + '"]'); if (contactBtn) { let badge = contactBtn.querySelector('.badge'); if (!badge) { badge = document.createElement('span'); badge.className = 'badge text-bg-primary small'; badge.textContent = 'Nuevo'; contactBtn.appendChild(badge); } _els.contactsList.prepend(contactBtn); } } catch (_) { } }; window.addEventListener('rt:message', _handlers.onRtMessage);
 	_handlers.onPresence = function (ev) { try { const d = ev.detail; if (d && d.user_id) setPresenceDot(d.user_id, d.status || 'offline'); } catch (_) { } }; window.addEventListener('rt:user_presence', _handlers.onPresence);
@@ -417,6 +494,7 @@ export function init() {
 		function stopFriendsPolling() {
 			try { if (_friendsInterval) { clearInterval(_friendsInterval); _friendsInterval = null; } } catch (_) { }
 		}
+		_handlers.startFriendsPolling = startFriendsPolling;
 		_handlers.stopFriendsPolling = stopFriendsPolling;
 		startFriendsPolling();
 	})();
@@ -429,6 +507,7 @@ export function destroy() {
 	try { _els.contactsList?.removeEventListener('click', _handlers.onContactClick); } catch (_) { }
 	try { _els.chatSendForm?.removeEventListener('submit', _handlers.onSend); } catch (_) { }
 	try { _els.searchInput?.removeEventListener('input', _handlers.onSearch); } catch (_) { }
+	try { _els.searchInput?.removeEventListener('compositionend', _handlers.onSearch); } catch (_) { }
 	try { _els.chatClose?.removeEventListener('click', _handlers.onClose); } catch (_) { }
 	try { window.removeEventListener('rt:message', _handlers.onRtMessage); } catch (_) { }
 	try { window.removeEventListener('rt:user_presence', _handlers.onPresence); } catch (_) { }

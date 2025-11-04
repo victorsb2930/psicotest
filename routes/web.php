@@ -396,8 +396,8 @@ Route::middleware('auth')->group(function(){
 			}
 		}
 		$base = (string) ($user->status ?? '');
-		// If user explicitly set a non-offline status, honor it
-		if (in_array($base, ['online','busy','dnd','away'], true)) {
+		// Honor explicit user-set status, including 'offline'
+		if (in_array($base, ['online','busy','dnd','away','offline'], true)) {
 			$effective = $base;
 		} else {
 			// Otherwise, infer from recency
@@ -897,7 +897,8 @@ Route::middleware('auth')->group(function(){
 			elseif (!empty($user->photo)) $profilePhoto = '/storage/' . ltrim($user->photo, '/');
 		} catch (\Throwable $_) { $profilePhoto = null; }
 		$base = (string) ($user->status ?? '');
-		if (in_array($base, ['online','busy','dnd','away'], true)) {
+		// Honor explicit status including 'offline'
+		if (in_array($base, ['online','busy','dnd','away','offline'], true)) {
 			$status = $base;
 		} else {
 			$status = $recent ? 'online' : 'offline';
