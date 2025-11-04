@@ -1,0 +1,32 @@
+/* Chat page layout tweaks */
+
+/* Conversations list: reasonable viewport-based height */
+#contacts-list { max-height: 40vh; overflow: auto; }
+
+/* Tab panes for requests/search */
+.chat-pane { max-height: 38vh; overflow: auto; }
+
+/* Contacts section card layout and containment */
+.contacts-card .card-header { border-bottom: none; }
+.contacts-card .nav-tabs { margin: 0 .5rem; border-bottom: 1px solid rgba(0,0,0,.075); }
+.contacts-card .nav-tabs .nav-link { border: none; border-bottom: 2px solid transparent; }
+.contacts-card .nav-tabs .nav-link.active { border-color: var(--bs-primary); font-weight: 600; }
+.contacts-card .card-body { padding-top: .75rem; padding-bottom: .75rem; }
+.contacts-card .tab-content { position: relative; }
+.contacts-card .chat-pane {
+  border: 1px solid rgba(0,0,0,.075);
+  border-radius: .5rem;
+  background: #fff;
+  padding: .25rem 0;
+}
+.contacts-card .list-group-item { border: 0; border-bottom: 1px solid rgba(0,0,0,.05); }
+.contacts-card .list-group-item:last-child { border-bottom: 0; }
+
+/* On small screens, give a bit more room to panes */
+@media (max-width: 991.98px) {
+  #contacts-list { max-height: 32vh; }
+  .chat-pane { max-height: 32vh; }
+}
+
+/* Improve tab header spacing within card */
+#chat-tabs .nav-link { padding: .5rem .75rem; }
