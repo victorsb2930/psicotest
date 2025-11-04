@@ -50,11 +50,11 @@
 			</div>
 			</div>
 
-			{{-- Conversaciones --}}
+			{{-- Contactos --}}
 			<div class="card mb-3">
 				<div class="card-body">
 					<div class="d-flex justify-content-between align-items-center mb-2">
-						<strong>Conversaciones</strong>
+						<strong>Contactos</strong>
 						<input id="contacts-search" class="form-control form-control-sm ms-2" placeholder="Buscar"
 							style="width:140px">
 					</div>
@@ -104,6 +104,7 @@
 								<strong id="chat-partner-name"></strong>
 							</div>
 							<div class="btn-group btn-group-sm">
+								<button id="chat-voice-call" type="button" class="btn btn-outline-primary" title="Llamada de voz"><i class="bi bi-telephone"></i></button>
 								<button id="chat-video-call" type="button" class="btn btn-outline-primary"
 									title="Videollamada"><i class="bi bi-camera-video"></i></button>
 								<button id="chat-close" type="button" class="btn btn-outline-secondary"

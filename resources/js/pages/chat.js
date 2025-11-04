@@ -5,7 +5,7 @@ import RtcUI from '../rtc-ui';
 
 // Estado del módulo
 let _state = { currentPartnerId: null, renderedMessageIds: new Set() };
-let _els = {}; let _handlers = {}; let _presenceInterval = null;
+let _els = {}; let _handlers = {}; let _presenceInterval = null; let _friendsInterval = null;
 const PRESENCE = { labels: { online: 'Online', busy: 'Ocupado', dnd: 'No molestar', away: 'Ausente', offline: 'No disponible' }, colors: { online: '#28a745', busy: '#fd7e14', dnd: '#dc3545', away: '#ffc107', offline: '#6c757d' } };
 
 // Estado ConnectyCube/WebRTC
@@ -91,9 +91,9 @@ function applyPresenceToDot(dotEl, status) { if (!dotEl) return; try { const col
 function setPresenceDot(userId, status) { try { const e = document.querySelector('.presence-dot-small[data-user-id="' + userId + '"]'); applyPresenceToDot(e, status); } catch (_) { } }
 function setHeaderPresence(status) { try { applyPresenceToDot(_els.chatPartnerPresence, status); } catch (_) { } }
 
-function appendMessageToChat(msg, opts = {}) { if (msg.id && _state.renderedMessageIds.has(msg.id)) return; const AUTH_ID = getAuthId(); const isMine = String(msg.from_id) === String(AUTH_ID); const wrap = document.createElement('div'); wrap.className = 'msg mb-2 ' + (isMine ? 'text-end msg-me' : 'msg-other'); const bubble = document.createElement('div'); bubble.className = 'msg-bubble d-inline-block p-2 rounded ' + (isMine ? 'bg-primary text-white' : 'bg-light'); bubble.style.maxWidth = '70%'; bubble.style.whiteSpace = 'pre-wrap'; bubble.textContent = msg.body || ''; const meta = document.createElement('div'); meta.className = 'msg-meta small text-muted mt-1'; meta.textContent = msg.created_at ? (new Date(msg.created_at)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''; if (msg.id) { _state.renderedMessageIds.add(msg.id); wrap.dataset.msgId = msg.id; } if (opts.tempId) wrap.dataset.tempId = opts.tempId; wrap.appendChild(bubble); wrap.appendChild(meta); _els.chatMessages.appendChild(wrap); try { const threshold = 120; const atBottom = (_els.chatMessages.scrollHeight - _els.chatMessages.clientHeight - _els.chatMessages.scrollTop) < threshold; if (atBottom) _els.chatMessages.scrollTop = _els.chatMessages.scrollHeight; } catch (_) { _els.chatMessages.scrollTop = _els.chatMessages.scrollHeight; } }
+function appendMessageToChat(msg, opts = {}) { if (msg.id && _state.renderedMessageIds.has(msg.id)) return; const AUTH_ID = getAuthId(); const isMine = String(msg.from_id) === String(AUTH_ID); try { _els.chatMessages.classList.remove('is-empty'); } catch (_) { } const wrap = document.createElement('div'); wrap.className = 'msg mb-2 ' + (isMine ? 'text-end msg-me' : 'msg-other'); const bubble = document.createElement('div'); bubble.className = 'msg-bubble d-inline-block p-2 rounded ' + (isMine ? 'bg-primary text-white' : 'bg-light'); bubble.style.maxWidth = '70%'; bubble.style.whiteSpace = 'pre-wrap'; bubble.textContent = msg.body || ''; const meta = document.createElement('div'); meta.className = 'msg-meta small text-muted mt-1'; meta.textContent = msg.created_at ? (new Date(msg.created_at)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''; if (msg.id) { _state.renderedMessageIds.add(msg.id); wrap.dataset.msgId = msg.id; } if (opts.tempId) wrap.dataset.tempId = opts.tempId; wrap.appendChild(bubble); wrap.appendChild(meta); _els.chatMessages.appendChild(wrap); try { const threshold = 120; const atBottom = (_els.chatMessages.scrollHeight - _els.chatMessages.clientHeight - _els.chatMessages.scrollTop) < threshold; if (atBottom) _els.chatMessages.scrollTop = _els.chatMessages.scrollHeight; } catch (_) { _els.chatMessages.scrollTop = _els.chatMessages.scrollHeight; } }
 
-function openChatFor(userId, userName) { _state.currentPartnerId = userId; if (_els.chatPartnerName) _els.chatPartnerName.textContent = userName; if (_els.chatEmpty) _els.chatEmpty.style.display = 'none'; if (_els.chatContainer) _els.chatContainer.style.display = ''; if (_els.chatMessages) _els.chatMessages.innerHTML = ''; _state.renderedMessageIds = new Set(); (async () => { try { const res = await fetch(`/messages/thread/${encodeURIComponent(userId)}?ajax=1`, { headers: { 'Accept': 'application/json' } }); if (!res.ok) return; const j = await res.json(); if (!j.ok) return; j.messages.forEach(m => { if (!m || (m.id && _state.renderedMessageIds.has(m.id))) return; appendMessageToChat(m); }); try { await fetch(`/messages/thread/${encodeURIComponent(userId)}?ajax=1`, { headers: { 'Accept': 'application/json' } }); } catch (_) { } } catch (err) { } })(); }
+function openChatFor(userId, userName) { _state.currentPartnerId = userId; if (_els.chatPartnerName) _els.chatPartnerName.textContent = userName; if (_els.chatEmpty) _els.chatEmpty.style.display = 'none'; if (_els.chatContainer) _els.chatContainer.style.display = ''; if (_els.chatMessages) { _els.chatMessages.innerHTML = ''; try { _els.chatMessages.classList.add('is-empty'); } catch (_) { } } _state.renderedMessageIds = new Set(); (async () => { try { const res = await fetch(`/messages/thread/${encodeURIComponent(userId)}?ajax=1`, { headers: { 'Accept': 'application/json' } }); if (!res.ok) return; const j = await res.json(); if (!j.ok) return; if (!j.messages || !j.messages.length) { try { _els.chatMessages.classList.add('is-empty'); } catch (_) { } } else { j.messages.forEach(m => { if (!m || (m.id && _state.renderedMessageIds.has(m.id))) return; appendMessageToChat(m); }); } try { await fetch(`/messages/thread/${encodeURIComponent(userId)}?ajax=1`, { headers: { 'Accept': 'application/json' } }); } catch (_) { } } catch (err) { } })(); }
 
 function closeChat() { _state.currentPartnerId = null; if (_els.chatPartnerName) _els.chatPartnerName.textContent = ''; if (_els.chatContainer) _els.chatContainer.style.display = 'none'; if (_els.chatEmpty) _els.chatEmpty.style.display = ''; if (_els.chatMessages) _els.chatMessages.innerHTML = ''; }
 
@@ -134,7 +134,7 @@ async function openProfileModal(userId, userName) {
 					makeVideoCall(userId);
 				});
 			}
-			document.querySelectorAll(`${modalSel} .profile-action`).forEach(a => { const act = a.getAttribute('data-action'); if (act === 'video') return; a.addEventListener('click', function (e) { e.preventDefault(); const action = this.getAttribute('data-action'); if (action === 'photos') openFullscreenViewer(usable, 0); else modalNotification?.('Acción', action, { template: 'info' }); }); });
+			document.querySelectorAll(`${modalSel} .profile-action`).forEach(a => { const act = a.getAttribute('data-action'); if (act === 'video') return; a.addEventListener('click', function (e) { e.preventDefault(); const action = this.getAttribute('data-action'); if (action === 'photos') { openFullscreenViewer(usable, 0); } else if (action === 'call') { try { if (window.__rtcBootstrapPromise) window.__rtcBootstrapPromise.then(() => makeVoiceCall(userId)); else makeVoiceCall(userId); } catch (_) { makeVoiceCall(userId); } } else { modalNotification?.('Acción', action, { template: 'info' }); } }); });
 			document.querySelectorAll(`#profile-modal-${userId} img[data-photo-id]`).forEach((thumb) => { thumb.addEventListener('click', function () { const idx = Array.from(document.querySelectorAll(`#profile-modal-${userId} img[data-photo-id]`)).indexOf(this); openFullscreenViewer(usable, idx); }); });
 		}, 120);
 	} catch (_) { }
@@ -174,7 +174,62 @@ export function init() {
 		const ids = Array.from(new Set(Array.from(document.querySelectorAll('.contact-item')).map(it => it.getAttribute('data-user-id')).filter(Boolean)));
 		(async () => { try { if (window.__rtcBootstrapPromise) await window.__rtcBootstrapPromise; } catch (_) { }; prewarmCcMap(ids); })();
 	} catch (_) { }
-	_handlers.onContactClick = function (e) { const btn = e.target.closest && e.target.closest('.contact-item'); if (!btn) return; const uid = btn.getAttribute('data-user-id'); const uname = btn.getAttribute('data-user-name') || btn.querySelector('.fw-semibold')?.textContent || 'Usuario'; try { document.querySelectorAll('.contact-item.active').forEach(it => it.classList.remove('active')); btn.classList.add('active'); } catch (_) { } openChatFor(uid, uname); }; _els.contactsList.addEventListener('click', _handlers.onContactClick);
+	// Contacts loader (accepted friends)
+	function escapeHtml(s) { if (!s) return ''; return String(s).replace(/[&<>"'`=\/]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', '\'': '&#39;', '/': '&#x2F;', '`': '&#x60;', '=': '&#x3D;' }[c]; }); }
+	async function loadContacts() {
+		try {
+			const res = await fetch('/friends/list');
+			const j = await res.json(); if (!j.ok) return;
+			const current = String(_state.currentPartnerId || '');
+			_els.contactsList.innerHTML = '';
+			if (!j.friends || !j.friends.length) {
+				_els.contactsList.innerHTML = '<div class="text-muted small">Aún no tienes contactos.</div>';
+				return;
+			}
+			const frag = document.createDocumentFragment();
+			const ids = [];
+			const q = (_els.searchInput?.value || '').toLowerCase().trim();
+			let added = 0;
+			j.friends.forEach(f => {
+				const nameL = (f.name || '').toLowerCase();
+				const lastL = (f.last_body || '').toLowerCase();
+				if (q && (nameL.indexOf(q) === -1 && lastL.indexOf(q) === -1)) return; // skip non-matching while filtering
+				ids.push(String(f.id));
+				const btn = document.createElement('button');
+				btn.type = 'button';
+				btn.className = 'list-group-item list-group-item-action contact-item d-flex justify-content-between align-items-center';
+				btn.setAttribute('data-user-id', String(f.id));
+				btn.setAttribute('data-user-name', f.name || 'Usuario');
+				if (current && String(f.id) === current) btn.classList.add('active');
+				const avatar = f.profile_photo || (window.__defaultAvatar || '');
+				btn.innerHTML = `
+					<div class="d-flex align-items-start gap-2">
+						<img src="${avatar}" alt="avatar" width="36" height="36" class="rounded-circle" style="object-fit:cover;">
+						<div style="min-width:0">
+							<div class="fw-semibold text-truncate">${escapeHtml(f.name)}</div>
+							<div class="text-muted small text-truncate" style="max-width:160px">${escapeHtml(f.last_body || '')}</div>
+						</div>
+					</div>
+					<div>
+						<span class="presence-dot-small" data-user-id="${String(f.id)}" title="No disponible" style="width:10px;height:10px;border-radius:50%;background:#6c757d;display:inline-block;margin-top:6px;margin-right:8px"></span>
+						${f.unread ? '<span class="badge text-bg-primary small">Nuevo</span>' : ''}
+					</div>`;
+				frag.appendChild(btn);
+				added++;
+			});
+			if (added === 0) {
+				_els.contactsList.innerHTML = '<div class="text-muted small">Sin contactos coincidentes.</div>';
+			} else {
+				_els.contactsList.appendChild(frag);
+			}
+			// Pre-warm CC map and hydrate presence for new DOM
+			try { prewarmCcMap(ids); } catch (_) { }
+			try { await Promise.all(ids.map(hydrateContact)); } catch (_) { }
+		} catch (_) { }
+	}
+
+	_handlers.onContactClick = function (e) { const btn = e.target.closest && e.target.closest('.contact-item'); if (!btn) return; const uid = btn.getAttribute('data-user-id'); const uname = btn.getAttribute('data-user-name') || btn.querySelector('.fw-semibold')?.textContent || 'Usuario'; try { document.querySelectorAll('.contact-item.active').forEach(it => it.classList.remove('active')); btn.classList.add('active'); } catch (_) { } openChatFor(uid, uname); };
+	_els.contactsList.addEventListener('click', _handlers.onContactClick);
 	_handlers.onSend = async function (e) { e.preventDefault(); if (!_els.chatSendForm) return; const fd = new FormData(_els.chatSendForm); const body = (fd.get('body') || '').toString().trim(); if (!body) return; const tempId = 't' + Date.now() + Math.floor(Math.random() * 1000); appendMessageToChat({ from_id: getAuthId(), body: body, created_at: new Date().toISOString() }, { tempId }); try { _els.chatSendForm.querySelector('[name=body]').value = ''; } catch (_) { } try { const res = await fetch(`/messages/thread/${encodeURIComponent(_state.currentPartnerId)}`, { method: 'POST', headers: { 'X-CSRF-TOKEN': fd.get('_token') }, body: fd }); const j = await res.json(); if (j.ok && j.message) { const tempEl = _els.chatMessages.querySelector('[data-temp-id="' + tempId + '"]'); if (tempEl) tempEl.remove(); appendMessageToChat(j.message); try { await fetch('/api/counters').then(r => r.json()).then(d => document.dispatchEvent(new CustomEvent('counters:update', { detail: d }))); } catch (_) { } } else { const tempEl = _els.chatMessages.querySelector('[data-temp-id="' + tempId + '"]'); if (tempEl) tempEl.querySelector('.d-inline-block')?.classList.add('bg-danger', 'text-white'); } } catch (err) { const tempEl = _els.chatMessages.querySelector('[data-temp-id="' + tempId + '"]'); if (tempEl) tempEl.querySelector('.d-inline-block')?.classList.add('bg-danger', 'text-white'); } };
 	_els.chatSendForm?.addEventListener('submit', _handlers.onSend);
 	_handlers.onSearch = function () { const q = (this.value || '').toLowerCase().trim(); document.querySelectorAll('.contact-item').forEach(it => { const name = (it.querySelector('.fw-semibold')?.textContent || '').toLowerCase(); const msg = (it.querySelector('.text-truncate')?.textContent || '').toLowerCase(); it.style.display = (!q || name.indexOf(q) !== -1 || msg.indexOf(q) !== -1) ? '' : 'none'; }); }; _els.searchInput?.addEventListener('input', _handlers.onSearch);
@@ -183,26 +238,57 @@ export function init() {
 	_handlers.onPresence = function (ev) { try { const d = ev.detail; if (d && d.user_id) setPresenceDot(d.user_id, d.status || 'offline'); } catch (_) { } }; window.addEventListener('rt:user_presence', _handlers.onPresence);
 	if (_els.chatPartnerName) { _els.chatPartnerName.style.cursor = 'pointer'; _handlers.onPartnerClick = function () { if (_state.currentPartnerId) openProfileModal(_state.currentPartnerId, _els.chatPartnerName.textContent || 'Usuario'); }; _els.chatPartnerName.addEventListener('click', _handlers.onPartnerClick); }
 
+	// Wire call buttons (video + voice)
+	try {
+		const videoBtn = document.getElementById('chat-video-call');
+		const voiceBtn = document.getElementById('chat-voice-call');
+		if (videoBtn) {
+			_handlers.onVideoCall = function () {
+				if (!_state.currentPartnerId) { return modalNotification?.('Videollamada', 'Selecciona una conversación primero.', { template: 'info' }); }
+				makeVideoCall(_state.currentPartnerId);
+			};
+			videoBtn.addEventListener('click', _handlers.onVideoCall);
+		}
+		if (voiceBtn) {
+			_handlers.onVoiceCall = function () {
+				if (!_state.currentPartnerId) { return modalNotification?.('Llamada', 'Selecciona una conversación primero.', { template: 'info' }); }
+				makeVoiceCall(_state.currentPartnerId);
+			};
+			voiceBtn.addEventListener('click', _handlers.onVoiceCall);
+		}
+	} catch (_) { }
+
 	// Support the Chat hub's "Añadir contacto" button even when PJAX swaps content
 	try {
 		const gotoBtn = document.getElementById('goto-search');
 		if (gotoBtn) {
-			_handlers.onGotoSearch = function() {
+			_handlers.onGotoSearch = function () {
 				try {
+					const section = document.getElementById('contacts-section');
+					if (section) {
+						const inst = bootstrap.Collapse.getOrCreateInstance(section, { toggle: false });
+						if (section.classList.contains('show')) { inst.hide(); return; }
+						inst.show();
+					}
+					// Activate the 'Buscar' tab if present
+					try {
+						const tabLink = document.querySelector('#chat-tabs a[href="#tab-search"], [data-bs-toggle="tab"][href="#tab-search"]');
+						if (tabLink) { tabLink.click(); }
+					} catch (_) { }
 					const input = document.getElementById('friend-search');
 					if (!input) return;
 					if (typeof input.scrollIntoView === 'function') {
 						input.scrollIntoView({ behavior: 'smooth', block: 'center' });
 					}
-					try { input.focus(); } catch (_) {}
-				} catch (_) {}
+					try { input.focus(); } catch (_) { }
+				} catch (_) { }
 			};
 			gotoBtn.addEventListener('click', _handlers.onGotoSearch);
 		}
 	} catch (_) { }
 
 	// Integrated friends management (search + incoming/outgoing)
-	(function setupFriendsArea(){
+	(function setupFriendsArea() {
 		const tokenMeta = document.querySelector('meta[name="csrf-token"]');
 		const csrf = tokenMeta ? tokenMeta.getAttribute('content') : null;
 		const incomingList = document.getElementById('incoming-list');
@@ -214,102 +300,129 @@ export function init() {
 
 		if (!incomingList && !outgoingList && !friendSearch) return;
 
-		function escapeHtml(s){ if(!s) return ''; return String(s).replace(/[&<>"'`=\/]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;','/':'&#x2F;','`':'&#x60;','=':'&#x3D;'}[c]; }); }
+		function escapeHtml(s) { if (!s) return ''; return String(s).replace(/[&<>"'`=\/]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', '\'': '&#39;', '/': '&#x2F;', '`': '&#x60;', '=': '&#x3D;' }[c]; }); }
 
-		async function refreshCounters(){
-			try { const r = await fetch('/api/counters'); const j = await r.json(); if(!j.ok) return; document.dispatchEvent(new CustomEvent('counters:update',{detail:j})); } catch(_){ }
+		async function refreshCounters() {
+			try { const r = await fetch('/api/counters'); const j = await r.json(); if (!j.ok) return; document.dispatchEvent(new CustomEvent('counters:update', { detail: j })); } catch (_) { }
 		}
 
-		async function loadIncoming(){
-			if(!incomingList) return;
-			try{
+		async function loadIncoming() {
+			if (!incomingList) return;
+			try {
 				const r = await fetch('/friend/requests/pending');
 				const j = await r.json();
 				incomingList.innerHTML = '';
-				if(!j.ok || !j.requests?.length){
+				if (!j.ok || !j.requests?.length) {
 					incomingList.innerHTML = '<div class="list-group-item text-muted small">Sin solicitudes.</div>';
-					if (incomingCount) incomingCount.textContent='0';
+					if (incomingCount) incomingCount.textContent = '0';
 					return;
 				}
 				if (incomingCount) incomingCount.textContent = String(j.requests.length);
 				j.requests.forEach(n => {
-					const div = document.createElement('div'); div.className='list-group-item d-flex justify-content-between align-items-center';
+					const div = document.createElement('div'); div.className = 'list-group-item d-flex justify-content-between align-items-center';
 					div.innerHTML = `<div><div class='fw-semibold'>${escapeHtml(n.from.name)}</div><div class='text-muted small'>(nueva)</div></div><div class='btn-group btn-group-sm'><button class='btn btn-success btn-accept' data-id='${n.id}'>Aceptar</button><button class='btn btn-outline-danger btn-rechazar' data-id='${n.id}'>Rechazar</button></div>`;
 					incomingList.appendChild(div);
 				});
-			}catch(_){ }
+			} catch (_) { }
 		}
 
-		async function loadOutgoing(){
-			if(!outgoingList) return;
-			try{
+		async function loadOutgoing() {
+			if (!outgoingList) return;
+			try {
 				const r = await fetch('/friend/requests/outgoing');
 				const j = await r.json();
 				outgoingList.innerHTML = '';
-				if(!j.ok || !j.requests?.length){
+				if (!j.ok || !j.requests?.length) {
 					outgoingList.innerHTML = '<div class="list-group-item text-muted small">Ninguna.</div>';
 					if (outgoingCount) outgoingCount.textContent = '0';
 					return;
 				}
 				if (outgoingCount) outgoingCount.textContent = String(j.requests.length);
 				j.requests.forEach(n => {
-					const div = document.createElement('div'); div.className='list-group-item d-flex justify-content-between align-items-center';
+					const div = document.createElement('div'); div.className = 'list-group-item d-flex justify-content-between align-items-center';
 					div.innerHTML = `<div><div class='fw-semibold'>${escapeHtml(n.to.name)}</div><div class='text-muted small'>(enviada)</div></div><span class='badge text-bg-warning'>Pendiente</span>`;
 					outgoingList.appendChild(div);
 				});
-			}catch(_){ }
+			} catch (_) { }
 		}
 
 		if (incomingList) {
-			_handlers.onIncomingClick = async function(e){
-				const t = e.target; if (!t) return; const id = t.getAttribute('data-id'); if(!id) return;
-				if (t.classList.contains('btn-accept')){
-					try { const r = await fetch(`/friend/request/${id}/accept`, { method:'POST', headers: csrf ? {'X-CSRF-TOKEN': csrf} : {} }); const j = await r.json(); if (j.ok) { window.modalNotification?.('Amistad aceptada','Ahora son amigos',{template:'success'}); loadIncoming(); refreshCounters(); } } catch(_){ }
+			_handlers.onIncomingClick = async function (e) {
+				const t = e.target; if (!t) return; const id = t.getAttribute('data-id'); if (!id) return;
+				if (t.classList.contains('btn-accept')) {
+					try {
+						const r = await fetch(`/friend/request/${id}/accept`, { method: 'POST', headers: csrf ? { 'X-CSRF-TOKEN': csrf } : {} });
+						const j = await r.json();
+						if (j.ok) {
+							window.modalNotification?.('Amistad aceptada', 'Ahora son amigos', { template: 'success' });
+							loadIncoming(); refreshCounters();
+							// Ensure the new friend appears in the contacts list immediately
+							try { if (typeof _handlers.loadContacts === 'function') _handlers.loadContacts(); } catch (_) { }
+						}
+					} catch (_) { }
 				}
-				if (t.classList.contains('btn-reject') || t.classList.contains('btn-rechazar')){
-					try { const r = await fetch(`/friend/request/${id}/reject`, { method:'POST', headers: csrf ? {'X-CSRF-TOKEN': csrf} : {} }); const j = await r.json(); if (j.ok) { window.modalNotification?.('Solicitud rechazada','Se ha descartado la solicitud',{template:'info'}); loadIncoming(); refreshCounters(); } } catch(_){ }
+				if (t.classList.contains('btn-reject') || t.classList.contains('btn-rechazar')) {
+					try { const r = await fetch(`/friend/request/${id}/reject`, { method: 'POST', headers: csrf ? { 'X-CSRF-TOKEN': csrf } : {} }); const j = await r.json(); if (j.ok) { window.modalNotification?.('Solicitud rechazada', 'Se ha descartado la solicitud', { template: 'info' }); loadIncoming(); refreshCounters(); } } catch (_) { }
 				}
 			};
 			incomingList.addEventListener('click', _handlers.onIncomingClick);
 		}
 
 		if (friendSearch && friendSearchResults) {
-			_handlers.onFriendSearch = function(){
+			_handlers.onFriendSearch = function () {
 				const v = this.value.trim();
 				if (!v) { friendSearchResults.innerHTML = ''; return; }
-				(async function search(q){
-					try{
+				(async function search(q) {
+					try {
 						const res = await fetch(`/friends/search?q=${encodeURIComponent(q)}`);
 						const j = await res.json();
 						friendSearchResults.innerHTML = '';
 						if (!j.ok) return;
 						if (!j.results.length) { friendSearchResults.innerHTML = '<div class="list-group-item text-muted">Sin resultados</div>'; return; }
 						j.results.forEach(u => {
-							const a = document.createElement('button'); a.type='button'; a.className='list-group-item list-group-item-action d-flex justify-content-between align-items-center';
+							const a = document.createElement('button'); a.type = 'button'; a.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-center';
 							a.innerHTML = `<span><strong>${escapeHtml(u.name)}</strong><br><span class='text-muted small'>${escapeHtml(u.email)}</span></span><span class='badge text-bg-primary'>+</span>`;
-							a.addEventListener('click', async ()=>{
-								try{
-									const r = await fetch(`/friend/${u.id}/request`, { method:'POST', headers: csrf ? {'X-CSRF-TOKEN': csrf} : {} });
+							a.addEventListener('click', async () => {
+								try {
+									const r = await fetch(`/friend/${u.id}/request`, { method: 'POST', headers: csrf ? { 'X-CSRF-TOKEN': csrf } : {} });
 									const jj = await r.json();
-									if (jj.ok) { window.modalNotification?.('Solicitud enviada', u.name, {template:'success'}); a.remove(); loadIncoming(); loadOutgoing(); refreshCounters(); }
-								}catch(_){ }
+									if (jj.ok) { window.modalNotification?.('Solicitud enviada', u.name, { template: 'success' }); a.remove(); loadIncoming(); loadOutgoing(); refreshCounters(); }
+								} catch (_) { }
 							});
 							friendSearchResults.appendChild(a);
 						});
-					}catch(_){ }
+					} catch (_) { }
 				})(v);
 			};
 			friendSearch.addEventListener('input', _handlers.onFriendSearch);
 		}
 
-		_handlers.onRtFriendRequest = function(){ loadIncoming(); refreshCounters(); };
-		_handlers.onRtFriendAccepted = function(){ loadIncoming(); refreshCounters(); };
+		_handlers.onRtFriendRequest = function () { loadIncoming(); refreshCounters(); };
+		_handlers.onRtFriendAccepted = function () { loadIncoming(); loadOutgoing(); refreshCounters(); try { loadContacts(); } catch (_) { } };
 		window.addEventListener('rt:friend_request', _handlers.onRtFriendRequest);
 		window.addEventListener('rt:friend_request_accepted', _handlers.onRtFriendAccepted);
 
 		loadIncoming();
 		loadOutgoing();
+		// Initial contacts load
+		loadContacts();
+
+		// Polling periódico para reflejar cambios (p.ej. aceptación por el destinatario) sin refrescar la página
+		function startFriendsPolling() {
+			if (_friendsInterval) return;
+			const PERIOD = 20000; // 20s
+			const tick = async () => { try { await Promise.all([loadIncoming(), loadOutgoing(), refreshCounters(), loadContacts()]); } catch (_) { } };
+			_friendsInterval = setInterval(tick, PERIOD);
+		}
+		function stopFriendsPolling() {
+			try { if (_friendsInterval) { clearInterval(_friendsInterval); _friendsInterval = null; } } catch (_) { }
+		}
+		_handlers.stopFriendsPolling = stopFriendsPolling;
+		startFriendsPolling();
 	})();
+
+	// Expose for other handlers
+	_handlers.loadContacts = loadContacts;
 }
 
 export function destroy() {
@@ -322,10 +435,55 @@ export function destroy() {
 	try { if (_handlers.stopPresencePolling) _handlers.stopPresencePolling(); } catch (_) { }
 	try { if (_handlers.onPartnerClick && _els.chatPartnerName) _els.chatPartnerName.removeEventListener('click', _handlers.onPartnerClick); } catch (_) { }
 	// Friends area teardown
-	try { const inc = document.getElementById('incoming-list'); if (inc && _handlers.onIncomingClick) inc.removeEventListener('click', _handlers.onIncomingClick); } catch (_){ }
-	try { const fs = document.getElementById('friend-search'); if (fs && _handlers.onFriendSearch) fs.removeEventListener('input', _handlers.onFriendSearch); } catch (_){ }
-	try { window.removeEventListener('rt:friend_request', _handlers.onRtFriendRequest); } catch (_){ }
-	try { window.removeEventListener('rt:friend_request_accepted', _handlers.onRtFriendAccepted); } catch (_){ }
+	try { const inc = document.getElementById('incoming-list'); if (inc && _handlers.onIncomingClick) inc.removeEventListener('click', _handlers.onIncomingClick); } catch (_) { }
+	try { const fs = document.getElementById('friend-search'); if (fs && _handlers.onFriendSearch) fs.removeEventListener('input', _handlers.onFriendSearch); } catch (_) { }
+	try { window.removeEventListener('rt:friend_request', _handlers.onRtFriendRequest); } catch (_) { }
+	try { window.removeEventListener('rt:friend_request_accepted', _handlers.onRtFriendAccepted); } catch (_) { }
 	try { const b = document.getElementById('goto-search'); if (b && _handlers.onGotoSearch) b.removeEventListener('click', _handlers.onGotoSearch); } catch (_) { }
+	try { if (_handlers.stopFriendsPolling) _handlers.stopFriendsPolling(); } catch (_) { }
+	try { const v = document.getElementById('chat-video-call'); if (v && _handlers.onVideoCall) v.removeEventListener('click', _handlers.onVideoCall); } catch (_) { }
+	try { const a = document.getElementById('chat-voice-call'); if (a && _handlers.onVoiceCall) a.removeEventListener('click', _handlers.onVoiceCall); } catch (_) { }
+	// no-op: contacts list uses event delegation, no extra teardown needed
 	_state.currentPartnerId = null; _state.renderedMessageIds = new Set(); _els = {}; _handlers = {}; _presenceInterval = null;
+}
+
+async function makeVoiceCall(appUserId) {
+	try {
+		try { if (window.__rtcBootstrapPromise) await window.__rtcBootstrapPromise; } catch (_) { }
+		if (!window.__rtcBootstrapReady) {
+			return modalNotification('Llamada', 'RTC no está listo. Intenta nuevamente en unos segundos.', { template: 'warning' });
+		}
+		let opponentCcId = null;
+		try {
+			const map = window.__ccUserIdMap || {};
+			if (Object.prototype.hasOwnProperty.call(map, appUserId)) opponentCcId = map[appUserId];
+		} catch (_) { }
+		if (!opponentCcId || shouldResolveCcId(appUserId)) {
+			const resolved = await resolveCcId(appUserId);
+			if (resolved) {
+				opponentCcId = resolved;
+				try { window.__ccUserIdMap = window.__ccUserIdMap || {}; window.__ccUserIdMap[appUserId] = resolved; } catch (_) { }
+			}
+		}
+		if (!opponentCcId) return modalNotification('Llamada', 'No se pudo resolver el ID del destinatario para ConnectyCube.');
+
+		const session = ConnectyCube.videochat.createNewSession([opponentCcId], ConnectyCube.videochat.CallType.AUDIO);
+		_cc.currentSession = session;
+
+		const contactBtn = document.querySelector(`.contact-item[data-user-id="${appUserId}"]`);
+		const name = contactBtn?.getAttribute('data-user-name') || _els.chatPartnerName?.textContent || 'Contacto';
+		RtcUI.showOutgoing(session, { nombre: name, onCancel: () => { try { session.stop({}, () => { }); } catch (_) { } RtcUI.end(); _cc.currentSession = null; } });
+
+		try {
+			const constraints = { audio: true, video: false };
+			const stream = await session.getUserMedia(constraints);
+			RtcUI.setLocalStream(stream);
+		} catch (e) {
+			return modalNotification('Atención', 'No se pudo acceder al micrófono.', { template: 'danger' });
+		}
+
+		session.call({}, (err) => { });
+	} catch (e) {
+		modalNotification('Llamada', 'Error iniciando la llamada.', { template: 'danger' });
+	}
 }

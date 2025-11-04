@@ -30,3 +30,18 @@
 
 /* Improve tab header spacing within card */
 #chat-tabs .nav-link { padding: .5rem .75rem; }
+
+/* Chat messages empty state hint */
+#chat-messages { position: relative; }
+#chat-messages.is-empty::before {
+  content: "Nada que ver por acá";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #98a2b3; /* subtle gray */
+  font-style: italic;
+  font-size: .95rem;
+  pointer-events: none;
+  white-space: nowrap;
+}

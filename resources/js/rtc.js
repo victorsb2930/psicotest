@@ -198,7 +198,8 @@ import RtcUI from './rtc-ui';
 				onAccept: async () => {
 					try {
 						// Prefer session-bound getUserMedia so SDK attaches tracks correctly
-						const constraints = { audio: true, video: { width: { ideal: 1280 }, height: { ideal: 720 } } };
+						const isAudioOnly = (session && session.callType === ConnectyCube.videochat.CallType.AUDIO);
+						const constraints = isAudioOnly ? { audio: true, video: false } : { audio: true, video: { width: { ideal: 1280 }, height: { ideal: 720 } } };
 						const s = await session.getUserMedia(constraints);
 						try { RtcUI.setLocalStream(s); } catch (_) { }
 					} catch (e) {

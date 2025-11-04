@@ -682,12 +682,79 @@ Route::middleware('auth')->group(function(){
 		$lastMessages = \App\Models\Message::with(['from','to'])
 			->where(function($q) use ($userId){ $q->where('from_id', $userId)->orWhere('to_id', $userId); })
 			->orderBy('created_at','desc')
-			->limit(100)
+			->limit(200)
 			->get()
 			->unique(function($m){ return $m->from_id === auth()->id() ? $m->to_id : $m->from_id; })
 			->values();
 		return view('chat.index', compact('lastMessages'));
 	})->name('chat.index');
+
+	// JSON: accepted friends list with last message snippet for sorting/rendering in Chat hub
+	Route::get('/friends/list', function(){
+		$me = auth()->user();
+		try {
+			if (!\Illuminate\Support\Facades\Schema::hasTable('friend_requests')) {
+				return response()->json(['ok'=>true,'friends'=>[]]);
+			}
+			// Collect accepted friend ids (both directions)
+			$rows = \App\Models\FriendRequest::query()
+				->where(function($q) use ($me){ $q->where('from_id',$me->id)->orWhere('to_id',$me->id); })
+				->where('status','accepted')
+				->get(['from_id','to_id']);
+			$fids = [];
+			foreach ($rows as $r) { $fids[] = (int) ($r->from_id == $me->id ? $r->to_id : $r->from_id); }
+			$fids = array_values(array_unique(array_filter($fids)));
+			if (empty($fids)) return response()->json(['ok'=>true,'friends'=>[]]);
+
+			// Map last message per friend (either direction)
+			$lastBy = [];
+			if (\Illuminate\Support\Facades\Schema::hasTable('messages')) {
+				$messages = \App\Models\Message::query()
+					->where(function($q) use ($me, $fids){
+						$q->where(function($w) use ($me,$fids){ $w->where('from_id',$me->id)->whereIn('to_id',$fids); })
+						  ->orWhere(function($w) use ($me,$fids){ $w->where('to_id',$me->id)->whereIn('from_id',$fids); });
+					})
+					->orderByDesc('created_at')
+					->limit(500)
+					->get(['id','from_id','to_id','body','created_at','read_at']);
+				foreach ($messages as $m) {
+					$pid = (int) ($m->from_id == $me->id ? $m->to_id : $m->from_id);
+					if (!array_key_exists($pid, $lastBy)) { $lastBy[$pid] = $m; }
+				}
+			}
+
+			// Fetch friend users
+			$users = \App\Models\User::whereIn('id', $fids)->get();
+			$items = [];
+			foreach ($users as $u) {
+				$lm = $lastBy[$u->id] ?? null;
+				$profilePhoto = null;
+				try {
+					if (!empty($u->profile_photo_data_url)) { $profilePhoto = $u->profile_photo_data_url; }
+					elseif (!empty($u->photo)) { $profilePhoto = '/storage/' . ltrim($u->photo, '/'); }
+				} catch (\Throwable $_) { $profilePhoto = null; }
+				$items[] = [
+					'id' => (int)$u->id,
+					'name' => $u->name,
+					'email' => $u->email,
+					'profile_photo' => $profilePhoto,
+					'last_body' => $lm ? (string)$lm->body : null,
+					'last_at' => $lm ? optional($lm->created_at)->toDateTimeString() : null,
+					'unread' => $lm ? ((int)$lm->to_id === (int)$me->id && empty($lm->read_at)) : false,
+				];
+			}
+			// Sort by last_at desc, nulls last; stable by name as tie-breaker
+			usort($items, function($a,$b){
+				$aa = $a['last_at']; $bb = $b['last_at'];
+				if ($aa === $bb) { return strcasecmp($a['name'] ?? '', $b['name'] ?? ''); }
+				if ($aa === null) return 1; if ($bb === null) return -1;
+				return strcmp($bb, $aa);
+			});
+			return response()->json(['ok'=>true,'friends'=>$items]);
+		} catch (\Throwable $e) {
+			return response()->json(['ok'=>false], 500);
+		}
+	})->name('friends.list');
 
 	// RTC/ConnectyCube bootstrap endpoints (authenticated)
 	Route::get('/rtc/config', function(){
