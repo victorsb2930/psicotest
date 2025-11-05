@@ -11,6 +11,15 @@ use App\Http\Controllers\ContactController;
 Route::get('/', function () {
 	return view('index');
 });
+
+// Professional applications routes with flexible access (no prefix wrapper)
+// allow users who have 'professional_applications' permission
+Route::middleware(['auth','perm:professional_applications'])->group(function(){
+	Route::get('/admin/professional-applications', [\App\Http\Controllers\ProfessionalApplicationController::class, 'index'])->name('admin.profapps.index');
+	Route::post('/admin/professional-applications/{application}/approve', [\App\Http\Controllers\ProfessionalApplicationController::class, 'approve'])->name('admin.profapps.approve');
+	Route::post('/admin/professional-applications/{application}/reject', [\App\Http\Controllers\ProfessionalApplicationController::class, 'reject'])->name('admin.profapps.reject');
+	Route::get('/admin/professional-applications/{application}/file/{field}', [\App\Http\Controllers\ProfessionalApplicationController::class, 'file'])->name('admin.profapps.file');
+});
 #endregion
 
 #region login, register y logout usan el mismo controlador y view
@@ -244,11 +253,16 @@ Route::middleware(['auth'])->group(function(){
 		Route::put('/permissions/{permission}', [\App\Http\Controllers\RbacController::class, 'permsUpdate'])->name('admin.permissions.update');
 		Route::delete('/permissions/{permission}', [\App\Http\Controllers\RbacController::class, 'permsDestroy'])->name('admin.permissions.destroy');
 
-		// Professional applications review
-		Route::get('/professional-applications', [\App\Http\Controllers\ProfessionalApplicationController::class, 'index'])->name('admin.profapps.index');
-		Route::post('/professional-applications/{application}/approve', [\App\Http\Controllers\ProfessionalApplicationController::class, 'approve'])->name('admin.profapps.approve');
-		Route::post('/professional-applications/{application}/reject', [\App\Http\Controllers\ProfessionalApplicationController::class, 'reject'])->name('admin.profapps.reject');
-		Route::get('/professional-applications/{application}/file/{field}', [\App\Http\Controllers\ProfessionalApplicationController::class, 'file'])->name('admin.profapps.file');
+		// Menu Items CRUD
+		Route::get('/menu-items', [\App\Http\Controllers\Admin\MenuItemController::class, 'index'])->name('admin.menuitems.index');
+		Route::get('/menu-items/create', [\App\Http\Controllers\Admin\MenuItemController::class, 'create'])->name('admin.menuitems.create');
+		Route::post('/menu-items', [\App\Http\Controllers\Admin\MenuItemController::class, 'store'])->name('admin.menuitems.store');
+		Route::get('/menu-items/{menuItem}/edit', [\App\Http\Controllers\Admin\MenuItemController::class, 'edit'])->name('admin.menuitems.edit');
+		Route::put('/menu-items/{menuItem}', [\App\Http\Controllers\Admin\MenuItemController::class, 'update'])->name('admin.menuitems.update');
+		Route::delete('/menu-items/{menuItem}', [\App\Http\Controllers\Admin\MenuItemController::class, 'destroy'])->name('admin.menuitems.destroy');
+		Route::post('/menu-items/{menuItem}/toggle', [\App\Http\Controllers\Admin\MenuItemController::class, 'toggle'])->name('admin.menuitems.toggle');
+
+		// Professional applications review (moved below with flexible permission)
 	});
 
 		// Admin: Device management (global) - listar y revocar dispositivos de cualquier usuario

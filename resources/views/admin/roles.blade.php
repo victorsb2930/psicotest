@@ -21,6 +21,11 @@
 							<label class="form-label">Etiqueta para registro (opcional)</label>
 							<input type="text" name="signup_label" class="form-control" placeholder="Usuario / Profesional / ...">
 						</div>
+						<div class="mb-2">
+							<label class="form-label">Ruta de inicio (opcional)</label>
+							<input type="text" name="home_path" class="form-control" placeholder="/userarea o nombre_de_ruta">
+							<div class="form-text">Puedes poner una ruta interna (p.ej. /adminarea) o un nombre de ruta (p.ej. adminarea).</div>
+						</div>
 						<div class="row g-2">
 							<div class="col-12 col-md-6">
 								<label class="form-label">Icono (Bootstrap Icons)</label>
@@ -88,6 +93,10 @@
 													<input class="form-check-input" type="checkbox" name="requires_docs" value="1" id="docs_{{ $role->id }}" @checked($role->requires_docs)>
 													<label class="form-check-label" for="docs_{{ $role->id }}">Docs</label>
 												</div>
+											</div>
+											<div class="col-12 col-md-4">
+												<label class="form-label mb-0">Ruta de inicio</label>
+												<input type="text" name="home_path" class="form-control" value="{{ $role->home_path }}" placeholder="/userarea o nombre_de_ruta">
 											</div>
 											<div class="col-12 col-md-4">
 												<label class="form-label mb-0">Icono</label>

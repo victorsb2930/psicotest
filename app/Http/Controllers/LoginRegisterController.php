@@ -498,22 +498,30 @@ class LoginRegisterController extends Controller
 					if ($roleUser) { $user->syncRoles([$roleUser->name]); }
 				}
 			} catch (\Throwable $e) { /* noop */ }
-			$slugs = $user->roles()->pluck('name')->map(fn($s) => strtolower((string)$s))->filter()->values()->all();
-			$names = $user->roles()->pluck('name')->map(fn($n) => strtolower((string)$n))->filter()->values()->all();
-			$isAdmin = in_array('admin', $slugs, true) || in_array('admin', $names, true) || in_array('administrador', $names, true);
-			$isPro = in_array('professional', $slugs, true) || in_array('professional', $names, true) || in_array('profesional', $names, true);
-			$isUser = in_array('user', $slugs, true) || in_array('user', $names, true) || in_array('usuario', $names, true);
-			$page = $isAdmin ? '/adminarea' : ($isPro ? '/professionalarea' : ($isUser ? '/userarea' : null));
-			if (!$page) {
-				auth()->logout();
-				$request->session()->invalidate();
-				$request->session()->regenerateToken();
-				$errMsg = 'Tu cuenta no tiene un rol asignado. Contacta al administrador.';
-				if ($request->expectsJson()) {
-					return response()->json(['ok' => false, 'message' => $errMsg], 422);
+			// 1) Preferir landing configurado por rol (roles.home_path) si existe.
+			$page = null;
+			try {
+				$home = null;
+				try {
+					$home = $user->roles()
+						->whereNotNull('home_path')
+						->where('home_path','!=','')
+						->orderBy('id')
+						->value('home_path');
+				} catch (\Throwable $_inner) { $home = null; }
+				if (!empty($home)) {
+					$home = trim((string) $home);
+					if (str_starts_with($home, '/')) {
+						$page = $home; // path absoluta interna
+					} else {
+						// Interpretar como nombre de ruta si existe; si no, usar tal cual
+						try { if (\Route::has($home)) { $page = route($home); } } catch (\Throwable $_r) {}
+						if (!$page) { $page = '/' . ltrim($home, '/'); }
+					}
 				}
-				return back()->withErrors(['email' => $errMsg])->withInput();
-			}
+			} catch (\Throwable $_) { $page = null; }
+
+			if (!$page) { $page = '/'; }
 			// Asegura que no persista un 'url.intended' de una sesión anterior
 			$request->session()->forget('url.intended');
 			if ($request->expectsJson()) {

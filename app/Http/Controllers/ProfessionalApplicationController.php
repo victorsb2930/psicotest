@@ -10,8 +10,25 @@ use Illuminate\Support\Facades\Storage;
 
 class ProfessionalApplicationController extends Controller
 {
+	/* Verifica acceso flexible: permite 'adminarea' o cualquiera de los permisos dados. */
+	protected function ensureAccess(Request $request, array $abilities = []): void
+	{
+		$user = $request->user();
+		if (!$user || !method_exists($user, 'can')) {
+			abort(403, 'Acceso no autorizado');
+		}
+		// Umbrella adminarea
+		try { if ($user->can('adminarea')) return; } catch (\Throwable $_) {}
+		// Cualquiera de los permisos específicos
+		foreach ($abilities as $ab) {
+			try { if ($ab && $user->can($ab)) return; } catch (\Throwable $_) {}
+		}
+		abort(403, 'Acceso no autorizado');
+	}
+
 	public function index(Request $request)
 	{
+		$this->ensureAccess($request, ['professional_applications']);
 		if (!\Illuminate\Support\Facades\Schema::hasTable('professional_applications')) {
 			$apps = collect([]);
 			$status = $request->get('status');
@@ -38,6 +55,7 @@ class ProfessionalApplicationController extends Controller
 
 	public function approve(Request $request, ProfessionalApplication $application)
 	{
+		$this->ensureAccess($request, ['professional_applications']);
 		if ($application->status !== 'pending') {
 			return back()->with('info', 'Esta solicitud ya fue revisada (estado: '.$application->status.').');
 		}
@@ -68,6 +86,7 @@ class ProfessionalApplicationController extends Controller
 
 	public function reject(Request $request, ProfessionalApplication $application)
 	{
+		$this->ensureAccess($request, ['professional_applications']);
 		if ($application->status !== 'pending') {
 			return back()->with('info', 'Esta solicitud ya fue revisada (estado: '.$application->status.').');
 		}
@@ -91,6 +110,7 @@ class ProfessionalApplicationController extends Controller
 
 	public function file(Request $request, ProfessionalApplication $application, string $field)
 	{
+		$this->ensureAccess($request, ['professional_applications']);
 		if (!in_array($field, ['titulo', 'cedula'], true)) {
 			abort(404);
 		}

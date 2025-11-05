@@ -149,5 +149,10 @@ class DatabaseSeeder extends Seeder
 
 		// Seed billing plans
 		\Database\Seeders\PlansTableSeeder::class && $this->call(\Database\Seeders\PlansTableSeeder::class);
+
+		// Seed menu items (DB-driven left menu)
+		if (\Illuminate\Support\Facades\Schema::hasTable('menu_items')) {
+			$this->call(\Database\Seeders\MenuItemsSeeder::class);
+		}
 	}
 }

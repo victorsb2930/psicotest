@@ -49,6 +49,8 @@ return new class extends Migration
 			// Add icon and badge color columns used by the app
 			$table->string('icon_class')->nullable();
 			$table->string('badge_color')->nullable();
+			// Default landing path or route name for this role
+			$table->string('home_path')->nullable();
 			$table->timestamps();
 			if ($teams || config('permission.testing')) {
 				$table->unique([$columnNames['team_foreign_key'], 'name', 'guard_name']);

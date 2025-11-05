@@ -27,17 +27,19 @@ class RbacController extends Controller {
 			'requires_docs' => 'nullable|boolean',
 			'icon_class' => 'nullable|string|max:100',
 			'badge_color' => 'nullable|string|max:50',
+			'home_path' => 'nullable|string|max:255',
 		]);
 		$slug = strtolower($data['name']);
 		$show = (bool) ($data['show_in_signup'] ?? false);
 		$label = $data['signup_label'] ?? null;
 		$reqDocs = (bool) ($data['requires_docs'] ?? false);
-	$sp = new SpatieRole(['name' => $slug, 'guard_name' => 'web']);
+		$sp = new SpatieRole(['name' => $slug, 'guard_name' => 'web']);
 		$sp->show_in_signup = $show;
 		$sp->signup_label = $label;
 		$sp->requires_docs = $reqDocs;
-	$sp->icon_class = $data['icon_class'] ?? null;
-	$sp->badge_color = $data['badge_color'] ?? null;
+		$sp->icon_class = $data['icon_class'] ?? null;
+		$sp->badge_color = $data['badge_color'] ?? null;
+		$sp->home_path = $data['home_path'] ?? null;
 		$sp->save();
 		return back()->with('success', 'Rol creado.');
 	}
@@ -50,6 +52,7 @@ class RbacController extends Controller {
 			'requires_docs' => 'nullable|boolean',
 			'icon_class' => 'nullable|string|max:100',
 			'badge_color' => 'nullable|string|max:50',
+			'home_path' => 'nullable|string|max:255',
 		]);
 		$slug = strtolower($data['name']);
 		$sp = SpatieRole::find($role->id);
@@ -61,6 +64,7 @@ class RbacController extends Controller {
 			$sp->requires_docs = (bool) ($data['requires_docs'] ?? false);
 			$sp->icon_class = $data['icon_class'] ?? null;
 			$sp->badge_color = $data['badge_color'] ?? null;
+			$sp->home_path = $data['home_path'] ?? null;
 			$sp->save();
 		}
 		return back()->with('success', 'Rol actualizado.');
