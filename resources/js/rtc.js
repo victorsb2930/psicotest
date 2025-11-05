@@ -1,4 +1,6 @@
 // Global RTC bootstrap + chat connect, to receive incoming calls anywhere
+// WebRTC adapter: normaliza APIs (RTCPeerConnection, getUserMedia) entre navegadores
+import 'webrtc-adapter';
 import ConnectyCube from 'connectycube';
 import RtcUI from './rtc-ui';
 

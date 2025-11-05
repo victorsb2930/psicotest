@@ -33,6 +33,7 @@
         "laravel-echo": "^2.2.4",
         "pusher-js": "^8.4.0",
         "tom-select": "^2.4.3",
-        "uuid": "^13.0.0"
+        "uuid": "^13.0.0",
+        "webrtc-adapter": "^9.0.3"
     }
 }

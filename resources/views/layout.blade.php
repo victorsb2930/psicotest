@@ -472,10 +472,12 @@
 		style="background: linear-gradient(90deg, var(--brand-600) 0%, var(--brand-500) 60%, var(--brand-400) 100%); background-color: var(--brand-600);">
 	<div class="container-fluid d-flex align-items-center justify-content-between">
 			{{-- Mobile left menu toggle --}}
+			@if(auth()->check())
 			<button class="btn btn-ghost btn-sm d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#leftMenuOffcanvas" aria-controls="leftMenuOffcanvas" aria-label="Abrir menú">
 				<i class="bi bi-list"></i>
 				<span class="ms-1">Menú</span>
 			</button>
+			@endif
 
 			{{-- Brand link --}}
 			<a href="{{ auth()->check() ? ( auth()->user()->hasRole('admin') ? '/adminarea' : (auth()->user()->hasRole('professional') ? '/professionalarea' : '/userarea') ) : '/' }}"
