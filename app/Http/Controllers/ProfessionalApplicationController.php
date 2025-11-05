@@ -95,14 +95,29 @@ class ProfessionalApplicationController extends Controller
 			abort(404);
 		}
 		$path = $field === 'titulo' ? $application->titulo_path : $application->cedula_path;
-		if (!$path || !Storage::disk('public')->exists($path)) {
+		if (!$path) {
 			abort(404);
 		}
-		$stream = Storage::disk('public')->readStream($path);
-		$mime = Storage::disk('public')->mimeType($path) ?: 'application/octet-stream';
+
+		// Backward-compatibility: files may have been stored on the 'local' disk originally.
+		$disk = null;
+		if (Storage::disk('public')->exists($path)) {
+			$disk = Storage::disk('public');
+		} elseif (Storage::disk('local')->exists($path)) {
+			$disk = Storage::disk('local');
+		} else {
+			abort(404);
+		}
+
+		$stream = $disk->readStream($path);
+		$mime = $disk->mimeType($path) ?: 'application/octet-stream';
+		$filename = basename($path);
 
 		return Response::stream(function () use ($stream) {
 			fpassthru($stream);
-		}, 200, ['Content-Type' => $mime]);
+		}, 200, [
+			'Content-Type' => $mime,
+			'Content-Disposition' => 'inline; filename="' . $filename . '"',
+		]);
 	}
 }

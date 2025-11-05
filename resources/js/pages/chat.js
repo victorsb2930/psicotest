@@ -83,7 +83,6 @@ async function prewarmCcMap(appUserIds) {
 		}
 	} catch (_) { }
 }
-async function getLocalStream() { if (typeof window.__rtcGetLocalStream === 'function') return await window.__rtcGetLocalStream(); const c = { audio: true, video: { width: { ideal: 1280 }, height: { ideal: 720 } } }; if (ConnectyCube?.videochat?.getUserMedia) { return await ConnectyCube.videochat.getUserMedia(c); } if (navigator?.mediaDevices?.getUserMedia) { return await navigator.mediaDevices.getUserMedia(c); } throw new Error('getUserMedia no disponible en este navegador'); }
 
 function el(id) { return document.getElementById(id); }
 function getAuthId() { try { return String(window.__authUserId || ''); } catch (_) { return ''; } }
