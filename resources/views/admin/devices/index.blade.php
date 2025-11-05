@@ -54,7 +54,20 @@
                     @endphp
                     {{ $lastSeenHuman }}
                 </td>
-                <td>{{ $d->revoked_at ? 'Sí (' . $d->revoked_at->diffForHumans() . ')' : 'No' }}</td>
+                <td>
+                    @php
+                        $rev = $d->revoked_at ?? null;
+                        $revHuman = null;
+                        try {
+                            if ($rev instanceof \Illuminate\Support\Carbon || $rev instanceof \DateTimeInterface) {
+                                $revHuman = $rev->diffForHumans();
+                            } elseif (!empty($rev)) {
+                                $revHuman = \Illuminate\Support\Carbon::parse($rev)->diffForHumans();
+                            }
+                        } catch (\Throwable $_) { $revHuman = null; }
+                    @endphp
+                    {{ $revHuman ? 'Sí (' . $revHuman . ')' : 'No' }}
+                </td>
                 <td>
                     @if(!$d->revoked_at)
                         <form method="POST" action="{{ route('admin.devices.revoke', ['device' => $d->id]) }}" class="d-inline-block">
