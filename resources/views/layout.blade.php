@@ -681,6 +681,7 @@
 		window.__defaultAvatar = (document.querySelector('meta[name="default-avatar"]') || {}).content || null;
 	</script>
 	@vite(['resources/js/realtime.js'])
+	@vite(['resources/js/rtc.js'])
 	<script>
 		// Presence dropdown handler: send POST to /profile/presence and update dot color
 		document.addEventListener('DOMContentLoaded', function(){
