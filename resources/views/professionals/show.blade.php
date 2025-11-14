@@ -10,7 +10,7 @@
                         <img id="prof-avatar-img" src="{{ $avatar ?? Vite::asset('resources/images/Avatar-PNG-Image.png') }}" class="rounded-circle" width="140" height="140" alt="avatar">
                     </div>
                     <h4 class="mt-2">{{ $u->name }}</h4>
-                    <div class="text-muted">{{ $u->specialty ?? 'General' }}</div>
+                    <div class="text-muted">{{ $u->speciality ?? 'General' }}</div>
                     <div class="mt-3">
                         <a href="/professionals" class="btn btn-sm btn-outline-secondary">Volver</a>
                     </div>

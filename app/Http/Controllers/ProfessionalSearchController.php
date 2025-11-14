@@ -17,7 +17,7 @@ class ProfessionalSearchController extends Controller
 	public function search(Request $request)
 	{
 		$q = $request->query('q');
-		$specialty = $request->query('specialty');
+		$speciality = $request->query('speciality');
 		$apptType = $request->query('type');
 
 		$query = User::query();
@@ -30,9 +30,9 @@ class ProfessionalSearchController extends Controller
 			});
 		}
 
-		if ($specialty) {
-			// if users table has specialty column
-			$query->where('specialty', 'like', "%{$specialty}%");
+		if ($speciality) {
+			// if users table has speciality column
+			$query->where('speciality', 'like', "%{$speciality}%");
 		}
 
 		if ($apptType) {
@@ -117,7 +117,7 @@ class ProfessionalSearchController extends Controller
 				'name' => $u->name,
 				'email' => $u->email,
 				'photo' => $photo,
-				'specialty' => $u->specialty ?? null,
+				'speciality' => $u->speciality ?? null,
 				'rating' => $u->rating ?? null,
 				'appointment_types' => $types,
 				'location' => $u->location ?? null,

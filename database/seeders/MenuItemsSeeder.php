@@ -21,7 +21,7 @@ class MenuItemsSeeder extends Seeder
             ['label' => 'Solicitudes', 'route_name' => 'admin.profapps.index', 'icon_class' => 'bi bi-file-earmark-medical', 'section' => 'admin', 'sort_order' => 30, 'permission' => 'professional_applications'],
             ['label' => 'Roles', 'route_name' => 'admin.roles.index', 'icon_class' => 'bi bi-shield-lock', 'section' => 'admin', 'sort_order' => 40, 'permission' => 'adminarea'],
             ['label' => 'Permisos', 'route_name' => 'admin.permissions.index', 'icon_class' => 'bi bi-key', 'section' => 'admin', 'sort_order' => 50, 'permission' => 'adminarea'],
-            ['label' => 'Menú', 'route_name' => 'admin.menuitems.index', 'icon_class' => 'bi bi-list-task', 'section' => 'admin', 'sort_order' => 55, 'permission' => 'adminarea'],
+            ['label' => 'Gestion del menú', 'route_name' => 'admin.menuitems.index', 'icon_class' => 'bi bi-list-task', 'section' => 'admin', 'sort_order' => 55, 'permission' => 'adminarea'],
             ['label' => 'Dispositivos', 'route_name' => 'admin.devices', 'icon_class' => 'bi bi-phone', 'section' => 'admin', 'sort_order' => 60, 'permission' => 'adminarea'],
 
             // Professional section
@@ -39,10 +39,6 @@ class MenuItemsSeeder extends Seeder
             ['label' => 'Buscar profesionales', 'route_name' => 'professionals.index', 'icon_class' => 'bi bi-search', 'section' => 'user', 'sort_order' => 30, 'permission' => 'userarea'],
             ['label' => 'Favoritos', 'route_name' => 'favorites', 'icon_class' => 'bi bi-star', 'section' => 'user', 'sort_order' => 40, 'permission' => 'userarea'],
             ['label' => 'Chat', 'route_name' => 'chat.index', 'icon_class' => 'bi bi-chat-dots', 'section' => 'user', 'sort_order' => 50, 'permission' => 'userarea'],
-
-            // Common section
-            ['label' => 'Contacto', 'route_name' => 'contact', 'icon_class' => 'bi bi-envelope', 'section' => 'common', 'sort_order' => 10],
-            ['label' => 'Servicios', 'route_name' => 'services', 'icon_class' => 'bi bi-briefcase', 'section' => 'common', 'sort_order' => 20],
         ];
 
         $idByLabel = [];
@@ -79,7 +75,7 @@ class MenuItemsSeeder extends Seeder
         };
 
         // Admin items -> role admin
-    foreach (['Dashboard','Usuarios','Solicitudes','Roles','Permisos','Menú','Dispositivos'] as $lbl) { $attach($lbl, ['admin']); }
+    foreach (['Dashboard','Usuarios','Solicitudes','Roles','Permisos','Gestion del menú','Dispositivos'] as $lbl) { $attach($lbl, ['admin']); }
         // Professional items -> role professional
         foreach (['Mi panel','Calendario','Chat','Pacientes','Servicios','Historial de Pagos','Configuración'] as $lbl) { $attach($lbl, ['professional']); }
         // User items -> role user

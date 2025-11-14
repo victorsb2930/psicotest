@@ -10,7 +10,7 @@
             <input id="pf_q" class="form-control" placeholder="Buscar por nombre o email">
         </div>
         <div class="col-md-3">
-            <input id="pf_specialty" class="form-control" placeholder="Especialidad">
+            <input id="pf_speciality" class="form-control" placeholder="Especialidad">
         </div>
         <div class="col-md-3">
             <select id="pf_type" class="form-select">

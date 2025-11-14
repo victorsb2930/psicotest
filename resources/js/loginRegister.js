@@ -5,6 +5,7 @@ import { modalConfirm } from "./utils/modalConfirm";
 
 //#region Constantes globales
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const fieldsToCheck = ['reg_titulo', 'reg_cedula', 'reg_cv', 'reg_exequatur'];
 //#endregion
 
 
@@ -43,10 +44,15 @@ function toggleProBlocks(isPro) {
 	$('#reg_type').closest('.type').removeClass('is-valid is-invalid');
 	if (!isPro) {
 		$proBlocks.find('.type').removeClass('is-valid is-invalid');
-		$('#reg_titulo, #reg_cedula').val('');
+		const fieldsToClear = ['reg_titulo', 'reg_cedula', 'reg_cv', 'reg_exequatur'];
+		fieldsToClear.forEach(fldId => {
+			$(`#${fldId}`).val('');
+		});
 	} else {
-		markField($('#reg_titulo'), ($('#reg_titulo')[0]?.files?.length || 0) > 0);
-		markField($('#reg_cedula'), ($('#reg_cedula')[0]?.files?.length || 0) > 0);
+		fieldsToCheck.forEach(fldId => {
+			const $fld = $(`#${fldId}`);
+			markField($fld, ($fld[0]?.files?.length || 0) > 0);
+		});
 	}
 }
 //#endregion
@@ -66,8 +72,10 @@ function resetRegisterForm() {
 		}
 		// Asegura ocultar bloques de profesional y limpiar archivos
 		toggleProBlocks(false);
-		$('#reg_titulo').val('');
-		$('#reg_cedula').val('');
+		const fieldsToClear = ['reg_titulo', 'reg_cedula', 'reg_cv', 'reg_exequatur'];
+		fieldsToClear.forEach(fldId => {
+			$(`#${fldId}`).val('');
+		});
 	} catch (_) {}
 }
 //#endregion
@@ -212,8 +220,6 @@ function setEvents(){
 		const email = $('#reg_email').val().toString().trim();
 		const pass = $('#reg_password').val().toString().trim();
 		const pass2 = $('#reg_password_confirm').val().toString().trim();
-		const tituloFiles = $('#reg_titulo')[0]?.files?.length || 0;
-		const cedulaFiles = $('#reg_cedula')[0]?.files?.length || 0;
 
 		// Detectar si el rol seleccionado es profesional (requiere documentos),
 		// sin depender de IDs concretos (p. ej., "2").
@@ -237,8 +243,21 @@ function setEvents(){
 		const validPass = !!pass && pass.length >= 6; markField($('#reg_password'), validPass); if (!validPass) isValid = false;
 		const validPass2 = pass2 === pass && pass2.length > 0; markField($('#reg_password_confirm'), validPass2); if (!validPass2) isValid = false;
 		if (isProSelected) {
-			const validTitulo = tituloFiles > 0; markField($('#reg_titulo'), validTitulo); if (!validTitulo) { isValid = false; modalNotification('Falta título', 'Por favor, sube tu título profesional (PDF/JPG/PNG).', { template: 'warning' }); }
-			const validCedula = cedulaFiles > 0; markField($('#reg_cedula'), validCedula); if (!validCedula) { isValid = false; modalNotification('Falta cédula', 'Por favor, sube tu cédula escaneada (PDF/JPG/PNG).', { template: 'warning' }); }
+			fieldsToCheck.forEach(fldId => {
+				const $fld = $(`#${fldId}`);
+				const valid = ($fld[0]?.files?.length || 0) > 0;
+				markField($fld, valid);
+				if (!valid) {
+					isValid = false;
+					const messages = {
+						'reg_titulo': 'Por favor, sube tu título profesional (PDF/JPG/PNG).',
+						'reg_cedula': 'Por favor, sube tu cédula escaneada (PDF/JPG/PNG).',
+						'reg_cv': 'Por favor, sube tu curriculum vitae (PDF/JPG/PNG).',
+						'reg_exequatur': 'Por favor, sube tu documento exequátur (PDF/JPG/PNG).'
+					};
+					modalNotification(`Falta ${fldId.replace('reg_', '')}`, messages[fldId] || 'Por favor, sube el documento requerido.', { template: 'warning' });
+				}
+			});
 		}
 
 		if (!isValid) {

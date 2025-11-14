@@ -5,7 +5,7 @@
 @once
 	@vite(['resources/css/loginRegister.css'])
 @endonce
-<div class="min-vh-100 d-flex align-items-center justify-content-center">
+<div class="d-flex align-items-center justify-content-center" style="padding-top: 1%">
 	<div class="login-container">
 		<div class="box">
 			<!-- FORMULARIO LOGIN -->
@@ -52,9 +52,31 @@
 						</div>
 					</div>
 					<div class="field">
-						<label for="reg_name" class="field-label">Nombre</label>
+						<label for="reg_name" class="field-label">Nombres</label>
 						<div class="type">
 							<input type="text" placeholder="Nombre" id="reg_name" name="reg_name" />
+						</div>
+					</div>
+					<div class="field">
+						<label for="reg_lastname" class="field-label">Apellidos</label>
+						<div class="type">
+							<input type="text" placeholder="Apellidos" id="reg_lastname" name="reg_lastname" />
+						</div>
+					</div>
+					<div class="field">
+						<label for="reg_birthdate" class="field-label">Fecha de nacimiento</label>
+						<div class="type">
+							<input type="date" id="reg_birthdate" name="reg_birthdate" />
+						</div>
+					</div>
+					<div class="field">
+						<label for="reg_gender" class="field-label">Género</label>
+						<div class="type">
+							<select id="reg_gender" name="reg_gender" class="form-select bg-transparent border-0">
+								<option value="">Selecciona una opción</option>
+								<option value="masculino">Masculino</option>
+								<option value="femenino">Femenino</option>
+							</select>
 						</div>
 					</div>
 					<div class="field">
@@ -77,6 +99,18 @@
 						</div>
 					</div>
 					<div class="field professional-only d-none">
+						<label for="reg_speciality" class="field-label">Especialidad</label>
+						<div class="type">
+							<input type="text" placeholder="Ej. Psicología clínica" id="reg_speciality" name="reg_speciality" />
+						</div>
+					</div>
+					<div class="field">
+						<label for="reg_location" class="field-label">Ubicación</label>
+						<div class="type">
+							<input type="text" placeholder="Ciudad, provincia" id="reg_location" name="reg_location" />
+						</div>
+					</div>
+					<div class="field professional-only d-none">
 						<label for="reg_titulo" class="field-label">Título profesional (escaneado)</label>
 						<div class="type">
 							<input type="file" id="reg_titulo" name="reg_titulo" accept=".pdf,.jpg,.jpeg,.png" />
@@ -89,28 +123,16 @@
 						</div>
 					</div>
 					<div class="field professional-only d-none">
-						<label for="reg_specialty" class="field-label">Especialidad</label>
+						<label for="reg_cv" class="field-label">Curriculum Vitae</label>
 						<div class="type">
-							<input type="text" placeholder="Ej. Psicología clínica" id="reg_specialty" name="reg_specialty" />
+							<input type="file" id="reg_cv" name="reg_cv" accept=".pdf,.jpg,.jpeg,.png" />
 						</div>
 					</div>
 					<div class="field professional-only d-none">
-						<label for="reg_location" class="field-label">Ubicación</label>
+						<label for="reg_exequatur" class="field-label">Exequátur</label>
 						<div class="type">
-							<input type="text" placeholder="Ciudad, provincia" id="reg_location" name="reg_location" />
+							<input type="file" id="reg_exequatur" name="reg_exequatur" accept=".pdf,.jpg,.jpeg,.png" />
 						</div>
-					</div>
-					<div class="field professional-only d-none">
-						<label class="field-label">Modalidades que gestionará</label>
-						<div class="type modalidades d-flex gap-2 align-items-center">
-							<!-- Using accessible btn-check pattern so inputs remain checkboxes (can select both)
-							     but are presented as compact toggle buttons for better UX -->
-							<input type="checkbox" class="btn-check" name="reg_appointment_types[]" value="presencial" id="reg_type_presencial" autocomplete="off">
-							<label class="btn btn-outline-secondary btn-sm" for="reg_type_presencial">Presencial</label>
-							<input type="checkbox" class="btn-check" name="reg_appointment_types[]" value="virtual" id="reg_type_virtual" autocomplete="off">
-							<label class="btn btn-outline-secondary btn-sm" for="reg_type_virtual">Virtual</label>
-						</div>
-						<small class="field-help">Selecciona una o ambas modalidades.</small>
 					</div>
 					<button id="register_submit_btn" class="btn bkg" type="submit">Registrarte</button>
 				</form>

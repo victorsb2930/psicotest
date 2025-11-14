@@ -111,10 +111,16 @@ class ProfessionalApplicationController extends Controller
 	public function file(Request $request, ProfessionalApplication $application, string $field)
 	{
 		$this->ensureAccess($request, ['professional_applications']);
-		if (!in_array($field, ['titulo', 'cedula'], true)) {
+		if (!in_array($field, ['titulo', 'cedula', 'cv', 'exequatur'], true)) {
 			abort(404);
 		}
-		$path = $field === 'titulo' ? $application->titulo_path : $application->cedula_path;
+		$path = match($field) {
+			'titulo' => $application->titulo_path,
+			'cedula' => $application->cedula_path,
+			'cv' => $application->cv_path,
+			'exequatur' => $application->exequatur_path,
+			default => null,
+		};
 		if (!$path) {
 			abort(404);
 		}

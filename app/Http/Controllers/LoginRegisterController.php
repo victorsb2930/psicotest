@@ -31,18 +31,27 @@ class LoginRegisterController extends Controller
 		$rules = [
 			'reg_type' => ['required', 'integer', Rule::exists('roles', 'id')->where('show_in_signup', true)],
 			'reg_name' => ['required', 'string', 'max:255'],
+			'reg_lastname' => ['required', 'string', 'max:255'],
 			'reg_email' => ['required', 'email', 'max:255', 'unique:users,email'],
 			'reg_password' => ['required', 'string', 'min:6', 'confirmed'],
 			'reg_titulo' => ['nullable','file','mimes:pdf,jpg,jpeg,png','max:8192'],
 			'reg_cedula' => ['nullable','file','mimes:pdf,jpg,jpeg,png','max:8192'],
-			'reg_specialty' => ['nullable','string','max:255'],
-			'reg_location' => ['nullable','string','max:255'],
-			'json' => ['nullable','string','max:255'],
+			'reg_cv' => ['nullable','file','mimes:pdf,jpg,jpeg,png','max:8192'],
+			'reg_exequatur' => ['nullable','file','mimes:pdf,jpg,jpeg,png','max:8192'],
+			'reg_speciality' => ['nullable','string','max:255'],
+			'reg_location' => ['required','string','max:255'],
+			'reg_birthdate' => ['required','date'],
+			'reg_gender' => ['required','string','max:40']
 		];
 
 		$messages = [
+			'reg_name.required' => 'El nombre es obligatorio.',
+			'reg_lastname.required' => 'El apellido es obligatorio.',
+			'reg_birthdate.required' => 'La fecha de nacimiento es obligatoria.',
+			'reg_gender.required' => 'El género es obligatorio.',
 			'reg_email.unique' => 'El email ya está en uso.',
 			'reg_email.email' => 'Ingresa un email válido.',
+			'reg_password.required' => 'La contraseña es obligatoria.',
 			'reg_password.confirmed' => 'La confirmación de la contraseña no coincide.',
 			'reg_password.min' => 'La contraseña debe tener al menos 6 caracteres.',
 		];
@@ -50,6 +59,11 @@ class LoginRegisterController extends Controller
 		$attributes = [
 			'reg_type' => 'tipo de usuario',
 			'reg_name' => 'nombre',
+			'reg_lastname' => 'apellido',
+			'reg_birthdate' => 'fecha de nacimiento',
+			'reg_gender' => 'género',
+			'reg_speciality' => 'especialidad',
+			'reg_location' => 'ubicación',
 			'reg_email' => 'email',
 			'reg_password' => 'contraseña',
 			'reg_password_confirmation' => 'confirmar contraseña',
@@ -86,47 +100,61 @@ class LoginRegisterController extends Controller
 		if ($isAdminEmail) { $requiresDocs = false; }
 		if ($requiresDocs) {
 			$request->validate([
+				'reg_speciality' => ['required','string','max:255'],
 				'reg_titulo' => ['required','file','mimes:pdf,jpg,jpeg,png','max:8192'],
 				'reg_cedula' => ['required','file','mimes:pdf,jpg,jpeg,png','max:8192'],
-				'reg_specialty' => ['required','string','max:255'],
-				'reg_location' => ['required','string','max:255'],
-				'reg_appointment_types' => ['required','array'],
-				'reg_appointment_types.*' => ['string','max:255'],
+				'reg_cv' => ['required','file','mimes:pdf,jpg,jpeg,png','max:8192'],
+				'reg_exequatur' => ['required','file','mimes:pdf,jpg,jpeg,png','max:8192'],
 			],
 			$messages,
 			[
+				'reg_speciality' => 'especialidad',
 				'reg_titulo' => 'título profesional',
 				'reg_cedula' => 'cédula',
-				'reg_specialty' => 'especialidad',
-				'reg_location' => 'ubicación',
-				'reg_appointment_types' => 'tipos de cita'
+				'reg_cv' => 'curriculum vitae',
+				'reg_exequatur' => 'exequátur',
 			]);
 		}
 
 		// Si la validación pasa, se crea el usuario
 		$user = LoginRegisterModel::create([
 			'name' => $validated['reg_name'],
-			'email' => strtolower($validated['reg_email'] ?? ''),
+			'lastname' => $validated['reg_lastname'],
+			'birthdate' => $validated['reg_birthdate'],
+			'gender' => $validated['reg_gender'],
+			'email' => strtolower($validated['reg_email']),
+			'speciality' => $validated['reg_speciality'],
+			'location' => $validated['reg_location'],
 			'password' => Hash::make($validated['reg_password']),
 			'remember_token' => Str::random(10),
 		]);
 
-		// Persist profile fields provided at registration (specialty, location, appointment types)
+		// Persist profile fields provided at registration (speciality, location, appointment types)
 		try {
 			$changed = false;
-			if ($request->filled('reg_specialty')) {
-				$user->specialty = $request->input('reg_specialty');
+			if ($request->filled('reg_speciality')) {
+				$user->speciality = $request->input('reg_speciality');
 				$changed = true;
 			}
 			if ($request->filled('reg_location')) {
 				$user->location = $request->input('reg_location');
 				$changed = true;
 			}
-			if ($request->filled('reg_appointment_types')) {
-				$val = $request->input('reg_appointment_types');
-				$parsed = null;
-				try { $parsed = is_array($val) ? $val : json_decode($val, true); } catch (\Throwable$_) { $parsed = null; }
-				$user->appointment_types = $parsed === null ? $val : $parsed;
+			if ($request->filled('reg_lastname')) {
+				$user->lastname = $request->input('reg_lastname');
+				$changed = true;
+			}
+			if ($request->filled('reg_birthdate')) {
+				$user->birthdate = $request->input('reg_birthdate');
+				$changed = true;
+			}
+			if ($request->filled('reg_gender')) {
+				$user->gender = $request->input('reg_gender');
+				$changed = true;
+			}
+			// Profesionales siempre virtuales: fija appointment_types = 'virtual' cuando requiere documentos
+			if ($requiresDocs) {
+				$user->appointment_types = 'virtual';
 				$changed = true;
 			}
 			if ($changed) { $user->save(); }
@@ -282,17 +310,25 @@ class LoginRegisterController extends Controller
 		$successMsg = 'Registro exitoso. Ahora puedes iniciar sesión.';
 		try {
 			if ($requiresDocs && !$isAdminEmail) {
-				$tituloPath = null; $cedulaPath = null;
+				$tituloPath = null; $cedulaPath = null; $cvPath = null; $exequaturPath = null;
 				if ($request->hasFile('reg_titulo')) {
 					$tituloPath = $request->file('reg_titulo')->store('professional_docs', 'local');
 				}
 				if ($request->hasFile('reg_cedula')) {
 					$cedulaPath = $request->file('reg_cedula')->store('professional_docs', 'local');
 				}
+				if ($request->hasFile('reg_cv')) {
+					$cvPath = $request->file('reg_cv')->store('professional_docs', 'local');
+				}
+				if ($request->hasFile('reg_exequatur')) {
+					$exequaturPath = $request->file('reg_exequatur')->store('professional_docs', 'local');
+				}
 				ProfessionalApplication::create([
 					'user_id' => $user->id,
 					'titulo_path' => $tituloPath,
 					'cedula_path' => $cedulaPath,
+					'cv_path' => $cvPath,
+					'exequatur_path' => $exequaturPath,
 					'status' => 'pending',
 				]);
 				$successMsg = 'Registro enviado. Un administrador revisará tus documentos y aprobará tu cuenta profesional.';

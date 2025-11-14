@@ -46,13 +46,21 @@
               <div class="fw-semibold">{{$a->user?->name}}</div>
               <div class="text-muted small">{{$a->user?->email}}</div>
             </td>
-            <td>
-              @if($a->titulo_path)
-                <a class="btn btn-sm btn-outline-secondary" target="_blank" href="{{ route('admin.profapps.file', [$a,'field'=>'titulo']) }}">Título</a>
-              @endif
-              @if($a->cedula_path)
-                <a class="btn btn-sm btn-outline-secondary" target="_blank" href="{{ route('admin.profapps.file', [$a,'field'=>'cedula']) }}">Cédula</a>
-              @endif
+            <td class="small">
+              <div class="d-flex flex-wrap gap-1">
+                @if($a->titulo_path)
+                  <a class="btn btn-sm btn-outline-secondary" target="_blank" href="{{ route('admin.profapps.file', [$a,'field'=>'titulo']) }}">Título</a>
+                @endif
+                @if($a->cedula_path)
+                  <a class="btn btn-sm btn-outline-secondary" target="_blank" href="{{ route('admin.profapps.file', [$a,'field'=>'cedula']) }}">Cédula</a>
+                @endif
+                @if($a->cv_path)
+                  <a class="btn btn-sm btn-outline-secondary" target="_blank" href="{{ route('admin.profapps.file', [$a,'field'=>'cv']) }}">CV</a>
+                @endif
+                @if($a->exequatur_path)
+                  <a class="btn btn-sm btn-outline-secondary" target="_blank" href="{{ route('admin.profapps.file', [$a,'field'=>'exequatur']) }}">Exequátur</a>
+                @endif
+              </div>
             </td>
             <td>
         @php

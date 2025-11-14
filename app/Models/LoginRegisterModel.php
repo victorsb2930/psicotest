@@ -6,6 +6,6 @@ use Illuminate\Database\Eloquent\Model;
 
 class LoginRegisterModel extends Model {
 	protected $table = 'users';
-	protected $fillable = ['name', 'email', 'password', 'remember_token'];
+	protected $fillable = ['name', 'lastname', 'birthdate', 'gender', 'email', 'speciality', 'location', 'password', 'remember_token'];
 	public $timestamps = true;
 }

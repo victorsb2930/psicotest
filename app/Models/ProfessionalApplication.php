@@ -10,7 +10,7 @@ class ProfessionalApplication extends Model
     use HasFactory;
 
     protected $fillable = [
-        'user_id','titulo_path','cedula_path','status','notes','reviewed_by','reviewed_at'
+        'user_id','titulo_path','cedula_path','cv_path','exequatur_path','status','notes','reviewed_by','reviewed_at'
     ];
 
     public function user() { return $this->belongsTo(User::class); }

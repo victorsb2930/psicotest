@@ -27,7 +27,7 @@ function escapeHtml(s) {
 
 function renderCard(p) {
 	const photo = p.photo || '/images/default-avatar.png';
-	const specialty = p.specialty || 'General';
+	const speciality = p.speciality || 'General';
 	const rating = (p.rating !== null && p.rating !== undefined)
 		? `<span class="badge bg-success">${(typeof p.rating === 'number' && p.rating.toFixed) ? p.rating.toFixed(1) : escapeHtml(String(p.rating))}</span>`
 		: '';
@@ -53,7 +53,7 @@ function renderCard(p) {
 							</div>
 							<div>${rating}</div>
 						</div>
-						<div class="mt-2 small text-muted">Especialidad: <strong>${escapeHtml(specialty)}</strong></div>
+						<div class="mt-2 small text-muted">Especialidad: <strong>${escapeHtml(speciality)}</strong></div>
 						<div class="mt-1 small">Tipo: <strong>${escapeHtml(types)}</strong></div>
 						<div class="mt-1 small">Ubicación: <strong>${escapeHtml(location)}</strong></div>
 						<div class="mt-3">
@@ -61,7 +61,7 @@ function renderCard(p) {
 							<button data-id="${escapeHtml(String(p.id))}"
 											data-types='${JSON.stringify(typesArr)}'
 											data-name="${escapeHtml(p.name || '')}"
-											data-title="${escapeHtml(specialty)}"
+											data-title="${escapeHtml(speciality)}"
 											class="btn btn-sm btn-primary ms-2 btn-request">Solicitar cita</button>
 						</div>
 					</div>
@@ -72,7 +72,7 @@ function renderCard(p) {
 
 export default function init() {
 	const $q = document.getElementById('pf_q');
-	const $spec = document.getElementById('pf_specialty');
+	const $spec = document.getElementById('pf_speciality');
 	const $type = document.getElementById('pf_type');
 	const $btn = document.getElementById('pf_search');
 	const $results = document.getElementById('pf_results');
@@ -82,7 +82,7 @@ export default function init() {
 		ensureCardHelperStyles();
 		const params = {
 			q: $q?.value || '',
-			specialty: $spec?.value || '',
+			speciality: $spec?.value || '',
 			type: $type?.value || ''
 		};
 		$results.innerHTML = '<div class="col-12 text-center py-5">Buscando...</div>';

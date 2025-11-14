@@ -10,15 +10,18 @@ return new class extends Migration {
 	**/
 	public function up(): void {
 		Schema::create('users', function (Blueprint $table) {
-			$table->id();
+			$table->id()->index()->primary();
 			$table->string('name');
+			$table->string('lastname');
+			$table->date('birthdate');
+			$table->string('gender');
 			$table->string('email')->unique();
 			// timezone
 			$table->string('timezone')->nullable();
 			// Professional/profile metadata (images are stored in user_photos as file paths in 'path')
-			$table->string('specialty')->nullable();
-			$table->json('appointment_types')->nullable();
-			$table->string('location')->nullable();
+			$table->string('speciality')->nullable();
+			$table->string('appointment_types')->nullable(); // e.g. 'virtual', 'in-person', 'both'
+			$table->string('location');
 			$table->decimal('rating', 3, 1)->nullable();
 			$table->timestamp('email_verified_at')->nullable();
 			$table->string('password');
@@ -41,7 +44,7 @@ return new class extends Migration {
 		});
 
 		Schema::create('sessions', function (Blueprint $table) {
-			$table->string('id')->primary();
+			$table->string('id')->primary()->index()->primary();
 			$table->foreignId('user_id')->nullable()->index();
 			$table->string('ip_address', 45)->nullable();
 			$table->text('user_agent')->nullable();
@@ -50,17 +53,16 @@ return new class extends Migration {
 		});
 
 		// user_photos table for profile and gallery images (store file path in `path`)
-			Schema::create('user_photos', function (Blueprint $table) {
-				$table->id();
-				$table->unsignedBigInteger('user_id')->index();
-				// store the storage path (e.g. user_photos/{user_id}/file.jpg)
-				$table->string('path')->nullable();
-				$table->string('caption')->nullable();
-				$table->boolean('is_profile')->default(false)->index();
-				$table->timestamps();
-
-				$table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
-			});
+		Schema::create('user_photos', function (Blueprint $table) {
+			$table->id()->index()->primary();
+			$table->unsignedBigInteger('user_id')->index();
+			// store the storage path (e.g. user_photos/{user_id}/file.jpg)
+			$table->string('path')->nullable();
+			$table->string('caption')->nullable();
+			$table->boolean('is_profile')->default(false)->index();
+			$table->timestamps();
+			$table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
+		});
 	}
 
 	/**

@@ -55,12 +55,15 @@ erDiagram
   USERS {
     int id PK
     string name
+    string lastname
+    string bithday
+    string gender
     string email
     string phone
     string timezone
     string password
-    string specialty
-    json appointment_types
+    string speciality
+    string appointment_types
     string location
     decimal rating
     string status
@@ -174,8 +177,8 @@ A continuación, cada tabla con columnas, tipos, nulos, default, PK, FK e índic
 - email: varchar(255), unique, not null (normalizado a minúsculas por código)
 - phone: varchar(32), null, INDEX
 - timezone: varchar(255), null
-- specialty: varchar(255), null
-- appointment_types: json, null (array tipado en modelo)
+- speciality: varchar(255), null
+- appointment_types: varchar(255), null
 - location: varchar(255), null
 - rating: numeric(3,1), null
 - email_verified_at: timestamp, null

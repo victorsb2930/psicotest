@@ -123,7 +123,13 @@ class DatabaseSeeder extends Seeder
 					$defaultPassword = (string) config('app.admin_password', 'admin123');
 					$userId = DB::table('users')->insertGetId([
 						'name' => $name,
+						'lastname' => 'Admin',
+						'birthdate' => now()->subYears(30)->toDateString(),
+						'gender' => 'Hombre',
 						'email' => $email,
+						'speciality' => 'Especialista',
+						'appointment_types' => 'Virtual',
+						'location' => 'En algun lugar',
 						'password' => \Illuminate\Support\Facades\Hash::make($defaultPassword),
 						'email_verified_at' => now(),
 						'is_active' => true,
