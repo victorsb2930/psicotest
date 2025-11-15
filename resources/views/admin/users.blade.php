@@ -7,6 +7,7 @@
 	<h1 class="mb-3 d-flex align-items-center gap-3">
 		<span>Gestión de usuarios</span>
 		<span class="ms-auto d-flex gap-2">
+			<button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#addUserModal">Agregar usuario</button>
 			<a href="{{ route('admin.roles.index') }}" class="btn btn-sm btn-outline-primary">Roles</a>
 			<a href="{{ route('admin.permissions.index') }}" class="btn btn-sm btn-outline-secondary">Permisos</a>
 		</span>
@@ -254,5 +255,68 @@
 		</div>
 	</div>
 </div>
+
+		<!-- Add User Modal -->
+		<div class="modal fade" id="addUserModal" tabindex="-1" aria-hidden="true">
+			<div class="modal-dialog modal-lg">
+				<div class="modal-content">
+					<form method="POST" action="{{ route('admin.users.store') }}" id="addUserForm">
+						@csrf
+						<div class="modal-header">
+							<h5 class="modal-title">Agregar usuario</h5>
+							<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+						</div>
+						<div class="modal-body">
+							<div class="row g-3">
+								<div class="col-md-6">
+									<label class="form-label">Nombres *</label>
+									<input type="text" name="name" class="form-control" required>
+								</div>
+								<div class="col-md-6">
+									<label class="form-label">Apellidos *</label>
+									<input type="text" name="lastname" class="form-control" required>
+								</div>
+								<div class="col-md-6">
+									<label class="form-label">Ubicación *</label>
+									<input type="text" name="location" class="form-control" required>
+								</div>
+								<div class="col-md-6">
+									<label class="form-label">Email *</label>
+									<input type="email" name="email" class="form-control" required>
+								</div>
+								<div class="col-12">
+									<div class="alert alert-info small mb-0">La contraseña será generada automáticamente y enviada al email proporcionado. Pide al usuario que la cambie tras iniciar sesión.</div>
+								</div>
+								<div class="col-md-4">
+									<label class="form-label">Fecha de nacimiento *</label>
+									<input type="date" name="birthdate" class="form-control" required>
+								</div>
+								<div class="col-md-4">
+									<label class="form-label">Género *</label>
+									<select name="gender" class="form-select" required>
+										<option value="">--</option>
+										<option value="masculino">Masculino</option>
+										<option value="femenino">Femenino</option>
+									</select>
+								</div>
+								<div class="col-md-4">
+									<label class="form-label">Rol inicial</label>
+									<select name="role_id" class="form-select">
+										<option value="">Sin rol</option>
+										@foreach($roles as $r)
+											<option value="{{ $r->id }}">{{ $r->signup_label ?? $r->name }} ({{ $r->name }})</option>
+										@endforeach
+									</select>
+								</div>
+							</div>
+						</div>
+						<div class="modal-footer">
+							<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+							<button type="submit" class="btn btn-success">Crear usuario</button>
+						</div>
+					</form>
+				</div>
+			</div>
+		</div>
 
 @endsection

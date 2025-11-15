@@ -115,6 +115,7 @@ class ProfessionalSearchController extends Controller
 			return [
 				'id' => $u->id,
 				'name' => $u->name,
+				'lastname' => $u->lastname,
 				'email' => $u->email,
 				'photo' => $photo,
 				'speciality' => $u->speciality ?? null,

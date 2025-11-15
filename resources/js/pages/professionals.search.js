@@ -26,6 +26,7 @@ function escapeHtml(s) {
 }
 
 function renderCard(p) {
+	console.log(p);
 	const photo = p.photo || '/images/default-avatar.png';
 	const speciality = p.speciality || 'General';
 	const rating = (p.rating !== null && p.rating !== undefined)
@@ -48,7 +49,7 @@ function renderCard(p) {
 					<div class="flex-grow-1">
 						<div class="d-flex justify-content-between align-items-start">
 							<div>
-								<h5 class="mb-1 card-title fw-bold text-primary">${escapeHtml(p.name || 'Profesional')}</h5>
+								<h5 class="mb-1 card-title fw-bold text-primary">${escapeHtml(p.name + ' ' + p.lastname || 'Profesional')}</h5>
 								<div class="card-text text-muted small">${escapeHtml(p.email || '')}</div>
 							</div>
 							<div>${rating}</div>

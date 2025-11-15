@@ -572,7 +572,7 @@
 							@endphp
 							<span class="presence-dot" style="position:absolute; right:-2px; bottom:-2px; width:10px; height:10px; border-radius:50%; border:2px solid #fff; background: {{ $presenceColor }};"></span>
 						</span>
-						<span class="d-none d-lg-inline text-white">{{ $user->name ?? 'Usuario' }}</span>
+						<span class="d-none d-lg-inline text-white">{{ $user->name . ' ' . $user->lastname ?? 'Usuario' }}</span>
 					</a>
 					<ul class="dropdown-menu dropdown-menu-end shadow" id="userDropdownMenu">
 						{{-- Perfil primero --}}

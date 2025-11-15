@@ -19,6 +19,10 @@ let _btnChangePhotoHandler = null;
 let _inputPhotoHandler = null;
 let _avatarClickHandler = null;
 let _galleryClickHandler = null;
+let _reopen2faSubmitHandler = null;
+let _reopen2faCancelHandler = null;
+let _resetPasswordConfirmHandler = null;
+let _resetPasswordBtnHandler = null;
 
 async function refreshGallery() {
 	try {
@@ -161,6 +165,101 @@ export function init() {
 		document.body.insertAdjacentHTML('beforeend', modalHtml);
 	}
 
+	// 2FA Reopen modal: ensure a single modal exists and attach handlers once
+	(function setupReopen2fa(){
+		let modalEl = document.getElementById('reopen2faModal');
+		if (!modalEl) {
+			const modal2 = `
+			<div class="modal fade" id="reopen2faModal" tabindex="-1" aria-hidden="true">
+				<div class="modal-dialog modal-dialog-centered">
+					<div class="modal-content">
+						<div class="modal-header">
+							<h5 class="modal-title">Confirmar reapertura de sesión</h5>
+						</div>
+						<div class="modal-body">
+							<p>Hemos enviado un código a tu correo. Introduce el código de 6 dígitos para confirmar que eres tú.</p>
+							<div class="mb-2"><input id="reopen2faCode" class="form-control" placeholder="Código 6 dígitos" maxlength="6" inputmode="numeric"></div>
+							<div id="reopen2faError" class="text-danger small" style="display:none"></div>
+						</div>
+						<div class="modal-footer">
+							<button id="reopen2faCancel" type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+							<button id="reopen2faSubmit" type="button" class="btn btn-primary">Confirmar</button>
+						</div>
+					</div>
+				</div>
+			</div>`;
+			document.body.insertAdjacentHTML('beforeend', modal2);
+			modalEl = document.getElementById('reopen2faModal');
+		}
+
+		const input = modalEl.querySelector('#reopen2faCode');
+		const err = modalEl.querySelector('#reopen2faError');
+		const submit = modalEl.querySelector('#reopen2faSubmit');
+		const cancel = modalEl.querySelector('#reopen2faCancel');
+
+		// attach submit handler once
+		_reopen2faSubmitHandler = async function() {
+			err.style.display = 'none';
+			const code = input.value.trim();
+			if (!/^[0-9]{6}$/.test(code)) { err.textContent = 'Introduce un código válido de 6 dígitos.'; err.style.display = 'block'; return; }
+			submit.disabled = true;
+			try {
+				const res = await fetch('/profile/heartbeat/confirm', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content') }, body: JSON.stringify({ code }) });
+				const j = await res.json();
+				if (j.ok) {
+					const bs = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+					bs.hide();
+					location.reload();
+				} else {
+					err.textContent = j.message || 'Código incorrecto';
+					err.style.display = 'block';
+				}
+			} catch (errNet) {
+				err.textContent = 'Error de red. Intenta de nuevo.'; err.style.display = 'block';
+			} finally { submit.disabled = false; }
+		};
+		submit.addEventListener('click', _reopen2faSubmitHandler);
+
+		// clear UI on cancel
+		_reopen2faCancelHandler = function(){ try { err.style.display = 'none'; input.value = ''; } catch(_){} };
+		cancel.addEventListener('click', _reopen2faCancelHandler);
+
+		// expose show helper that only resets and shows (no handler re-attach)
+		window.showReopen2faModal = function(){ try { err.style.display = 'none'; input.value = ''; const bs = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl); bs.show(); setTimeout(()=> input.focus(),250); } catch(_) {} };
+	})();
+
+	// Reset password: use the global modalConfirm helper for focus-safe confirm flow
+	const btnReset = document.getElementById('btn-reset-password');
+	if (btnReset) {
+		_resetPasswordBtnHandler = function() {
+			modalConfirm({
+				title: 'Cambiar contraseña',
+				body: '<p>Se enviará un enlace para restablecer la contraseña a tu correo registrado. ¿Deseas continuar?</p>',
+				confirmLabel: 'Enviar enlace',
+				cancelLabel: 'Cancelar',
+				// onClickYes may be async; modalConfirm will call it and then close the confirm modal
+				onClickYes: async function() {
+					try {
+						const res = await fetch('/profile/password/reset-email', {
+							method: 'POST',
+							headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content') },
+							body: JSON.stringify({})
+						});
+						const j = await res.json();
+						if (res.ok && j.ok) {
+							modalConfirm({ title: 'Enviado', body: '<p>Enlace enviado correctamente. Revisa tu correo.</p>', btnsType: 'ac' }, 'normal');
+						} else {
+							modalConfirm({ title: 'Error', body: `<p>${(j && j.message) ? j.message : 'No se pudo enviar el enlace.'}</p>`, btnsType: 'ac' }, 'normal');
+						}
+					} catch (err) {
+						modalConfirm({ title: 'Error de red', body: '<p>Error de red. Intenta de nuevo.</p>', btnsType: 'ac' }, 'normal');
+					}
+				}
+			}, 'normal');
+		};
+		btnReset.addEventListener('click', _resetPasswordBtnHandler);
+	}
+
 	// Attach click handler to avatar to open preview modal (store handler to remove on destroy)
 	const avatarWrap = document.getElementById('profile-avatar');
 	const modalImg = document.getElementById('profileImagePreviewModalImg');
@@ -268,6 +367,10 @@ export function destroy() {
 	try { if (_inputPhotoHandler) document.getElementById('input-photo')?.removeEventListener('change', _inputPhotoHandler); } catch (_) { }
 	try { if (_avatarClickHandler) document.getElementById('profile-avatar')?.removeEventListener('click', _avatarClickHandler); } catch (_) { }
 	try { if (_galleryClickHandler) document.getElementById('photo-gallery')?.removeEventListener('click', _galleryClickHandler); } catch (_) { }
+	try { if (_reopen2faSubmitHandler) document.getElementById('reopen2faSubmit')?.removeEventListener('click', _reopen2faSubmitHandler); } catch(_) {}
+	try { if (_reopen2faCancelHandler) document.getElementById('reopen2faCancel')?.removeEventListener('click', _reopen2faCancelHandler); } catch(_) {}
+	try { if (_resetPasswordConfirmHandler) document.getElementById('resetPasswordConfirm')?.removeEventListener('click', _resetPasswordConfirmHandler); } catch(_) {}
+	try { if (_resetPasswordBtnHandler) document.getElementById('btn-reset-password')?.removeEventListener('click', _resetPasswordBtnHandler); } catch(_) {}
 	try { if (_visibilityHandler) document.removeEventListener('visibilitychange', _visibilityHandler); } catch (_) { }
 	try { if (_beforeUnloadHandler) window.removeEventListener('beforeunload', _beforeUnloadHandler); } catch (_) { }
 

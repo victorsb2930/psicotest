@@ -234,6 +234,7 @@ Route::middleware(['auth'])->group(function(){
 	// Admin: gestión de usuarios y roles
 	Route::prefix('admin')->middleware(['auth','perm:adminarea'])->group(function(){
 		Route::get('/users', [\App\Http\Controllers\AdminController::class, 'users'])->name('admin.users');
+		Route::post('/users', [\App\Http\Controllers\AdminController::class, 'storeUser'])->name('admin.users.store');
 		Route::get('/users/{user}/sessions', [\App\Http\Controllers\AdminController::class, 'sessions'])->name('admin.users.sessions');
 		Route::post('/users/{user}/toggle', [\App\Http\Controllers\AdminController::class, 'toggleActive'])->name('admin.users.toggle');
 		Route::post('/users/{user}/roles', [\App\Http\Controllers\AdminController::class, 'assignRoles'])->name('admin.users.roles');
@@ -393,6 +394,22 @@ Route::middleware('auth')->group(function(){
 		try { event(new \App\Events\UserPresenceChanged($user->id, $status)); } catch (\Throwable $_) {}
 		return response()->json(['ok'=>true,'status'=>$status]);
 	})->name('profile.presence');
+
+	// Send password-reset email to the authenticated user (AJAX)
+	Route::post('/profile/password/reset-email', function(\Illuminate\Http\Request $request){
+		$user = auth()->user();
+		if (!$user) return response()->json(['ok'=>false], 401);
+		try {
+			$status = \Illuminate\Support\Facades\Password::sendResetLink(['email' => $user->email]);
+			if ($status === \Illuminate\Support\Facades\Password::RESET_LINK_SENT) {
+				return response()->json(['ok' => true]);
+			}
+			return response()->json(['ok' => false, 'message' => __($status)], 500);
+		} catch (\Throwable $e) {
+		\Log::error('profile.reset-email error: '.$e->getMessage());
+			return response()->json(['ok' => false, 'message' => 'Error interno al enviar correo.'], 500);
+		}
+	})->name('profile.password.reset_email');
 
 	// Return current authenticated user's status (used by polling on /perfil)
 	Route::get('/profile/status', function(){

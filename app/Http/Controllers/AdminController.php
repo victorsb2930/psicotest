@@ -7,6 +7,9 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Role as SpatieRole;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class AdminController extends Controller {
 	public function users(Request $request) {
@@ -48,6 +51,57 @@ class AdminController extends Controller {
 		$users = $query->orderBy($sortCol, $dir)->paginate($size)->withQueryString();
 	$roles = Role::orderBy('name')->get();
 		return view('admin.users', compact('users','roles','q','roleId','status','size','sort','dir'));
+	}
+
+	public function storeUser(Request $request) {
+		$rules = [
+			'name' => ['required','string','max:255'],
+			'lastname' => ['required','string','max:255'],
+			'email' => ['required','email','max:255','unique:users,email'],
+			'location' => ['required','string','max:255'],
+			//'password' => ['required','string','min:6'],
+			'birthdate' => ['required','date'],
+			'gender' => ['required','string','max:40'],
+			'role_id' => ['nullable','integer','exists:roles,id'],
+		];
+		$messages = [
+			'email.unique' => 'El email ya está en uso.',
+			//'password.min' => 'La contraseña debe tener al menos 6 caracteres.'
+		];
+		$validated = $request->validate($rules, $messages);
+		// normalizar email a minúsculas
+		$validated['email'] = strtolower($validated['email']);
+		$user = new User();
+		$user->name = $validated['name'];
+		$user->lastname = $validated['lastname'];
+		$user->email = $validated['email'];
+		$user->location = $validated['location'];
+		// If no password provided, generate a secure random one and email it to the user
+		$plainPassword = $validated['password'] ?? Str::random(12);
+		$user->password = \Illuminate\Support\Facades\Hash::make($plainPassword);
+		$user->birthdate = $validated['birthdate'];
+		$user->gender = $validated['gender'];
+		$user->is_active = true; // crear activo por defecto
+		$user->save();
+		// asignar rol si se proporciona
+		if (!empty($validated['role_id'])) {
+			try {
+				$role = Role::find($validated['role_id']);
+				if ($role) { $user->syncRoles([$role->name]); }
+			} catch (\Throwable $_) { /* ignore */ }
+		}
+		// send notification email with temporary password
+		$mailOk = true; $mailErr = null;
+		try {
+			Mail::to($user->email)->send(new \App\Mail\AdminCreatedUser($user, $plainPassword));
+		} catch (\Throwable $e) {
+			$mailOk = false; $mailErr = $e->getMessage();
+			Log::warning('admin.create_user.mail_failed', ['email' => $user->email, 'error' => $mailErr]);
+		}
+		if ($mailOk) {
+			return back()->with('success', 'Usuario agregado correctamente. Se envió el correo con la contraseña temporal.');
+		}
+		return back()->with('success', 'Usuario agregado correctamente. No se pudo enviar el correo de notificación.');
 	}
 
 	public function toggleActive(Request $request, User $user) {
