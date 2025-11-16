@@ -1,6 +1,7 @@
 @extends('layouts.app')
 
 @section('title','Verificación 2FA')
+@section('page','2fa-challenge')
 
 @section('content')
 <div class="container py-5">
@@ -38,25 +39,4 @@
         </div>
     </div>
 </div>
-<script>
-(function(){
-    const btn = document.getElementById('btnResend2fa');
-    if(btn){
-        btn.addEventListener('click', async () => {
-            btn.disabled = true;
-            try {
-                const res = await fetch("{{ route('auth.2fa.challenge') }}", {method:'POST', headers:{'Content-Type':'application/json','X-CSRF-TOKEN':'{{ csrf_token() }}','Accept':'application/json'}, body: JSON.stringify({ resend: 1 })});
-                const j = await res.json();
-                if(j && j.ok){
-                    showNotification('Atención','Código reenviado.', {template:'info'});
-                } else {
-                    showNotification('Error', j.message || 'No se pudo reenviar.', {template:'error'});
-                }
-            } catch(e){
-                showNotification('Error', 'Error de red', {template:'error'});
-            } finally { btn.disabled = false; }
-        });
-    }
-})();
-</script>
 @endsection

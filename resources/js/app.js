@@ -35,6 +35,7 @@ const pageModuleMap = {
 	,'plans': './components/plans.js'
 	,'chat': './pages/chat.js'
 	,'professional-availability': './pages/professional.availability.js'
+	,'2fa-challenge': './pages/2fa/twofactor_challenge.js'
 };
 
 async function initPage() {
