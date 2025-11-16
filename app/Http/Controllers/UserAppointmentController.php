@@ -50,6 +50,17 @@ class UserAppointmentController extends Controller
         $start = Carbon::parse($data['start'])->setTimezone('UTC');
         $end = isset($data['end']) ? Carbon::parse($data['end'])->setTimezone('UTC') : null;
 
+        // Validate against professional availability
+        try {
+            $svc = app(\App\Services\AvailabilityService::class);
+            [$ok,$reason] = $svc->isSlotAvailable((int)$data['professional_id'], $start, $end ?? $start->copy()->addMinutes(30));
+            if (!$ok) {
+                return response()->json(['ok'=>false,'error'=>'availability','message'=>$reason ?? 'Horario no disponible'], 422);
+            }
+        } catch (\Throwable $ex) {
+            \Log::error('Availability check failed for user appointment', ['err'=>$ex->getMessage()]);
+        }
+
         $appt = Appointment::create([
             'professional_id' => $data['professional_id'],
             'patient_id' => $user->id,

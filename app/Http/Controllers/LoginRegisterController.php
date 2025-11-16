@@ -336,16 +336,30 @@ class LoginRegisterController extends Controller
 		} catch (\Throwable $e) { /* noop */ }
 
 		// TODO: Enviar email de verificación, etc.
+		// Enviar email de verificación (enlace firmado, 60 minutos)
+		try {
+			$verifyUrl = \URL::temporarySignedRoute(
+				'verification.verify', now()->addMinutes(60), [
+					'id' => $user->id,
+					'hash' => sha1(strtolower($user->email)),
+				]
+			);
+			\Mail::raw("Hola ${validated['reg_name']},\n\nPor favor verifica tu email haciendo clic en el siguiente enlace:\n${verifyUrl}\n\nSi no fuiste tú, ignora este mensaje.", function($m) use ($user){
+				$m->to($user->email)->subject('Verifica tu email');
+			});
+		} catch (\Throwable $_) { /* best-effort */ }
+		// Prefill email in notice view
+		try { session(['pending_verification_email' => $user->email]); } catch (\Throwable $_) {}
+
 		if ($request->expectsJson()) {
 			return response()->json([
 				'ok' => true,
-				'message' => $successMsg
+				'message' => $successMsg,
+				'redirect' => route('verification.notice')
 			]);
 		}
-		if ($requiresDocs) {
-			return redirect()->route('underreview')->with('success', $successMsg);
-		}
-		return redirect('/')->with('success', $successMsg);
+		// Tras registrarse, siempre dirigir al aviso de verificación
+		return redirect()->route('verification.notice')->with('success', $successMsg);
 	}
 
 	public function login(Request $request)
@@ -534,6 +548,25 @@ class LoginRegisterController extends Controller
 					if ($roleUser) { $user->syncRoles([$roleUser->name]); }
 				}
 			} catch (\Throwable $e) { /* noop */ }
+
+			// Enforce email verification before granting access (no auto-email, only option to resend)
+			try {
+				if (empty($user->email_verified_at)) {
+					// Store email to prefill the resend form
+					try { session(['pending_verification_email' => $user->email]); } catch (\Throwable $_) {}
+					try { auth()->logout(); } catch (\Throwable $_) {}
+					$request->session()->forget('url.intended');
+					if ($request->expectsJson()) {
+						return response()->json([
+							'ok' => false,
+							'verify_email' => true,
+							'redirect' => route('verification.notice'),
+							'message' => 'Debes verificar tu email para acceder.'
+						], 403);
+					}
+					return redirect()->route('verification.notice')->with('info','Debes verificar tu email para acceder.');
+				}
+			} catch (\Throwable $_) { /* noop */ }
 			// 1) Preferir landing configurado por rol (roles.home_path) si existe.
 			$page = null;
 			try {
@@ -558,6 +591,61 @@ class LoginRegisterController extends Controller
 			} catch (\Throwable $_) { $page = null; }
 
 			if (!$page) { $page = '/'; }
+			// Si el usuario tiene 2FA habilitado, iniciar desafío antes de conceder acceso
+			$twoFactorEnabled = false; $twoFactorMethod = 'email';
+			try {
+				if (\Schema::hasColumn('users','two_factor_enabled')) { $twoFactorEnabled = (bool)($user->two_factor_enabled ?? false); }
+				if (\Schema::hasColumn('users','two_factor_method')) {
+					$m = strtolower((string)($user->two_factor_method ?? ''));
+					if (in_array($m, ['email','phone'], true)) { $twoFactorMethod = $m; }
+				}
+			} catch (\Throwable $_) { $twoFactorEnabled = false; $twoFactorMethod='email'; }
+			if ($twoFactorEnabled) {
+				// Generar código 2FA y enviarlo según método preferido
+				$code = (string) random_int(100000, 999999);
+				// Guardar hash en cache por 5 minutos
+				try { \Cache::put('2fa:login:'.$user->id, hash('sha256',$code), now()->addMinutes(5)); } catch (\Throwable $_) {}
+				if ($twoFactorMethod === 'phone') {
+					$sent = false;
+					$phone = null;
+					try { if (\Schema::hasColumn('users','phone')) { $phone = trim((string)$user->phone); } } catch (\Throwable $_) { $phone = null; }
+					if ($phone) {
+						// Intentar enviar vía Twilio si credenciales están presentes, sino fallback a email
+						$twSid = env('TWILIO_SID'); $twToken = env('TWILIO_TOKEN'); $twFrom = env('TWILIO_FROM');
+						if ($twSid && $twToken && $twFrom) {
+							try {
+								$client = new \Twilio\Rest\Client($twSid, $twToken);
+								$client->messages->create($phone, ['from' => $twFrom, 'body' => 'Tu código 2FA es: '.$code]);
+								$sent = true;
+							} catch (\Throwable $e) { try { \Log::warning('2fa.sms_failed', ['err'=>$e->getMessage()]); } catch(\Throwable $_){} $sent=false; }
+						}
+					}
+					if (!$sent) {
+						// fallback a email si SMS no enviado
+						try { \Mail::raw('Tu código de verificación es: '.$code, function($m) use ($user){ $m->to($user->email)->subject('Código de verificación 2FA'); }); } catch (\Throwable $_) {}
+						$twoFactorMethod = 'email'; // notificar al cliente que se usó email
+					}
+				} else {
+					try { \Mail::raw('Tu código de verificación es: '.$code, function($m) use ($user){ $m->to($user->email)->subject('Código de verificación 2FA'); }); } catch (\Throwable $_) {}
+				}
+				// Preparar sesión para desafío y cerrar sesión temporal
+				$request->session()->put('2fa_login_user_id', $user->id);
+				$request->session()->put('2fa_intended_page', $page);
+				$request->session()->put('2fa_delivery_method', $twoFactorMethod);
+				// Cerrar sesión para impedir acceso antes de validar código
+				try { auth()->logout(); } catch (\Throwable $_) {}
+				$request->session()->forget('url.intended');
+				if ($request->expectsJson()) {
+					return response()->json([
+						'ok' => true,
+						'two_factor_challenge' => true,
+						'message' => 'Se requiere verificación 2FA.',
+						'redirect' => route('auth.2fa.challenge'),
+						'delivery_method' => $twoFactorMethod,
+					]);
+				}
+				return redirect()->route('auth.2fa.challenge');
+			}
 			// Asegura que no persista un 'url.intended' de una sesión anterior
 			$request->session()->forget('url.intended');
 			if ($request->expectsJson()) {

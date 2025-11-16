@@ -76,6 +76,23 @@ class ProfessionalCalendarController extends Controller
             ], 422);
         }
 
+        // Availability validation for professional creating appointment (respect own schedule)
+        try {
+            $svc = app(\App\Services\AvailabilityService::class);
+            // if end not provided assume 30 min default slot
+            $effectiveEnd = $end ?? $start->copy()->addMinutes(30);
+            [$ok,$reason] = $svc->isSlotAvailable($user->id, $start, $effectiveEnd);
+            if (!$ok) {
+                return response()->json([
+                    'error' => 'availability',
+                    'field' => 'start',
+                    'message' => $reason ?? 'Horario no disponible'
+                ], 422);
+            }
+        } catch (\Throwable $ex) {
+            \Log::error('Availability check failed (professional store)', ['err'=>$ex->getMessage()]);
+        }
+
         // Check for overlapping appointments (treat touching intervals as conflict: existing.start <= new.end AND (existing.end IS NULL OR existing.end >= new.start))
         $conflicts = Appointment::where('professional_id', $user->id)
             ->whereNull('deleted_at')

@@ -118,61 +118,22 @@ export default function init() {
 				});
 			});
 
-			// wire request buttons to open shared appointment modal if available
+			// wire request buttons: redirigir al calendario con query params para autolanzar modal
 			Array.from(document.querySelectorAll('.btn-request')).forEach(b => {
-				b.addEventListener('click', async () => {
+				b.addEventListener('click', () => {
 					const id = b.getAttribute('data-id');
-
-					let profName = b.getAttribute('data-name') || null;
-					let profTitle = b.getAttribute('data-title') || null;
-					// Fallback: try to read visible card content if attributes missing
+					let profName = b.getAttribute('data-name') || '';
+					let profTitle = b.getAttribute('data-title') || '';
+					// fallback DOM extraction
 					if (!profName) {
-						try {
-							const card = b.closest && b.closest('.card');
-							if (card) {
-								const h5 = card.querySelector('h5');
-								if (h5 && h5.textContent) profName = h5.textContent.trim();
-							}
-						} catch (_) { profName = profName || null; }
+						try { const h5 = b.closest('.card')?.querySelector('h5'); if (h5) profName = h5.textContent.trim(); } catch(_){}
 					}
 					if (!profTitle) {
-						try {
-							const card = b.closest && b.closest('.card');
-							if (card) {
-								const spec = card.querySelector('.mt-2.small strong');
-								if (spec && spec.textContent) profTitle = spec.textContent.trim();
-							}
-						} catch (_) { profTitle = profTitle || null; }
+						try { const spec = b.closest('.card')?.querySelector('.mt-2.small strong'); if (spec) profTitle = spec.textContent.trim(); } catch(_){}
 					}
-
-					const openModal = async () => {
-						try {
-							if (typeof window.openAppointmentModal === 'function') {
-								window.openAppointmentModal({ mode: 'patient', defaults: { professional_id: id, professional_name: profName, professional_title: profTitle }, types: types, urls: {}, calendar: null });
-								return true;
-							}
-						} catch (_) { }
-						return false;
-					};
-
-					// Try existing global first
-					if (await openModal()) return;
-
-					// Try dynamic import of the utility (lazy-load) and retry
-					try {
-						const mod = await import('../utils/appointmentModal');
-						const fn = mod.default || mod.openAppointmentModal || (mod && mod.openAppointmentModal ? mod.openAppointmentModal : null);
-						if (typeof fn === 'function') {
-							try { window.openAppointmentModal = fn; } catch (_) { }
-							fn({ mode: 'patient', defaults: { professional_id: id, professional_name: profName, professional_title: profTitle }, types: types, urls: {}, calendar: null });
-							return;
-						}
-					} catch (_) {
-						// ignore import failure and fallthrough to fallback
-					}
-
-					// fallback simple prompt
-					window.modalNotification?.('Función no disponible', 'No se puede solicitar desde aquí', { template: 'warning' });
+					const params = new URLSearchParams({ professional_id: id || '', professional_name: profName || '', professional_title: profTitle || '' });
+					// Calendar route: asumimos /appointments (según blades y rutas)
+					window.location.href = '/appointments?' + params.toString();
 				});
 			});
 

@@ -22,18 +22,19 @@ let currentPageModuleDestroy = null;
 let currentPageName = null;
 
 const pageModuleMap = {
-	'index': './index.js',
-	'login-register': './loginRegister.js',
-	'contact': './contact.js',
-	'profile': './pages/profile.js',
-	'admin-roles': './pages/admin.roles.js',
-	'admin-users': './pages/admin.users.js',
-	'admin-professional-apps': './pages/admin.profapps.js',
-	'professional-calendar': './pages/professional.calendar.js'
+	'index': './index.js'
+	,'login-register': './loginRegister.js'
+	,'contact': './contact.js'
+	,'profile': './pages/profile.js'
+	,'admin-roles': './pages/admin.roles.js'
+	,'admin-users': './pages/admin.users.js'
+	,'admin-professional-apps': './pages/admin.profapps.js'
+	,'professional-calendar': './pages/professional.calendar.js'
 	,'user-appointments': './pages/user.appointments.js'
 	,'professionals-search': './pages/professionals.search.js'
 	,'plans': './components/plans.js'
 	,'chat': './pages/chat.js'
+	,'professional-availability': './pages/professional.availability.js'
 };
 
 async function initPage() {

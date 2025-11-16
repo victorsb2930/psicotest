@@ -1,6 +1,10 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
+use Illuminate\Auth\Events\PasswordReset;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -32,10 +36,10 @@ Route::get('/welcome', function () {
 			'value' => (string) $r->id,
 			'text' => $r->signup_label ?: $r->name,
 			'slug' => $r->name,
-			'requires_docs' => (bool) $r->requires_docs,
+				'requires_docs' => (bool) $r->requires_docs,
 		])->values()->all();
 	return view('loginRegister', compact('signupRoles'));
-});
+})->name('welcome');
 
 // Public route: show the "under review" page even for guests. When a user
 // with a professional account isn't active yet they are redirected here from
@@ -43,6 +47,114 @@ Route::get('/welcome', function () {
 Route::get('/underreview', function () {
     return view('under_review');
 })->name('underreview');
+
+// Email verification notice and actions (no auth required)
+Route::get('/email/verification-notice', function(){
+	return view('auth.verify_notice');
+})->name('verification.notice');
+
+// Resend verification email
+Route::post('/email/verification-notification', function(\Illuminate\Http\Request $r){
+	$email = (string) $r->input('email');
+	if ($email === '') {
+		return back()->with('error','Ingresa tu email para reenviar el enlace.');
+	}
+	$user = \App\Models\User::whereRaw('LOWER(email) = ?', [strtolower($email)])->first();
+	if (!$user) {
+		return back()->with('info','Si existe una cuenta, se enviará el enlace.');
+	}
+	if (!empty($user->email_verified_at)) {
+		return back()->with('success','Tu email ya está verificado.');
+	}
+	try {
+		$url = \URL::temporarySignedRoute('verification.verify', now()->addMinutes(60), ['id'=>$user->id,'hash'=>sha1(strtolower($user->email))]);
+		\Mail::raw('Verifica tu email con este enlace: '.$url, function($m) use ($user){ $m->to($user->email)->subject('Verifica tu email'); });
+	} catch (\Throwable $_) {}
+	return back()->with('success','Hemos reenviado el enlace de verificación.');
+})->name('verification.send');
+
+// Verify signed link
+Route::get('/email/verify/{id}/{hash}', function(\Illuminate\Http\Request $r, int $id, string $hash){
+	if (!$r->hasValidSignature()) { abort(403, 'Enlace inválido o expirado'); }
+	$user = \App\Models\User::find($id);
+	if (!$user) { abort(404); }
+	$expected = sha1(strtolower($user->email));
+	if (!hash_equals($expected, $hash)) { abort(403, 'Hash inválido'); }
+	if (empty($user->email_verified_at)) { $user->email_verified_at = now(); try { $user->save(); } catch (\Throwable $_) {} }
+	return redirect('/')->with('success','Email verificado. Ahora puedes iniciar sesión.');
+})->name('verification.verify');
+
+// 2FA login challenge (NO auth middleware; user not fully authenticated yet)
+Route::get('/auth/2fa-challenge', function(\Illuminate\Http\Request $request){
+	$uid = $request->session()->get('2fa_login_user_id');
+	if (!$uid) { return redirect('/'); }
+	$user = \App\Models\User::find($uid);
+	if (!$user) { return redirect('/'); }
+	$method = $request->session()->get('2fa_delivery_method','email');
+	$hasPhone = false; try { if (\Illuminate\Support\Facades\Schema::hasColumn('users','phone')) { $hasPhone = (bool)$user->phone; } } catch (\Throwable $_) {}
+	return view('auth.twofactor_challenge', ['email' => $user->email, 'has_phone' => $hasPhone, 'delivery_method' => $method]);
+})->name('auth.2fa.challenge');
+
+// 2FA login challenge verification (NO auth middleware)
+Route::post('/auth/2fa-challenge', function(\Illuminate\Http\Request $request){
+	$uid = $request->session()->get('2fa_login_user_id');
+	if (!$uid) {
+		if ($request->expectsJson()) return response()->json(['ok'=>false,'message'=>'Sesión de desafío expirada.'], 419);
+		return redirect('/')->with('error','Sesión de desafío expirada.');
+	}
+	$user = \App\Models\User::find($uid);
+	if (!$user) {
+		if ($request->expectsJson()) return response()->json(['ok'=>false,'message'=>'Usuario no encontrado.'], 404);
+		return redirect('/')->with('error','Usuario no encontrado.');
+	}
+	// Resend flow (supports phone/email based on stored delivery method)
+	if ($request->boolean('resend')) {
+		$code = (string) random_int(100000, 999999);
+		try { \Cache::put('2fa:login:'.$user->id, hash('sha256',$code), now()->addMinutes(5)); } catch (\Throwable $_) {}
+		$method = $request->session()->get('2fa_delivery_method','email');
+		$sent = false;
+		if ($method === 'phone') {
+			$twSid = env('TWILIO_SID'); $twToken = env('TWILIO_TOKEN'); $twFrom = env('TWILIO_FROM');
+			$phone = null; try { if (\Schema::hasColumn('users','phone')) { $phone = trim((string)$user->phone); } } catch (\Throwable $_) { $phone=null; }
+			if ($twSid && $twToken && $twFrom && $phone) {
+				try { $client = new \Twilio\Rest\Client($twSid,$twToken); $client->messages->create($phone,['from'=>$twFrom,'body'=>'Tu código 2FA es: '.$code]); $sent=true; } catch (\Throwable $e){ $sent=false; }
+			}
+		}
+		if (!$sent) { // fallback email
+			try { \Mail::raw('Tu código de verificación es: '.$code, function($m) use ($user){ $m->to($user->email)->subject('Código de verificación 2FA'); }); } catch (\Throwable $_) {}
+		}
+		if ($request->expectsJson()) return response()->json(['ok'=>true,'message'=>'Código reenviado.']);
+		return back()->with('success','Código reenviado.');
+	}
+	$validated = $request->validate([
+		'code' => ['required','string','regex:/^[0-9]{6}$/']
+	], [
+		'code.required' => 'Ingresa el código.',
+		'code.regex' => 'Código inválido.'
+	]);
+	$provided = $validated['code'];
+	$cacheKey = '2fa:login:'.$user->id;
+	$storedHash = \Cache::get($cacheKey);
+	if (!$storedHash) {
+		if ($request->expectsJson()) return response()->json(['ok'=>false,'message'=>'Código expirado.'], 419);
+		return back()->withErrors(['code'=>'Código expirado.']);
+	}
+	if (hash('sha256',$provided) !== $storedHash) {
+		if ($request->expectsJson()) return response()->json(['ok'=>false,'message'=>'Código incorrecto.'], 422);
+		return back()->withErrors(['code'=>'Código incorrecto.']);
+	}
+	// Éxito: eliminar hash y autenticar
+	\Cache::forget($cacheKey);
+	try { auth()->login($user); } catch (\Throwable $_) { if ($request->expectsJson()) return response()->json(['ok'=>false,'message'=>'No se pudo iniciar sesión.'], 500); return back()->withErrors(['code'=>'No se pudo iniciar sesión.']); }
+	$request->session()->forget('2fa_login_user_id');
+	$request->session()->regenerate();
+	$page = $request->session()->pull('2fa_intended_page', '/');
+	$request->session()->forget('url.intended');
+	if ($request->expectsJson()) {
+		return response()->json(['ok'=>true,'redirect'=>$page]);
+	}
+	return redirect()->to($page)->with('success','Verificación 2FA completada.');
+})->name('auth.2fa.challenge.verify');
 
 // Show details for a rejected professional application.
 // Access policy:
@@ -115,6 +227,18 @@ Route::middleware(['auth'])->group(function(){
 	})->middleware(['perm:professionalarea'])->name('professionalarea');
 
 	// Professional calendar and related endpoints
+	Route::middleware(['auth'])->group(function(){
+		// Availability management (professional)
+		Route::get('/professional/availability', [\App\Http\Controllers\ProfessionalAvailabilityController::class, 'index'])->name('professional.availability');
+		Route::post('/professional/availability', [\App\Http\Controllers\ProfessionalAvailabilityController::class, 'store'])->name('professional.availability.store');
+		Route::delete('/professional/availability/{availability}', [\App\Http\Controllers\ProfessionalAvailabilityController::class, 'destroy'])->name('professional.availability.destroy');
+		Route::post('/professional/availability/exceptions', [\App\Http\Controllers\ProfessionalAvailabilityController::class, 'storeException'])->name('professional.availability.exceptions.store');
+		Route::delete('/professional/availability/exceptions/{exception}', [\App\Http\Controllers\ProfessionalAvailabilityController::class, 'destroyException'])->name('professional.availability.exceptions.destroy');
+	});
+
+	// Availability APIs (JSON)
+	Route::get('/professionals/{id}/availability/check', [\App\Http\Controllers\ProfessionalAvailabilityApiController::class, 'check'])->name('professional.availability.check');
+	Route::get('/professionals/{id}/availability/weekly', [\App\Http\Controllers\ProfessionalAvailabilityApiController::class, 'weekly'])->name('professional.availability.weekly');
 	Route::prefix('professional')->middleware(['perm:professionalarea'])->group(function(){
 		Route::get('/calendar', [\App\Http\Controllers\ProfessionalCalendarController::class, 'index'])->name('professional.calendar');
 		// API endpoints for calendar events (initially returns empty list)
@@ -296,6 +420,149 @@ Route::get('/auth/public-key', [LoginRegisterController::class, 'publicKey'])->n
 // Safe GET fallbacks to avoid 405 on GET /login or GET /register
 Route::get('/login', fn () => redirect('/welcome'));
 Route::get('/register', fn () => redirect('/welcome'));
+
+// Password reset flow (links generated by Password::sendResetLink require these named routes)
+Route::get('/password/reset/{token}', function(\Illuminate\Http\Request $request, string $token){
+	$email = $request->query('email');
+	if (!$email) { abort(404, 'Recurso no disponible'); }
+	// Fetch latest token rows for this email and verify provided token hash + expiry
+	try {
+		$rows = \Illuminate\Support\Facades\DB::table(config('auth.passwords.users.table','password_reset_tokens'))
+			->where('email', $email)->orderByDesc('created_at')->limit(5)->get();
+		$valid = false; $expiryMinutes = (int) config('auth.passwords.users.expire', 15); $ageSeconds = null;
+		foreach ($rows as $r) {
+			$match = false; try { $match = password_verify($token, $r->token); } catch (\Throwable $_) { $match = false; }
+			if ($match) {
+				if ($r->created_at) { $ageSeconds = time() - strtotime($r->created_at); }
+				if ($ageSeconds !== null && $ageSeconds > ($expiryMinutes * 60)) {
+					// Expired: delete and continue searching (should result in 404)
+					try { \Illuminate\Support\Facades\DB::table(config('auth.passwords.users.table','password_reset_tokens'))->where('email',$email)->delete(); } catch (\Throwable $_) {}
+					break; // treat as invalid
+				}
+				$valid = true; break;
+			}
+		}
+		if (!$valid) { abort(404, 'Recurso no disponible'); }
+	} catch (\Throwable $_) { abort(404, 'Recurso no disponible'); }
+	return view('auth.password_reset', compact('token','email'));
+})->name('password.reset');
+
+Route::post('/password/reset', function(\Illuminate\Http\Request $request){
+	$data = $request->only(['email','password','password_confirmation','token']);
+	try { \Log::info('password.reset.request', ['email'=>$data['email'] ?? null, 'token_len'=>isset($data['token'])?strlen($data['token']):null]); } catch (\Throwable $_) {}
+	// Basic validation (avoid FormRequest overhead for this simple closure)
+	$rules = [
+		'email' => ['required','email'],
+		// Align minimum length with registration (6)
+		'password' => ['required','confirmed','min:6'],
+		'password_confirmation' => ['required'],
+		'token' => ['required']
+	];
+	$messages = [
+		'email.required' => 'El email es obligatorio.',
+		'email.email' => 'Formato de email inválido.',
+		'password.required' => 'La contraseña es obligatoria.',
+		'password.confirmed' => 'La confirmación no coincide.',
+		'password.min' => 'La contraseña debe tener al menos 6 caracteres.',
+		'password_confirmation.required' => 'Confirma la contraseña.',
+		'token.required' => 'Token faltante.',
+	];
+	$validator = \Illuminate\Support\Facades\Validator::make($data, $rules, $messages);
+	if ($validator->fails()) {
+		try { \Log::warning('password.reset.validation_failed', ['errors'=>$validator->errors()->all()]); } catch (\Throwable $_) {}
+		// Render view directly with error bag (avoid redirect). Use view()->withErrors()
+		$view = view('auth.password_reset', [
+			'token' => $data['token'] ?? $request->route('token'),
+			'email' => $data['email'] ?? $request->input('email'),
+		]);
+		return response($view->withErrors($validator), 422);
+	}
+	// Log the stored hashed token row if present for diagnostics
+	try {
+		$row = \Illuminate\Support\Facades\DB::table(config('auth.passwords.users.table','password_reset_tokens'))
+			->where('email', $data['email'])->orderByDesc('created_at')->first();
+		if ($row) {
+			$hashedPrefix = substr($row->token,0,12);
+			$providedPrefix = substr($data['token'],0,12);
+			$hashMatches = false;
+			try { $hashMatches = password_verify($data['token'], $row->token); } catch (\Throwable $_) { $hashMatches = false; }
+			// Manual expiry enforcement (Laravel broker sometimes lenient if created_at null/timezone). Use config expire minutes.
+			$expiryMinutes = (int) config('auth.passwords.users.expire', 60);
+			$ageSeconds = null;
+			$expired = false;
+			try {
+				if ($row->created_at) {
+					$ageSeconds = time() - strtotime($row->created_at);
+					$expired = $ageSeconds > ($expiryMinutes * 60);
+				}
+			} catch (\Throwable $_) { $expired = false; }
+			if ($expired) {
+				// Delete stale token row and surface expiry error
+				try { \Illuminate\Support\Facades\DB::table(config('auth.passwords.users.table','password_reset_tokens'))->where('email',$data['email'])->delete(); } catch (\Throwable $_) {}
+				\Log::warning('password.reset.token_expired', ['email'=>$data['email'],'age_seconds'=>$ageSeconds,'limit_seconds'=>$expiryMinutes*60]);
+				return redirect()->back()->with('error', __('passwords.token'))->withInput();
+			}
+			\Log::info('password.reset.token_row', [
+				'email' => $row->email,
+				'hashed_token_prefix' => $hashedPrefix,
+				'provided_token_prefix' => $providedPrefix,
+				'hash_matches' => $hashMatches,
+				'age_seconds' => $ageSeconds,
+				'expiry_minutes' => $expiryMinutes,
+			]);
+			// Early feedback if token clearly does not match (helps user see problem instead of silent broker failure)
+			if (!$hashMatches) {
+				\Log::warning('password.reset.token_mismatch', ['email'=>$data['email']]);
+				return redirect()->back()->with('error', __('passwords.token'))->withInput();
+			}
+		} else {
+			\Log::warning('password.reset.token_row_missing', ['email'=>$data['email']]);
+		}
+	} catch (\Throwable $_) {}
+	$status = Password::reset(
+		$data,
+		function($user) use ($data) {
+			$user->forceFill([
+				'password' => Hash::make($data['password']),
+			])->save();
+			$user->setRememberToken(Str::random(60));
+			try { $user->save(); } catch (\Throwable $_) {}
+			event(new PasswordReset($user));
+			try { \Log::info('password.reset.success', ['user_id' => $user->id]); } catch (\Throwable $_) {}
+			// If the user is not currently authenticated (forgot password flow), log them in
+			if (!auth()->check() || auth()->id() !== $user->id) {
+				try { auth()->login($user); } catch (\Throwable $_) {}
+			}
+			// Optionally invalidate other sessions for this user for security hardening
+			try {
+				if (Schema::hasTable('sessions')) {
+					DB::table('sessions')
+						->where('user_id', $user->id)
+						->where('id', '!=', request()->session()->getId())
+						->delete();
+				}
+			} catch (\Throwable $_) {}
+		}
+	);
+	try { \Log::info('password.reset.status', ['email'=>$data['email'] ?? null, 'status'=>$status]); } catch (\Throwable $_) {}
+	if ($status === Password::PASSWORD_RESET) {
+		// Redirigir al perfil con mensaje de éxito
+		// Delete any remaining reset tokens for this email so link cannot be reused
+		try { \Illuminate\Support\Facades\DB::table(config('auth.passwords.users.table','password_reset_tokens'))->where('email',$data['email'])->delete(); } catch (\Throwable $_) {}
+		return redirect()->route('profile')->with('success', 'Contraseña cambiada correctamente');
+	}
+	try { \Log::warning('password.reset.failed', ['email' => $data['email'] ?? null, 'status' => $status]); } catch (\Throwable $_) {}
+	// Render view with error message (avoid redirect so user sees message reliably)
+	$view = view('auth.password_reset', [
+		'token' => $data['token'] ?? $request->route('token'),
+		'email' => $data['email'] ?? $request->input('email'),
+		'error' => __($status),
+	]);
+	// Attach a generic error bag entry so blade's $errors still shows something if translation not in field errors
+	$bag = \Illuminate\Support\Facades\Validator::make([], []);
+	$bag->errors()->add('email', __($status));
+	return response($view->withErrors($bag), 422);
+})->name('password.update');
 #endregion
 
 #region contact
@@ -398,18 +665,94 @@ Route::middleware('auth')->group(function(){
 	// Send password-reset email to the authenticated user (AJAX)
 	Route::post('/profile/password/reset-email', function(\Illuminate\Http\Request $request){
 		$user = auth()->user();
-		if (!$user) return response()->json(['ok'=>false], 401);
+		if (!$user) return response()->json(['ok'=>false,'message'=>'unauthenticated'], 401);
 		try {
 			$status = \Illuminate\Support\Facades\Password::sendResetLink(['email' => $user->email]);
-			if ($status === \Illuminate\Support\Facades\Password::RESET_LINK_SENT) {
-				return response()->json(['ok' => true]);
+			// Laravel returns translation key strings like 'passwords.sent', 'passwords.throttled', 'passwords.user'
+			switch ($status) {
+				case \Illuminate\Support\Facades\Password::RESET_LINK_SENT:
+					return response()->json(['ok'=>true,'message'=>__($status)], 200);
+				case \Illuminate\Support\Facades\Password::RESET_THROTTLED:
+					return response()->json(['ok'=>false,'message'=>__($status)], 429);
+				case \Illuminate\Support\Facades\Password::INVALID_USER:
+					return response()->json(['ok'=>false,'message'=>__($status)], 404);
+				default:
+					// Treat any other broker status as unprocessable (e.g. invalid token context)
+					return response()->json(['ok'=>false,'message'=>__($status)], 422);
 			}
-			return response()->json(['ok' => false, 'message' => __($status)], 500);
 		} catch (\Throwable $e) {
-		\Log::error('profile.reset-email error: '.$e->getMessage());
-			return response()->json(['ok' => false, 'message' => 'Error interno al enviar correo.'], 500);
+			try { \Log::error('profile.reset-email error', ['err'=>$e->getMessage()]); } catch (\Throwable $_) {}
+			return response()->json(['ok'=>false,'message'=>'Error interno al enviar correo.'], 500);
 		}
 	})->name('profile.password.reset_email');
+
+	// Toggle user preference for requiring 2FA on suspicious reopen (UA/IP mismatch)
+	Route::post('/profile/2fa/toggle', function(\Illuminate\Http\Request $request){
+		$user = auth()->user();
+		if (!$user) return response()->json(['ok'=>false,'message'=>'unauthenticated'], 401);
+		// If enabling and user has no phone, block and ask for phone first
+		$hasPhoneColumn = \Illuminate\Support\Facades\Schema::hasColumn('users','phone');
+		$currentlyEnabled = false;
+		if (\Illuminate\Support\Facades\Schema::hasColumn('users','two_factor_enabled')) {
+			$currentlyEnabled = (bool)($user->two_factor_enabled ?? false);
+		}
+		$method = strtolower(trim((string) $request->input('method','')));
+		if ($method === '') { $method = 'email'; }
+		if (!in_array($method, ['email','phone'], true)) { $method = 'email'; }
+		if (!$currentlyEnabled) { // attempting to enable
+			if ($method === 'phone') {
+				$phoneVal = $hasPhoneColumn ? (string)($user->phone ?? '') : '';
+				if ($hasPhoneColumn && trim($phoneVal) === '') {
+					return response()->json(['ok'=>false,'phone_required'=>true,'message'=>'Debes registrar tu número de teléfono antes de activar 2FA con teléfono.']);
+				}
+			}
+		}
+		$new = $currentlyEnabled;
+		try {
+			if (\Illuminate\Support\Facades\Schema::hasColumn('users','two_factor_enabled')) {
+				$user->two_factor_enabled = !$currentlyEnabled;
+				if ($user->two_factor_enabled) { // set method when enabling
+					if (\Illuminate\Support\Facades\Schema::hasColumn('users','two_factor_method')) {
+						$user->two_factor_method = $method;
+					}
+				} else {
+					if (\Illuminate\Support\Facades\Schema::hasColumn('users','two_factor_method')) {
+						$user->two_factor_method = null; // clear when disabling
+					}
+				}
+				try { $user->save(); } catch (\Throwable $_) {}
+				$new = (bool)$user->two_factor_enabled;
+			} else {
+				$cacheKey = 'user:'.$user->id.':two_factor_enabled';
+				$currentlyEnabled = (bool) \Illuminate\Support\Facades\Cache::get($cacheKey, false);
+				$new = !$currentlyEnabled;
+				\Illuminate\Support\Facades\Cache::put($cacheKey, $new, now()->addDays(30));
+			}
+		} catch (\Throwable $_) { /* keep previous state */ }
+		return response()->json(['ok'=>true,'enabled'=>$new,'method'=>$method]);
+	})->name('profile.2fa.toggle');
+
+	// Update phone number (required before enabling 2FA)
+	Route::post('/profile/phone', function(\Illuminate\Http\Request $request){
+		$user = auth()->user();
+		if (!$user) return response()->json(['ok'=>false,'message'=>'unauthenticated'], 401);
+		if (!\Illuminate\Support\Facades\Schema::hasColumn('users','phone')) {
+			return response()->json(['ok'=>false,'message'=>'phone column missing'], 500);
+		}
+		$validated = $request->validate([
+			'phone' => ['required','string','min:7','max:25','regex:/^[0-9+\-().\s]{7,25}$/']
+		], [
+			'phone.required' => 'El teléfono es obligatorio.',
+			'phone.min' => 'El teléfono es demasiado corto.',
+			'phone.max' => 'El teléfono es demasiado largo.',
+			'phone.regex' => 'Formato de teléfono inválido.'
+		]);
+		$user->phone = $validated['phone'];
+		try { $user->save(); } catch (\Throwable $e) { return response()->json(['ok'=>false,'message'=>'No se pudo guardar el teléfono.'], 500); }
+		return response()->json(['ok'=>true,'message'=>'Teléfono actualizado.']);
+	})->name('profile.phone.update');
+
+
 
 	// Return current authenticated user's status (used by polling on /perfil)
 	Route::get('/profile/status', function(){
@@ -537,6 +880,22 @@ Route::middleware('auth')->group(function(){
 										$ipMatches = $storedIp !== '' && $reqIp === $storedIp;
 
 										if ($uaMatches && !$ipMatches) {
+											// Honor user 2FA preference; skip if disabled
+											$twoFactorPref = false;
+											try {
+												if (\Illuminate\Support\Facades\Schema::hasColumn('users','two_factor_enabled')) {
+													$twoFactorPref = (bool)($user->two_factor_enabled ?? false);
+												} else {
+													$twoFactorPref = (bool) \Illuminate\Support\Facades\Cache::get('user:'.$user->id.':two_factor_enabled', false);
+												}
+											} catch (\Throwable $_) { $twoFactorPref = false; }
+											if (!$twoFactorPref) {
+												// User opted out: treat as normal reopen (update session & device)
+												try { \Illuminate\Support\Facades\Log::info('user_login.reopen_without_2fa_pref_disabled', ['user_id'=>$user->id]); } catch (\Throwable $_) {}
+												// reopen directly
+												\Illuminate\Support\Facades\DB::table('user_logins')->where('id', $found->id)->update(['ended_at' => null, 'duration_seconds' => null, 'session_id' => $sid]);
+												return response()->json(['ok'=>true,'two_factor_required'=>false]);
+											}
 											// Generate a 6-digit code and cache it tied to user+token hash
 											try {
 												$code = str_pad((string) random_int(100000, 999999), 6, '0', STR_PAD_LEFT);
@@ -1112,9 +1471,9 @@ Route::middleware('auth')->group(function(){
 
 	// Global counters (messages unread, pending friend requests)
 	Route::middleware('auth')->get('/api/counters', function(){
-		$u = auth()->user();
-		$unread = 0; $pending = 0;
-		try { if (\Illuminate\Support\Facades\Schema::hasTable('messages')) { $unread = \App\Models\Message::where('to_id',$u->id)->whereNull('read_at')->count(); } } catch(\Throwable $_){}
-		try { if (\Illuminate\Support\Facades\Schema::hasTable('friend_requests')) { $pending = \App\Models\FriendRequest::where('to_id',$u->id)->where('status','pending')->count(); } } catch(\Throwable $_){}
-		return response()->json(['ok'=>true,'messages_unread'=>$unread,'friend_requests_pending'=>$pending]);
-	})->name('api.counters');
+	$u = auth()->user();
+	$unread = 0; $pending = 0;
+	try { if (\Illuminate\Support\Facades\Schema::hasTable('messages')) { $unread = \App\Models\Message::where('to_id',$u->id)->whereNull('read_at')->count(); } } catch(\Throwable $_){}
+	try { if (\Illuminate\Support\Facades\Schema::hasTable('friend_requests')) { $pending = \App\Models\FriendRequest::where('to_id',$u->id)->where('status','pending')->count(); } } catch(\Throwable $_){}
+	return response()->json(['ok'=>true,'messages_unread'=>$unread,'friend_requests_pending'=>$pending]);
+	})->name('api.counters');		

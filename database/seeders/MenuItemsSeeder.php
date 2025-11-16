@@ -27,6 +27,7 @@ class MenuItemsSeeder extends Seeder
             // Professional section
             ['label' => 'Mi panel', 'route_name' => 'professionalarea', 'icon_class' => 'bi bi-person-badge', 'section' => 'professional', 'sort_order' => 10, 'permission' => 'professionalarea'],
             ['label' => 'Calendario', 'route_name' => 'professional.calendar', 'icon_class' => 'bi bi-calendar3', 'section' => 'professional', 'sort_order' => 20, 'permission' => 'professionalarea'],
+            ['label' => 'Disponibilidad', 'route_name' => 'professional.availability', 'icon_class' => 'bi bi-clock', 'section' => 'professional', 'sort_order' => 25, 'permission' => 'professionalarea'],
             ['label' => 'Chat', 'route_name' => 'chat.index', 'icon_class' => 'bi bi-chat-dots', 'section' => 'professional', 'sort_order' => 30, 'permission' => 'professionalarea'],
             ['label' => 'Pacientes', 'route_name' => 'professional.patients', 'icon_class' => 'bi bi-people', 'section' => 'professional', 'sort_order' => 40, 'permission' => 'professionalarea'],
             ['label' => 'Servicios', 'route_name' => 'professional.services', 'icon_class' => 'bi bi-briefcase', 'section' => 'professional', 'sort_order' => 50, 'permission' => 'professionalarea'],

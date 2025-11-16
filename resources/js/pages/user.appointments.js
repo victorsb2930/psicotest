@@ -143,6 +143,19 @@ export function init() {
         newBtn.addEventListener('click', ()=> openAppointmentModal({ mode: 'patient', defaults: {}, urls: { storeUrl }, calendar }));
     }
 
+    // Auto-lanzar modal si venimos con parámetros de profesional (desde búsqueda)
+    try {
+        const qs = new URLSearchParams(window.location.search || '');
+        const pid = qs.get('professional_id');
+        const pname = qs.get('professional_name');
+        const ptitle = qs.get('professional_title');
+        if (pid) {
+            // Limpiar la query de la barra para evitar relanzamientos en navegación interna (no recarga)
+            try { window.history.replaceState({}, document.title, window.location.pathname); } catch(_){}
+            openAppointmentModal({ mode: 'patient', defaults: { professional_id: pid, professional_name: pname, professional_title: ptitle }, urls: { storeUrl }, calendar });
+        }
+    } catch(_){}
+
     // Helper: format a Date to 'YYYY-MM-DDTHH:mm' for datetime-local / flatpickr default
     function formatForInput(dt, opts = {}) {
         if (!dt) return '';

@@ -9,3 +9,4 @@
 /* Local FullCalendar styles (vendor) */
 @import './vendor/fullcalendar-core.css';
 @import './vendor/fullcalendar-daygrid.css';
+@import "flatpickr/dist/flatpickr.css";

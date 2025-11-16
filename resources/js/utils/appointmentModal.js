@@ -48,58 +48,60 @@ export async function openAppointmentModal(options = {}) {
 	// Build form HTML dynamically depending on mode. For patients we hide
 	// fields that should not be visible (patient search, appointment type)
 	// and instead show a readonly professional block with name/title if provided
-	const profDisplayHtml = `<div class="mb-2 professional-display"><div class="form-control-plaintext" id="am_professional_display"></div><input type="hidden" id="am_professional_id" name="professional_id"></div>`;
+	// Professional display (single declaration)
+	const profDisplayHtml = `<div class="mb-2 professional-display"><div class="form-control-plaintext" id="am_professional_display"></div><input type="hidden" id="am_professional_id" name="professional_id"></div><div id="am_prof_avail_table_wrap" class="mb-3 small" style="display:none"></div>`;
 
+	// Fijamos modalidad en 'virtual' para ambos modos (se eliminó selección presencial/virtual)
+	const fixedTypeValue = 'virtual';
 	const formHtml = `
-        <form id="sharedAppointmentForm">
-            ${mode === 'professional' ? `
-            <div class="mb-2 patient-field">
-                <label>Paciente</label>
-                <input type="text" id="am_patient_search" class="form-control" placeholder="Buscar por nombre o email">
-                <input type="hidden" id="am_patient_id" name="patient_id">
-                <div id="am_patient_results" class="list-group mt-2"></div>
-            </div>
-            ` : ''}
+		<form id="sharedAppointmentForm">
+			${mode === 'professional' ? `
+			<div class="mb-2 patient-field">
+				<label>Paciente</label>
+				<input type="text" id="am_patient_search" class="form-control" placeholder="Buscar por nombre o email">
+				<input type="hidden" id="am_patient_id" name="patient_id">
+				<div id="am_patient_results" class="list-group mt-2"></div>
+			</div>
+			` : ''}
+			${mode === 'patient' ? `
+			${profDisplayHtml}
+			<div class="mb-2" id="am_prof_search_block">
+				<label>Buscar profesional</label>
+				<input type="text" id="am_prof_search" class="form-control" placeholder="Nombre, email o especialidad">
+				<div id="am_prof_results" class="list-group mt-2"></div>
+			</div>
+			` : `
+			<div class="mb-2 professional-field">
+				<label>Profesional (ID)</label>
+				<input type="number" id="am_professional_id" name="professional_id" class="form-control">
+			</div>
+			`}
 
-            ${mode === 'patient' ? profDisplayHtml : `
-            <div class="mb-2 professional-field">
-                <label>Profesional (ID)</label>
-                <input type="number" id="am_professional_id" name="professional_id" class="form-control">
-            </div>
-            `}
+			<div class="mb-2">
+				<label>Título</label>
+				<input id="am_title" name="title" class="form-control">
+			</div>
 
-            <div class="mb-2">
-                <label>Título</label>
-                <input id="am_title" name="title" class="form-control">
-            </div>
+			<!-- Modalidad fija virtual -->
+			<input type="hidden" id="am_appointment_type_hidden" name="appointment_type" value="${fixedTypeValue}">
 
-            ${mode === 'professional' ? `
-            <div class="mb-2">
-                <label>Modalidad</label>
-                <select id="am_appointment_type" name="appointment_type" class="form-select">
-                    <option value="">Seleccione modalidad</option>
-                </select>
-                <input type="hidden" id="am_appointment_type_hidden" name="appointment_type">
-            </div>
-            ` : `
-            <!-- For patients, modality will be populated into hidden input if provided -->
-            <input type="hidden" id="am_appointment_type_hidden" name="appointment_type">
-            `}
-
-            <div class="mb-2">
-                <label>Inicio</label>
-                <input id="am_start" name="start" type="datetime-local" class="form-control" required>
-            </div>
-            <div class="mb-2">
-                <label>Fin (opcional)</label>
-                <input id="am_end" name="end" type="datetime-local" class="form-control">
-            </div>
-            <div class="mb-2">
-                <label>Notas</label>
-                <textarea id="am_notes" name="notes" class="form-control" rows="3"></textarea>
-            </div>
-        </form>
-    `;
+			<div class="mb-2">
+				<label>Inicio</label>
+				<input id="am_start" name="start" type="datetime-local" class="form-control" required>
+			</div>
+			<div class="mb-2">
+				<label>Fin (opcional)</label>
+				<input id="am_end" name="end" type="datetime-local" class="form-control">
+			</div>
+			<div class="mb-2">
+				<div id="am_availability_status" class="small"></div>
+			</div>
+			<div class="mb-2">
+				<label>Notas</label>
+				<textarea id="am_notes" name="notes" class="form-control" rows="3"></textarea>
+			</div>
+		</form>
+	`;
 
 	const modalId = `shared-appointment-${Date.now()}`;
 	// Button label depends on mode
@@ -131,15 +133,32 @@ export async function openAppointmentModal(options = {}) {
 						if (mode === 'professional') {
 							if (!patientId && patientSearch.length === 0) { window.modalNotification?.('Paciente requerido', 'Selecciona un paciente', { template: 'warning' }); $modal.find('#am_patient_search').trigger('focus'); return; }
 						} else {
-							if (!professionalId) { window.modalNotification?.('Profesional requerido', 'Indica el profesional (ID)', { template: 'warning' }); $modal.find('#am_professional_id').trigger('focus'); return; }
+							if (!professionalId) { window.modalNotification?.('Profesional requerido', 'Selecciona un profesional', { template: 'warning' }); $modal.find('#am_prof_search').trigger('focus'); return; }
 							// require appointment type, title, start, end, notes for patient requests
-							const atype = $modal.find('#am_appointment_type_hidden').val() || $modal.find('#am_appointment_type').val();
-							if (!atype) { window.modalNotification?.('Modalidad requerida', 'Selecciona la modalidad de la cita', { template: 'warning' }); $modal.find('#am_appointment_type').trigger('focus'); return; }
+							// Modalidad ahora fija en hidden input; no mostrar validación de selección.
+							const atype = $modal.find('#am_appointment_type_hidden').val() || 'virtual';
 							if (!title) { window.modalNotification?.('Título requerido', 'Indica un título para la cita', { template: 'warning' }); $modal.find('#am_title').trigger('focus'); return; }
 							if (!startVal) { window.modalNotification?.('Inicio requerido', 'Indica inicio', { template: 'warning' }); $modal.find('#am_start').trigger('focus'); return; }
 							if (!endVal) { window.modalNotification?.('Fin requerido', 'Indica fin de la cita', { template: 'warning' }); $modal.find('#am_end').trigger('focus'); return; }
 							if (!notes) { window.modalNotification?.('Notas requeridas', 'Especifica notas/razón', { template: 'warning' }); $modal.find('#am_notes').trigger('focus'); return; }
 						}
+
+						// Validación de rango horario
+						if (startVal) {
+							try {
+								const sDate = new Date(startVal);
+								if (endVal) {
+									const eDate = new Date(endVal);
+									if (eDate <= sDate) {
+										window.modalNotification?.('Rango inválido', 'La hora de fin debe ser posterior al inicio', { template: 'warning' });
+										$modal.find('#am_end').trigger('focus');
+										return;
+									}
+								}
+							} catch(_){}
+						}
+						// disponibilidad
+						if (lastAvailability === false) { window.modalNotification?.('No disponible', 'El horario seleccionado no está disponible', { template: 'warning' }); return; }
 
 						// prepare payload
 						const payload = {};
@@ -173,8 +192,30 @@ export async function openAppointmentModal(options = {}) {
 						}
 						if (calendar && typeof calendar.refetchEvents === 'function') calendar.refetchEvents();
 					} catch (err) {
-						//console.error(err);
-						window.modalNotification?.('Error', 'No se pudo procesar la solicitud', { template: 'danger' });
+						let msg = 'No se pudo procesar la solicitud';
+						try {
+							if (err && err.response) {
+								const { status, data } = err.response;
+								if (status === 422 && data) {
+									const errs = [];
+									if (data.errors) {
+										for (const k in data.errors) {
+											if (Array.isArray(data.errors[k]) && data.errors[k].length) {
+												errs.push(data.errors[k][0]);
+											}
+										}
+									}
+									if (errs.length) {
+										msg = errs.join('\n');
+									} else if (data.message) {
+										msg = data.message;
+									}
+								} else if (data && data.message) {
+									msg = data.message;
+								}
+							}
+						} catch(_){}
+						window.modalNotification?.('Error', msg, { template: 'danger' });
 					}
 				}, closeOnClick: false
 			}
@@ -183,10 +224,67 @@ export async function openAppointmentModal(options = {}) {
 
 	const $m = $(`#${modalId}`);
 
+	// Availability helpers (after $m exists)
+	let lastAvailability = null; // null unknown, true available, false unavailable
+	const setAvailabilityUI = (state) => {
+		try {
+			const $st = $m.find('#am_availability_status');
+			lastAvailability = state;
+			$st.removeClass('text-success text-danger');
+			if (state === true) { $st.addClass('text-success').text('Disponible'); }
+			else if (state === false) { $st.addClass('text-danger').text('No disponible'); }
+			else { $st.text(''); }
+		} catch (_) { }
+	};
+	const toggleAvailWrap = (show) => { try { $m.find('#am_prof_avail_table_wrap').css('display', show ? '' : 'none'); } catch(_){} };
+	const renderWeeklyTable = (data) => {
+		try {
+			const wrap = $m.find('#am_prof_avail_table_wrap');
+			if (!data || !Array.isArray(data.weekly)) { wrap.html(''); return; }
+			const days = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+			const rows = [];
+			for (let d=0; d<7; d++) {
+				const slots = data.weekly.filter(w => w.day_of_week === d);
+				if (slots.length === 0) continue;
+				const cells = slots.map(s => `${s.start_time.slice(0,5)}–${s.end_time.slice(0,5)}`).join(', ');
+				rows.push(`<tr><th class="text-nowrap">${days[d]}</th><td>${cells}</td></tr>`);
+			}
+			if (rows.length === 0) { wrap.html('<div class="text-muted">Sin disponibilidad semanal</div>'); toggleAvailWrap(true); return; }
+			wrap.html(`<div class="fw-semibold mb-1">Disponibilidad semanal</div><table class="table table-sm table-borderless mb-0"><tbody>${rows.join('')}</tbody></table>`);
+			toggleAvailWrap(true);
+		} catch(_){}
+	};
+	const fetchWeeklyIfNeeded = async () => {
+		const pid = ($m.find('#am_professional_id').val() || '').trim();
+		const wrap = $m.find('#am_prof_avail_table_wrap');
+		if (!pid) { wrap.html(''); toggleAvailWrap(false); return; }
+		try { const res = await axios.get(`/professionals/${encodeURIComponent(pid)}/availability/weekly`); renderWeeklyTable(res.data); }
+		catch(_) { wrap.html('<div class="text-muted">No se pudo cargar disponibilidad</div>'); toggleAvailWrap(true); }
+	};
+	const checkAvailability = async () => {
+		try {
+			const pid = ($m.find('#am_professional_id').val() || '').trim();
+			const s = $m.find('#am_start').val();
+			const e = $m.find('#am_end').val();
+			if (!pid || !s || !e) { setAvailabilityUI(null); return; }
+			const url = `/professionals/${encodeURIComponent(pid)}/availability/check`;
+			const res = await axios.get(url, { params: { start: new Date(s).toISOString(), end: new Date(e).toISOString() } });
+			setAvailabilityUI(!!(res && res.data && res.data.available));
+			if (res && res.data && res.data.reason && res.data.available === false) {
+				$m.find('#am_availability_status').attr('title', res.data.reason);
+			}
+		} catch (_) { setAvailabilityUI(null); }
+	};
+	try { $m.find('#am_start, #am_end').on('change input', checkAvailability); } catch(_){}
+	try { $m.find('#am_professional_id').on('change input', checkAvailability); } catch(_){}
+
 	// If caller provided a professional id in defaults, prefill it
 	try {
 		if (defaults.professional_id) {
 			$m.find('#am_professional_id').val(defaults.professional_id);
+			// Hide search block if present (patient mode)
+			try { $m.find('#am_prof_search_block').hide(); } catch(_){}
+			try { fetchWeeklyIfNeeded(); } catch(_){}
 		}
 	} catch (_) { }
 
@@ -201,10 +299,12 @@ export async function openAppointmentModal(options = {}) {
 			const escName = esc(pName);
 			const escTitle = esc(pTitle);
 			const html = escName ? `Profesional: <strong>${escName}</strong>${escTitle ? ' — ' + escTitle : ''}` : (escTitle ? `Profesional: ${escTitle}` : '');
-			$m.find('#am_professional_display').html(html);
+			$m.find('#am_professional_display').html(html + ' <button type="button" class="btn btn-sm btn-outline-danger ms-2" id="am_professional_clear">Quitar</button>');
 			// Ensure hidden id is present when name/title provided together with id
 			if (defaults.professional_id) {
 				$m.find('#am_professional_id').val(defaults.professional_id);
+				try { $m.find('#am_prof_search_block').hide(); } catch(_){}
+				try { fetchWeeklyIfNeeded(); } catch(_){}
 			}
 		} else if (defaults.professional_id) {
 			// DOM fallback: try to find an element on the page that contains the professional info
@@ -217,7 +317,9 @@ export async function openAppointmentModal(options = {}) {
 					const dtitle = el.getAttribute('data-title') || (el.querySelector && el.querySelector('.mt-2.small strong') ? el.querySelector('.mt-2.small strong').textContent.trim() : '');
 					if (dname || dtitle) {
 						const html = esc(dname) ? `Profesional: <strong>${esc(dname)}</strong>${dtitle ? ' — ' + esc(dtitle) : ''}` : (dtitle ? `Profesional: ${esc(dtitle)}` : '');
-						$m.find('#am_professional_display').html(html);
+						$m.find('#am_professional_display').html(html + ' <button type="button" class="btn btn-sm btn-outline-danger ms-2" id="am_professional_clear">Quitar</button>');
+						try { $m.find('#am_prof_search_block').hide(); } catch(_){}
+						try { fetchWeeklyIfNeeded(); } catch(_){}
 					}
 				}
 			} catch (_) { }
@@ -225,23 +327,8 @@ export async function openAppointmentModal(options = {}) {
 	} catch (_) { }
 
 	// Populate appointment type selector from options.types or defaults.types
-	const types = options.types || defaults.types || null; // e.g. ['presencial','virtual'] or [{value,label},...]
-	const $typeSelect = $m.find('#am_appointment_type');
-	const $typeHidden = $m.find('#am_appointment_type_hidden');
-	if ($typeSelect && types) {
-		try {
-			// clear existing non-placeholder options
-			$typeSelect.find('option:not([value=""])').remove();
-			const normalized = Array.isArray(types) ? types.map(t => (typeof t === 'string' ? { value: t, label: (t.charAt(0).toUpperCase() + t.slice(1)) } : t)) : [];
-			normalized.forEach(t => { $typeSelect.append(`<option value="${t.value}">${t.label}</option>`); });
-			// If only one option available, select it by default
-			if (normalized.length === 1) {
-				$typeSelect.val(normalized[0].value);
-				$typeHidden.val(normalized[0].value);
-			}
-			$typeSelect.off('change').on('change', function () { $typeHidden.val(this.value || ''); });
-		} catch (_) { }
-	}
+	// Se elimina lógica de selector de modalidad; aseguramos hidden tenga el valor fijo
+	try { const $typeHidden = $m.find('#am_appointment_type_hidden'); if ($typeHidden && !$typeHidden.val()) $typeHidden.val(fixedTypeValue); } catch(_){}
 
 	// Prefill start/end: use defaults.start or round to next 15
 	const now = new Date();
@@ -328,6 +415,57 @@ export async function openAppointmentModal(options = {}) {
 		}
 	} catch (_) { }
 
+	// If patient mode without preselected professional, wire professional search
+	if (mode === 'patient') {
+		try {
+			const hasDefaultProf = !!defaults.professional_id;
+			if (hasDefaultProf) {
+				$m.find('#am_prof_search_block').hide();
+				try { fetchWeeklyIfNeeded(); } catch(_){}
+				try { checkAvailability(); } catch(_){}
+			} else {
+				const $searchProf = $m.find('#am_prof_search');
+				const $resultsProf = $m.find('#am_prof_results');
+				let timerProf = null;
+				$searchProf.off('input').on('input', function(){
+					clearTimeout(timerProf);
+					const q = ($searchProf.val() || '').trim();
+					$resultsProf.empty();
+					$m.find('#am_professional_id').val('');
+					if (q.length < 2) return;
+					timerProf = setTimeout(()=>{
+						fetch('/professionals/search?q=' + encodeURIComponent(q))
+							.then(r=>r.json())
+							.then(list => {
+								$resultsProf.empty();
+								if (!Array.isArray(list) || list.length === 0) { $resultsProf.append('<div class="list-group-item small text-muted">Sin resultados</div>'); return; }
+								const safe = s => { try { return window.escapeHtml ? window.escapeHtml(String(s)) : String(s); } catch(_) { return String(s); } };
+								list.slice(0,10).forEach(p => {
+									const btn = document.createElement('button');
+									btn.type = 'button';
+									btn.className = 'list-group-item list-group-item-action';
+									btn.innerHTML = `<strong>${safe(p.name || 'Profesional')}</strong><br><small class="text-muted">${safe(p.email || '')}</small>`;
+									btn.addEventListener('click', ()=> {
+										$m.find('#am_professional_id').val(p.id);
+										const displayHtml = `Profesional: <strong>${safe(p.name || '')}</strong>${p.speciality ? ' — ' + safe(p.speciality) : ''}`;
+										$m.find('#am_professional_display').html(displayHtml + ' <button type="button" class="btn btn-sm btn-outline-danger ms-2" id="am_professional_clear">Quitar</button>');
+										// Hide search block after selection
+										try { $m.find('#am_prof_search_block').hide(); } catch(_){}
+										$resultsProf.empty();
+										try { fetchWeeklyIfNeeded(); } catch(_){}
+										try { checkAvailability(); } catch(_){}
+									});
+									$resultsProf.append(btn);
+								});
+							})
+							.catch(()=>{ $resultsProf.empty(); });
+					}, 350);
+				});
+				$m.one('hidden.bs.modal', () => { clearTimeout(timerProf); });
+			}
+		} catch(_){}
+	}
+
 	// If professional mode, wire patient search
 	if (mode === 'professional') {
 		const $search = $m.find('#am_patient_search');
@@ -354,6 +492,58 @@ export async function openAppointmentModal(options = {}) {
 		});
 		$m.one('hidden.bs.modal', () => { clearTimeout(timer); });
 	}
+
+	// Handler to clear selected professional (patient mode) using delegated events
+	try {
+		$m.off('click', '#am_professional_clear').on('click', '#am_professional_clear', function(){
+			try {
+				$m.find('#am_professional_id').val('');
+				$m.find('#am_professional_display').html('');
+				$m.find('#am_prof_search_block').show();
+				try { toggleAvailWrap(false); } catch(_){}
+				// reset availability UI
+				try { setAvailabilityUI(null); } catch(_){}
+				// (Re)bind search input if it was skipped due to preselected professional
+				const $searchProf = $m.find('#am_prof_search');
+				if ($searchProf.length && !$searchProf.data('pg-bound')) {
+					let timerProf = null;
+					$searchProf.on('input', function(){
+						clearTimeout(timerProf);
+						const q = ($searchProf.val() || '').trim();
+						$m.find('#am_prof_results').empty();
+						if (q.length < 2) return;
+						timerProf = setTimeout(()=>{
+							fetch('/professionals/search?q=' + encodeURIComponent(q))
+								.then(r=>r.json())
+								.then(list => {
+									const $resultsProf = $m.find('#am_prof_results');
+									$resultsProf.empty();
+									if (!Array.isArray(list) || list.length === 0) { $resultsProf.append('<div class="list-group-item small text-muted">Sin resultados</div>'); return; }
+									const safe = s => { try { return window.escapeHtml ? window.escapeHtml(String(s)) : String(s); } catch(_) { return String(s); } };
+									list.slice(0,10).forEach(p => {
+										const btn = document.createElement('button');
+										btn.type = 'button';
+										btn.className = 'list-group-item list-group-item-action';
+										btn.innerHTML = `<strong>${safe(p.name || 'Profesional')}</strong><br><small class="text-muted">${safe(p.email || '')}</small>`;
+										btn.addEventListener('click', ()=> {
+											$m.find('#am_professional_id').val(p.id);
+											const displayHtml = `Profesional: <strong>${safe(p.name || '')}</strong>${p.speciality ? ' — ' + safe(p.speciality) : ''}`;
+											$m.find('#am_professional_display').html(displayHtml + ' <button type="button" class="btn btn-sm btn-outline-danger ms-2" id="am_professional_clear">Quitar</button>');
+											try { $m.find('#am_prof_search_block').hide(); } catch(_){}
+											$resultsProf.empty();
+											try { fetchWeeklyIfNeeded(); } catch(_){}
+											try { checkAvailability(); } catch(_){}
+										});
+										$resultsProf.append(btn);
+									});
+								}).catch(()=>{ $m.find('#am_prof_results').empty(); });
+						}, 350);
+					});
+					$searchProf.data('pg-bound', true);
+				}
+			} catch(_){}
+		});
+	} catch(_){ }
 
 	// Clean up modal DOM when hidden to avoid stale states and ensure flatpickr popups close
 	$m.one('hidden.bs.modal', function () {

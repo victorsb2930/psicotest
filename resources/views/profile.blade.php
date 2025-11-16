@@ -3,8 +3,40 @@
 @section('page', 'profile')
 @section('content')
 <div class="card">
-	<div class="card-header">Mi perfil</div>
+	@php
+		$user = auth()->user();
+		$twoFactorPrefHeader = false;
+		try {
+			if ($user) {
+				if (\Illuminate\Support\Facades\Schema::hasColumn('users','two_factor_enabled')) {
+					$twoFactorPrefHeader = (bool) ($user->two_factor_enabled ?? false);
+				} else {
+					$twoFactorPrefHeader = (bool) \Illuminate\Support\Facades\Cache::get('user:'.($user->id ?? '0').':two_factor_enabled', false);
+				}
+			}
+		} catch (\Throwable $_) { $twoFactorPrefHeader = false; }
+	@endphp
+	<div class="card-header d-flex justify-content-between align-items-center">
+		<span>Mi perfil</span>
+		<div class="dropdown">
+			<button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="profileSettingsBtn" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Opciones de perfil">
+				<i class="bi bi-gear"></i>
+			</button>
+			<ul class="dropdown-menu dropdown-menu-end" aria-labelledby="profileSettingsBtn">
+				<li><a class="dropdown-item" href="#" id="profileResetPasswordItem">Cambiar contraseña</a></li>
+				<li><a class="dropdown-item" href="#" id="profileToggle2faItem" data-two-factor-enabled="{{ $twoFactorPrefHeader ? '1':'0' }}">{{ $twoFactorPrefHeader ? 'Desactivar 2FA' : 'Activar 2FA' }}</a></li>
+			</ul>
+		</div>
+	</div>
 	<div class="card-body">
+		@if(session('success'))
+			<div class="alert alert-success" role="alert">{{ session('success') }}</div>
+		@endif
+		@if($errors->any())
+			<div class="alert alert-danger" role="alert">
+				{{ $errors->first() }}
+			</div>
+		@endif
 		<div class="row">
 			<div class="col-md-4 text-center">
 				@php
@@ -36,9 +68,18 @@
 			<div class="col-md-8">
 				<h5>{{ auth()->user()->name }}</h5>
 				<p>{{ auth()->user()->email }}</p>
-				<div class="mb-2">
-					<button id="btn-reset-password" class="btn btn-outline-primary btn-sm">Cambiar contraseña</button>
-				</div>
+				@php
+					$twoFactorPref = false;
+					try {
+						if (isset($user) && $user) {
+							if (\Illuminate\Support\Facades\Schema::hasColumn('users','two_factor_enabled')) {
+								$twoFactorPref = (bool) ($user->two_factor_enabled ?? false);
+							} else {
+								$twoFactorPref = (bool) \Illuminate\Support\Facades\Cache::get('user:'.($user->id ?? '0').':two_factor_enabled', false);
+							}
+						}
+					} catch (\Throwable $_) { $twoFactorPref = false; }
+				@endphp
 				@php
 					// Determine the user's current active plan (best-effort). Fall back to 'No asignado'.
 					$currentPlanName = 'No asignado';
