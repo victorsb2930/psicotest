@@ -26,16 +26,11 @@ function escapeHtml(s) {
 }
 
 function renderCard(p) {
-	console.log(p);
 	const photo = p.photo || '/images/default-avatar.png';
 	const speciality = p.speciality || 'General';
 	const rating = (p.rating !== null && p.rating !== undefined)
 		? `<span class="badge bg-success">${(typeof p.rating === 'number' && p.rating.toFixed) ? p.rating.toFixed(1) : escapeHtml(String(p.rating))}</span>`
 		: '';
-	const typesArr = Array.isArray(p.appointment_types)
-		? p.appointment_types
-		: (p.appointment_types ? String(p.appointment_types).split(',').map(s => s.trim()).filter(Boolean) : []);
-	const types = typesArr.length ? typesArr.join(', ') : 'Presencial / Virtual';
 	const location = p.location || 'No especificada';
 
 	// Markup mirrors our Blade Card classes (card, card-compact, card-anim-lift)
@@ -55,12 +50,10 @@ function renderCard(p) {
 							<div>${rating}</div>
 						</div>
 						<div class="mt-2 small text-muted">Especialidad: <strong>${escapeHtml(speciality)}</strong></div>
-						<div class="mt-1 small">Tipo: <strong>${escapeHtml(types)}</strong></div>
 						<div class="mt-1 small">Ubicación: <strong>${escapeHtml(location)}</strong></div>
 						<div class="mt-3">
 							<a href="/professional/profile/${encodeURIComponent(p.id)}" class="btn btn-sm btn-outline-primary">Ver perfil</a>
 							<button data-id="${escapeHtml(String(p.id))}"
-											data-types='${JSON.stringify(typesArr)}'
 											data-name="${escapeHtml(p.name || '')}"
 											data-title="${escapeHtml(speciality)}"
 											class="btn btn-sm btn-primary ms-2 btn-request">Solicitar cita</button>
@@ -129,11 +122,6 @@ export default function init() {
 			Array.from(document.querySelectorAll('.btn-request')).forEach(b => {
 				b.addEventListener('click', async () => {
 					const id = b.getAttribute('data-id');
-					let types = null;
-					try {
-						const typesStr = b.getAttribute('data-types');
-						types = typesStr ? JSON.parse(typesStr) : null;
-					} catch (_) { types = null; }
 
 					let profName = b.getAttribute('data-name') || null;
 					let profTitle = b.getAttribute('data-title') || null;
