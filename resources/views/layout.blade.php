@@ -518,31 +518,9 @@
 					</a>
 					<ul id="notif-dropdown-menu" class="dropdown-menu dropdown-menu-end shadow" aria-labelledby="globalNotifDropdown">
 						<li class="dropdown-header">Notificaciones</li>
-						{{-- Notifications are dynamically populated by JS into this dropdown when the user is authenticated. --}}
-						@forelse($notifications as $n)
-						@php
-						$data = is_array($n->data) ? $n->data : (array) $n->data;
-						$title = $data['title'] ?? $data['message'] ?? ($data['body'] ?? null);
-						$title = $title ? $title : \Illuminate\Support\Str::limit(json_encode($data,
-						JSON_UNESCAPED_UNICODE), 80);
-						$href = $data['link'] ?? ($data['url'] ?? '#');
-						$icon = $data['icon'] ?? 'bell';
-						@endphp
-						<li>
-							<a class="dropdown-item d-flex align-items-start notif-item" href="{{ $href }}" data-notif-id="{{ $n->id }}">
-								<div class="me-2"><i class="bi bi-{{ $icon }} fs-5"></i></div>
-								<div class="flex-grow-1">
-									<div class="small text-muted">{{ $n->created_at->diffForHumans() }}</div>
-									<div class="lh-1">{!! e($title) !!}</div>
-								</div>
-							</a>
-						</li>
-						@empty
+						{{-- Las filas se inyectan vía JS (notifications.js). Se deja solo un placeholder para evitar duplicados server/cliente. --}}
 						<li class="dropdown-item text-muted notif-empty">No hay notificaciones</li>
-						@endforelse
-						<li>
-							<hr class="dropdown-divider">
-						</li>
+						<li><hr class="dropdown-divider"></li>
 						<li><a class="dropdown-item text-center small" href="/notifications">Ver todas</a></li>
 					</ul>
 				</li>

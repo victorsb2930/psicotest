@@ -2,6 +2,22 @@
 @section('title', 'PiscoGuía: Inicia sesión o Registrate')
 @section('page', 'login-register')
 @section('content')
+@if(auth()->check())
+	<script>
+	// Redirigir inmediatamente si el usuario está autenticado y llegó aquí por hash o navegación parcial
+	(function(){
+		try {
+			var roleArea = @json(auth()->user()->hasRole('admin') ? route('adminarea') : (auth()->user()->hasRole('professional') ? route('professionalarea') : route('userarea')));
+			if (window.location.pathname.indexOf('/welcome') === 0) {
+				window.location.replace(roleArea);
+			}
+		} catch(e) {}
+	})();
+	</script>
+	<noscript>
+		<div class="alert alert-warning">Ya has iniciado sesión. <a href="{{ auth()->user()->hasRole('admin') ? route('adminarea') : (auth()->user()->hasRole('professional') ? route('professionalarea') : route('userarea')) }}">Ir a tu área</a>.</div>
+	</noscript>
+@else
 @once
 	@vite(['resources/css/loginRegister.css'])
 @endonce
@@ -31,13 +47,11 @@
 					<button id="login_submit_btn" class="btn bkg" type="submit">Iniciar Sesión</button>
 				</form>
 			</div>
-
 			<!-- FORMULARIO REGISTRO -->
 			<div class="form sign_up">
 				<h3>Regístrate</h3>
 				<form action="{{ route('register') }}" method="POST" id="register_form" enctype="multipart/form-data" novalidate>
 					@csrf
-					<!-- Profile photo for all users -->
 					<div class="field">
 						<label for="reg_photo" class="field-label">Foto de perfil</label>
 						<div class="type">
@@ -138,14 +152,12 @@
 				</form>
 			</div>
 		</div>
-
 		<div class="overlay">
 			<div class="page page_signIn">
 				<h3>¡Bienvenido de vuelta!</h3>
 				<p>Si aun no tienes una cuenta con nosotros, puedes:</p>
 				<button class="btn btnSign-in">Registrarte <i class="bi bi-arrow-right"></i></button>
 			</div>
-
 			<div class="page page_signUp">
 				<h3>¡Hola amigo!</h3>
 				<p>Si ya tienes una cuenta, puedes:</p>
@@ -154,6 +166,7 @@
 		</div>
 	</div>
 </div>
+@endif
 @endsection
 
 @if(session('success') || $errors->any())

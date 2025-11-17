@@ -8,7 +8,7 @@ function buildItem(n) {
     const icon = n.icon || data.icon || 'bell';
     const body = n.body || data.body || '';
     return `
-        <li class="px-2 py-1">
+        <li class="px-2 py-1 notif-row" data-notif-id="${n.id}">
             <div class="d-flex align-items-start gap-2">
                 <div class="pt-1"><i class="bi bi-${icon} fs-5"></i></div>
                 <div class="flex-grow-1 overflow-hidden">
@@ -50,39 +50,46 @@ async function fetchNotifications() {
         }
         const dropdown = document.getElementById('notif-dropdown-menu');
         if (dropdown) {
-            // remove existing notif-item and notif-empty elements after the header (keep header at top)
             const header = dropdown.querySelector('.dropdown-header');
-            // remove all existing dynamic items
-            const olds = dropdown.querySelectorAll('.notif-item, .notif-empty');
-            olds.forEach(o => o.parentElement && o.parentElement.remove());
-            // insert items after header
-            let insertAfter = header ? header : null;
+            // Remove any legacy server-rendered notification rows (anchor .notif-item not inside .notif-row)
+            dropdown.querySelectorAll('li > a.notif-item').forEach(a => {
+                // If parent li does not have .notif-row class, remove it (old format)
+                const li = a.closest('li');
+                if (li && !li.classList.contains('notif-row')) li.remove();
+            });
+            // Remove all dynamic rows and empty placeholders
+            dropdown.querySelectorAll('.notif-row, .notif-empty').forEach(el => el.remove());
+            let anchorNode = header; // insert after header
             if (items && items.length) {
                 items.forEach(it => {
-                    const liHtml = buildItem(it);
-                    if (insertAfter && insertAfter.nextSibling) {
-                        insertAfter.parentNode.insertBefore(htmlToElement(liHtml), insertAfter.nextSibling);
-                    } else if (insertAfter) {
-                        insertAfter.parentNode.appendChild(htmlToElement(liHtml));
+                    const liEl = htmlToElement(buildItem(it));
+                    if (anchorNode) {
+                        anchorNode.parentNode.insertBefore(liEl, anchorNode.nextSibling);
+                        anchorNode = liEl;
+                    } else {
+                        dropdown.appendChild(liEl);
+                        anchorNode = liEl;
                     }
                 });
             } else {
-                const el = document.createElement('li'); el.className = 'dropdown-item text-muted notif-empty'; el.textContent = 'No hay notificaciones';
-                if (insertAfter && insertAfter.nextSibling) insertAfter.parentNode.insertBefore(el, insertAfter.nextSibling);
-                else if (insertAfter) insertAfter.parentNode.appendChild(el);
+                const emptyEl = document.createElement('li');
+                emptyEl.className = 'dropdown-item text-muted notif-empty';
+                emptyEl.textContent = 'No hay notificaciones';
+                if (anchorNode) anchorNode.parentNode.insertBefore(emptyEl, anchorNode.nextSibling);
+                else dropdown.appendChild(emptyEl);
             }
             attachItemHandlers();
-            // Re-initialize Bootstrap Dropdown instance for the toggle so it refreshes its internal menu reference
+            // Refresh dropdown position without recreating instance (avoid flicker / alignment drift)
             try {
                 const toggleEl = document.getElementById('globalNotifDropdown');
                 if (toggleEl && window.bootstrap && window.bootstrap.Dropdown) {
-                    // If an instance exists, dispose it so a new one will attach to the updated menu
-                    const existing = window.bootstrap.Dropdown.getInstance(toggleEl);
-                    if (existing && typeof existing.dispose === 'function') {
-                        try { existing.dispose(); } catch (_) {}
+                    const existing = window.bootstrap.Dropdown.getInstance(toggleEl) || window.bootstrap.Dropdown.getOrCreateInstance(toggleEl);
+                    // Bootstrap 5 exposes _popper; use update if available
+                    if (existing && typeof existing.update === 'function') {
+                        existing.update();
+                    } else if (existing && existing._popper && typeof existing._popper.update === 'function') {
+                        existing._popper.update();
                     }
-                    // Create a fresh instance which will re-bind to the current menu element
-                    window.bootstrap.Dropdown.getOrCreateInstance(toggleEl);
                 }
             } catch (_) {}
         }
@@ -169,7 +176,15 @@ document.addEventListener('DOMContentLoaded', function () {
         // Refresh immediately when dropdown is opened for fresher UI without F5
         const toggle = document.getElementById('globalNotifDropdown');
         if (toggle) {
-            toggle.addEventListener('click', function(){ setTimeout(fetchNotifications, 50); }, { once: false });
+            let lastFetch = 0;
+            toggle.addEventListener('click', function(){
+                const now = Date.now();
+                // throttle: only refetch if > 2s since last
+                if (now - lastFetch > 2000) {
+                    lastFetch = now;
+                    fetchNotifications();
+                }
+            }, { once: false });
         }
         // Wire up "Marcar todo como leído" form/button on the notifications page
         const markAllForm = document.querySelector('form[action$="notifications/mark-read"]');
@@ -204,10 +219,6 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         // Ensure a Bootstrap Dropdown instance exists and is fresh
         if (window.bootstrap && window.bootstrap.Dropdown) {
-            try {
-                const existing = window.bootstrap.Dropdown.getInstance(toggleEl);
-                if (existing && typeof existing.dispose === 'function') existing.dispose();
-            } catch (_) {}
             try { window.bootstrap.Dropdown.getOrCreateInstance(toggleEl); } catch (_) {}
         }
     } catch (_) {}
@@ -233,12 +244,8 @@ document.addEventListener('DOMContentLoaded', function () {
                     menu = ul;
                 }
             }
-            // ensure dropdown instance
+            // ensure dropdown instance (do not dispose to keep alignment state stable)
             if (window.bootstrap && window.bootstrap.Dropdown) {
-                try {
-                    const existing = window.bootstrap.Dropdown.getInstance(toggleEl);
-                    if (existing && typeof existing.dispose === 'function') existing.dispose();
-                } catch(_){}
                 try { window.bootstrap.Dropdown.getOrCreateInstance(toggleEl); } catch(_){}
             }
         };
@@ -291,11 +298,11 @@ document.addEventListener('click', function (ev) {
         }
 
         if (window.bootstrap && window.bootstrap.Dropdown) {
-            const existing = window.bootstrap.Dropdown.getInstance(toggleEl);
-            if (!existing || !document.getElementById('notif-dropdown-menu')) {
-                try { if (existing && typeof existing.dispose === 'function') existing.dispose(); } catch (_) {}
-                try { window.bootstrap.Dropdown.getOrCreateInstance(toggleEl); } catch (_) {}
-            }
+            const existing = window.bootstrap.Dropdown.getInstance(toggleEl) || window.bootstrap.Dropdown.getOrCreateInstance(toggleEl);
+            try {
+                if (existing && typeof existing.update === 'function') existing.update();
+                else if (existing && existing._popper && typeof existing._popper.update === 'function') existing._popper.update();
+            } catch(_){}
         }
     } catch (_) {}
 }, true);

@@ -28,6 +28,13 @@ Route::middleware(['auth','perm:professional_applications'])->group(function(){
 
 #region login, register y logout usan el mismo controlador y view
 Route::get('/welcome', function () {
+	// Si ya está autenticado, redirigir a su área (evita ver formulario login/register con #registro)
+	if (auth()->check()) {
+		$user = auth()->user();
+		if ($user->hasRole('admin')) return redirect()->route('adminarea');
+		if ($user->hasRole('professional')) return redirect()->route('professionalarea');
+		return redirect()->route('userarea');
+	}
 	$signupRoles = \App\Models\Role::query()
 		->where('show_in_signup', true)
 		->orderBy('name')
@@ -36,7 +43,7 @@ Route::get('/welcome', function () {
 			'value' => (string) $r->id,
 			'text' => $r->signup_label ?: $r->name,
 			'slug' => $r->name,
-				'requires_docs' => (bool) $r->requires_docs,
+			'requires_docs' => (bool) $r->requires_docs,
 		])->values()->all();
 	return view('loginRegister', compact('signupRoles'));
 })->name('welcome');
@@ -53,7 +60,7 @@ Route::get('/email/verification-notice', function(){
 	return view('auth.verify_notice');
 })->name('verification.notice');
 
-// Resend verification email
+// Resend verification email (adds debug logging for SMTP failures)
 Route::post('/email/verification-notification', function(\Illuminate\Http\Request $r){
 	$email = (string) $r->input('email');
 	if ($email === '') {
@@ -61,17 +68,57 @@ Route::post('/email/verification-notification', function(\Illuminate\Http\Reques
 	}
 	$user = \App\Models\User::whereRaw('LOWER(email) = ?', [strtolower($email)])->first();
 	if (!$user) {
+		// Do not leak account existence
 		return back()->with('info','Si existe una cuenta, se enviará el enlace.');
 	}
 	if (!empty($user->email_verified_at)) {
 		return back()->with('success','Tu email ya está verificado.');
 	}
+	$url = \URL::temporarySignedRoute('verification.verify', now()->addMinutes(60), ['id'=>$user->id,'hash'=>sha1(strtolower($user->email))]);
+	$fromAddr = config('mail.from.address');
+	$fromName = config('mail.from.name');
 	try {
-		$url = \URL::temporarySignedRoute('verification.verify', now()->addMinutes(60), ['id'=>$user->id,'hash'=>sha1(strtolower($user->email))]);
-		\Mail::raw('Verifica tu email con este enlace: '.$url, function($m) use ($user){ $m->to($user->email)->subject('Verifica tu email'); });
-	} catch (\Throwable $_) {}
+		\Log::info('verification.email.attempt', [
+			'to'=>$user->email,
+			'from'=>$fromAddr,
+			'mailer'=>config('mail.default'),
+			'host'=>config('mail.mailers.'.config('mail.default').'.host'),
+			'port'=>config('mail.mailers.'.config('mail.default').'.port'),
+			'encryption'=>config('mail.mailers.'.config('mail.default').'.encryption'),
+		]);
+		\Mail::raw('Verifica tu email con este enlace: '.$url, function($m) use ($user,$fromAddr,$fromName){
+			if ($fromAddr) { $m->from($fromAddr, $fromName ?: null); }
+			$m->to($user->email)->subject('Verifica tu email');
+		});
+		// Symfony Mailer in Laravel doesn't populate Mail::failures(); mimic legacy check by catching exceptions.
+		\Log::info('verification.email.sent', ['to'=>$user->email]);
+	} catch (\Throwable $e) {
+		\Log::error('verification.email.error', ['to'=>$user->email,'error'=>$e->getMessage()]);
+		return back()->with('error','No se pudo enviar el email de verificación. Intenta más tarde.');
+	}
 	return back()->with('success','Hemos reenviado el enlace de verificación.');
 })->name('verification.send');
+
+// Local debug endpoint to test plain email sending (only enabled in local env)
+if (app()->environment('local')) {
+	Route::get('/_debug/mail/test', function(){
+		$to = request('to', config('mail.from.address'));
+		$ok = false; $err = null;
+		try {
+			\Mail::raw('Test SMTP debug '.now().' (env='.app()->environment().')', function($m) use ($to){ $m->to($to)->subject('Test SMTP'); });
+			$ok = true;
+		} catch (\Throwable $e) { $err = $e->getMessage(); }
+		return response()->json([
+			'ok'=>$ok,
+			'to'=>$to,
+			'error'=>$err,
+			'mailer'=>config('mail.default'),
+			'host'=>config('mail.mailers.'.config('mail.default').'.host'),
+			'port'=>config('mail.mailers.'.config('mail.default').'.port'),
+			'encryption'=>config('mail.mailers.'.config('mail.default').'.encryption'),
+		]);
+	})->name('_debug.mail.test');
+}
 
 // Verify signed link
 Route::get('/email/verify/{id}/{hash}', function(\Illuminate\Http\Request $r, int $id, string $hash){
