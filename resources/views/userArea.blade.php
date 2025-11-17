@@ -65,10 +65,6 @@
 			<div class="card p-3 mb-3">
 				<h6>Filtros rápidos</h6>
 				<div class="mb-2">
-					<label class="form-label small">Modalidad</label>
-					<select class="form-select form-select-sm"><option>Online</option><option>Presencial</option></select>
-				</div>
-				<div class="mb-2">
 					<label class="form-label small">Precio</label>
 					<select class="form-select form-select-sm"><option>Todos</option><option>$</option><option>$$</option></select>
 				</div>

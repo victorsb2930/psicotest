@@ -1,5 +1,11 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+@php
+	$__role = 'guest';
+	if (auth()->check()) {
+		$__role = auth()->user()->hasRole('professional') ? 'professional' : 'user';
+	}
+@endphp
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" data-user-role="{{ $__role }}">
 
 <head>
 	@yield('head')
@@ -8,6 +14,7 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<meta http-equiv="X-UA-Compatible" content="ie=edge">
 	<meta name="csrf-token" content="{{ csrf_token() }}">
+	<meta name="current-user-role" content="{{ $__role }}">
 	<meta name="broadcast-driver" content="{{ config('broadcasting.default') }}">
 	<meta name="default-avatar" content="{{ Vite::asset('resources/images/default-avatar.png') }}">
 	@if(auth()->check())<meta name="auth-user-id" content="{{ auth()->id() }}">@endif

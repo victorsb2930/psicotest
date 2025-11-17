@@ -19,13 +19,9 @@
 	</div>
 	<div id="calendar" style="max-width: 1100px; margin: 0 auto;"></div>
 </div>
-
-    
-
 	<meta name="appointments-events-url" content="{{ route('appointments.events') }}">
 	<meta name="appointments-store-url" content="{{ route('appointments.store') }}">
-	<meta name="appointments-accept-url" content="{{ route('appointments.patient.accept', ['appointment' => 'APPOINTMENT_ID']) }}">
-	<meta name="appointments-reject-url" content="{{ route('appointments.patient.reject', ['appointment' => 'APPOINTMENT_ID']) }}">
+	<meta name="appointments-cancel-url" content="{{ route('appointments.patient.cancel', ['appointment' => 'APPOINTMENT_ID']) }}">
 <script>
 	window.__currentUserTz = @json(optional(auth()->user())->timezone ?? null);
 </script>

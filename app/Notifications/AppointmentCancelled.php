@@ -7,7 +7,7 @@ use Illuminate\Notifications\Notification;
 use Illuminate\Notifications\Messages\MailMessage;
 use App\Models\Appointment;
 
-class AppointmentRejected extends Notification
+class AppointmentCancelled extends Notification
 {
     use Queueable;
 
@@ -22,34 +22,34 @@ class AppointmentRejected extends Notification
 
     public function via($notifiable)
     {
+        // Notify via mail and database for in-app visibility
         return ['mail', 'database'];
     }
 
     public function toMail($notifiable)
     {
-        return (new MailMessage)
-                    ->subject('Cita rechazada')
-                    ->greeting('Hola '.$notifiable->name)
-                    ->line('Tu cita ha sido rechazada.')
-                    ->line('Inicio: '.$this->appointment->start)
-                    ->line('Fin: '.($this->appointment->end ?? '—'))
-                    ->when(!empty($this->reason), function($msg){
-                        return $msg->line('Motivo: '.$this->reason);
-                    })
-                    ->action('Ver cita', url('/'));
+        $mail = (new MailMessage)
+            ->subject('Cita cancelada por el paciente')
+            ->greeting('Hola '.$notifiable->name)
+            ->line('El paciente ha cancelado la solicitud de cita.')
+            ->line('Inicio: '.$this->appointment->start)
+            ->line('Fin: '.($this->appointment->end ?? '—'))
+            ->action('Ver cita', url('/'));
+        if (!empty($this->reason)) {
+            $mail->line('Motivo: '.$this->reason);
+        }
+        return $mail;
     }
-
-    
 
     public function toArray($notifiable)
     {
         return [
-            'type' => 'appointment_rejected',
+            'type' => 'appointment_cancelled',
             'appointment_id' => $this->appointment->id,
             'title' => $this->appointment->title,
             'start' => $this->appointment->start,
             'end' => $this->appointment->end,
-            'reason' => $this->reason ?? ($this->appointment->rejection_reason ?? null),
+            'reason' => $this->reason ?? null,
             'patient_id' => $this->appointment->patient_id,
             'professional_id' => $this->appointment->professional_id,
         ];

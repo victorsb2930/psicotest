@@ -75,14 +75,20 @@ async function initPage() {
 			currentPageModuleDestroy = null;
 			return;
 		}
-		const mod = await import(/* @vite-ignore */ modulePath);
+		// Dynamic import del módulo de la página. Quitamos @vite-ignore para permitir que Vite
+		// resuelva el chunk en build. Agregamos logs para diagnosticar fallos silenciosos.
+		try { console.info('[page-loader] importing', modulePath, 'for page', page); } catch(_) {}
+		const mod = await import(modulePath).catch(err => {
+			try { console.error('[page-loader] import failed', modulePath, err); } catch(_) {}
+			throw err;
+		});
 		currentPageModule = mod;
 		// Si exporta init(), llamarla
 		if (typeof mod.init === 'function') {
-			try { mod.init(); } catch (e) {  }
+			try { mod.init(); } catch (e) { try { console.error('[page-loader] init() error', e); } catch(_) {} }
 		} else if (typeof mod.default === 'function') {
 			// compatibilidad con módulos que exportan una función por defecto
-			try { mod.default(); } catch (e) { /* ignore */ }
+			try { mod.default(); } catch (e) { try { console.error('[page-loader] default() error', e); } catch(_) {} }
 		}
 		// Guardar destroy si existe para limpiar antes de reemplazar contenido
 		if (typeof mod.destroy === 'function') {
@@ -93,6 +99,7 @@ async function initPage() {
 	} catch (e) {
 		currentPageModule = null;
 		currentPageModuleDestroy = null;
+		try { console.error('[page-loader] module init failed for page', page, e); } catch(_) {}
 	}
 }
 

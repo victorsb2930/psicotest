@@ -13,10 +13,10 @@ if (driver === 'reverb') {
 		broadcaster: 'reverb',
 		key: import.meta.env.VITE_REVERB_APP_KEY || 'reverbkey',
 		wsHost: import.meta.env.VITE_REVERB_HOST || window.location.hostname,
-		wsPort: parseInt(import.meta.env.VITE_REVERB_PORT || '8080',10),
-		wssPort: parseInt(import.meta.env.VITE_REVERB_PORT || '8080',10),
+		wsPort: parseInt(import.meta.env.VITE_REVERB_PORT || '8080', 10),
+		wssPort: parseInt(import.meta.env.VITE_REVERB_PORT || '8080', 10),
 		forceTLS: false,
-		enabledTransports: ['ws','wss'],
+		enabledTransports: ['ws', 'wss'],
 		authEndpoint: '/broadcasting/auth',
 		auth: {
 			headers: csrfToken ? { 'X-CSRF-TOKEN': csrfToken } : {}
@@ -33,14 +33,14 @@ if (driver === 'reverb') {
 			wsPort: import.meta.env.VITE_PUSHER_PORT || 6001,
 			wssPort: import.meta.env.VITE_PUSHER_PORT || 6001,
 			forceTLS: false,
-			enabledTransports: ['ws','wss'],
+			enabledTransports: ['ws', 'wss'],
 			auth: { headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content') } }
 		};
 	}
 }
 
 if (echoConfig) {
-	try { window.Echo = new Echo(echoConfig); } catch(err){  }
+	try { window.Echo = new Echo(echoConfig); } catch (err) { }
 
 	const userId = window.__authUserId;
 	if (userId) {
@@ -53,19 +53,19 @@ if (echoConfig) {
 					const link = document.querySelector('#left-menu a.nav-link i.bi-chat-dots')?.closest('a');
 					if (link) {
 						let badge = link.querySelector('.badge');
-						if (!badge) { badge = document.createElement('span'); badge.className='badge text-bg-light text-dark ms-2'; link.appendChild(badge); badge.textContent='0'; }
-						badge.textContent = String(parseInt(badge.textContent||'0',10)+1);
+						if (!badge) { badge = document.createElement('span'); badge.className = 'badge text-bg-light text-dark ms-2'; link.appendChild(badge); badge.textContent = '0'; }
+						badge.textContent = String(parseInt(badge.textContent || '0', 10) + 1);
 					}
-				} catch(_){ }
-				if (window.modalNotification) window.modalNotification('Nuevo mensaje', e.body || 'Tienes un nuevo mensaje',{template:'info'});
+				} catch (_) { }
+				if (window.modalNotification) window.modalNotification('Nuevo mensaje', e.body || 'Tienes un nuevo mensaje', { template: 'info' });
 			})
 			.listen('FriendRequestSent', (e) => {
 				window.dispatchEvent(new CustomEvent('rt:friend_request', { detail: e }));
-				if (window.modalNotification) window.modalNotification('Solicitud de amistad', `${e.from_name} te ha enviado una solicitud`, {template:'warning'});
+				if (window.modalNotification) window.modalNotification('Solicitud de amistad', `${e.from_name} te ha enviado una solicitud`, { template: 'warning' });
 			})
 			.listen('FriendRequestAccepted', (e) => {
 				window.dispatchEvent(new CustomEvent('rt:friend_request_accepted', { detail: e }));
-				if (window.modalNotification) window.modalNotification('Amistad aceptada', `${e.to_name} ahora es tu amigo`, {template:'success'});
+				if (window.modalNotification) window.modalNotification('Amistad aceptada', `${e.to_name} ahora es tu amigo`, { template: 'success' });
 			});
 
 		// Also listen on a public presence channel for status changes
@@ -76,8 +76,8 @@ if (echoConfig) {
 					const detail = { user_id: e.user_id, status: e.status };
 					window.dispatchEvent(new CustomEvent('rt:user_presence', { detail }));
 				});
-		} catch (err) {  }
+		} catch (err) { }
 	}
 } else {
-	
+
 }

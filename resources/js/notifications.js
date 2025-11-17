@@ -1,23 +1,28 @@
-// Lightweight notifications helper: polls for unread notifications and updates header badge + dropdown
-import axios from 'axios';
-
 let pollInterval = null;
 const POLL_SECONDS = 20;
 
 function buildItem(n) {
-    const data = (typeof n.data === 'string') ? JSON.parse(n.data) : n.data || {};
-    const title = data.title || data.message || data.body || JSON.stringify(data);
-    const href = data.link || data.url || '#';
-    const icon = data.icon || 'bell';
+    const data = (typeof n.data === 'string') ? JSON.parse(n.data) : (n.data || {});
+    const title = n.title || data.title || data.message || data.body || JSON.stringify(data);
+    const href = n.link || data.link || data.url || '#';
+    const icon = n.icon || data.icon || 'bell';
+    const body = n.body || data.body || '';
     return `
-        <li>
-            <a class="dropdown-item d-flex align-items-start notif-item" href="${href}" data-notif-id="${n.id}">
-                <div class="me-2"><i class="bi bi-${icon} fs-5"></i></div>
-                <div class="flex-grow-1">
-                    <div class="small text-muted">${n.time}</div>
-                    <div class="lh-1">${escapeHtml(title)}</div>
+        <li class="px-2 py-1">
+            <div class="d-flex align-items-start gap-2">
+                <div class="pt-1"><i class="bi bi-${icon} fs-5"></i></div>
+                <div class="flex-grow-1 overflow-hidden">
+                    <a class="notif-item text-decoration-none d-block" href="${href}" data-notif-id="${n.id}">
+                        <div class="small text-muted">${n.time}</div>
+                        <div class="lh-1 fw-semibold text-dark">${escapeHtml(title)}</div>
+                        ${body ? `<div class="small text-muted text-truncate">${escapeHtml(body)}</div>` : ''}
+                    </a>
                 </div>
-            </a>
+                <div class="btn-group btn-group-sm" role="group" aria-label="Acciones">
+                    <button type="button" class="btn btn-outline-secondary notif-mark" data-notif-id="${n.id}" title="Marcar como leído"><i class="bi bi-check2"></i></button>
+                    <button type="button" class="btn btn-outline-danger notif-del" data-notif-id="${n.id}" title="Eliminar"><i class="bi bi-x"></i></button>
+                </div>
+            </div>
         </li>
     `;
 }
@@ -109,6 +114,35 @@ function attachItemHandlers() {
             window.location.href = href;
         });
     });
+    // mark read buttons
+    document.querySelectorAll('#notif-dropdown-menu .notif-mark').forEach(btn => {
+        if (btn._notifBound) return; btn._notifBound = true;
+        btn.addEventListener('click', async function (ev) {
+            ev.preventDefault(); ev.stopPropagation();
+            const id = this.dataset?.notifId; if (!id) return;
+            try { await axios.post('/api/notifications/mark-read', { id }); } catch(_){ }
+            // remove row immediately for snappier UX
+            try {
+                const li = this.closest('li'); if (li) li.remove();
+            } catch(_) {}
+            // refresh asynchronously to update badge/count
+            setTimeout(fetchNotifications, 300);
+        });
+    });
+    // delete buttons
+    document.querySelectorAll('#notif-dropdown-menu .notif-del').forEach(btn => {
+        if (btn._notifBound) return; btn._notifBound = true;
+        btn.addEventListener('click', async function (ev) {
+            ev.preventDefault(); ev.stopPropagation();
+            const id = this.dataset?.notifId; if (!id) return;
+            try { await axios.post('/api/notifications/delete', { id }); } catch(_){ }
+            // remove row immediately
+            try {
+                const li = this.closest('li'); if (li) li.remove();
+            } catch(_) {}
+            setTimeout(fetchNotifications, 300);
+        });
+    });
 }
 
 async function markAllRead() {
@@ -132,6 +166,11 @@ function stopPolling() {
 document.addEventListener('DOMContentLoaded', function () {
     try {
         if (window.__isAuth) startPolling();
+        // Refresh immediately when dropdown is opened for fresher UI without F5
+        const toggle = document.getElementById('globalNotifDropdown');
+        if (toggle) {
+            toggle.addEventListener('click', function(){ setTimeout(fetchNotifications, 50); }, { once: false });
+        }
         // Wire up "Marcar todo como leído" form/button on the notifications page
         const markAllForm = document.querySelector('form[action$="notifications/mark-read"]');
         if (markAllForm) {

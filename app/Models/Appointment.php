@@ -9,7 +9,7 @@ class Appointment extends Model
 {
     use SoftDeletes;
 
-    protected $fillable = ['professional_id','patient_id','title','start','end','all_day','status','notes'];
+    protected $fillable = ['professional_id','patient_id','title','start','end','all_day','status','notes','rejection_reason'];
 
     /**
      * Cast date fields to Carbon instances and booleans

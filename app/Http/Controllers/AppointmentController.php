@@ -29,21 +29,18 @@ class AppointmentController extends Controller
 			\Log::error('Error logging appointment debug data', ['err' => $ex->getMessage()]);
 		}
 
-		// Authorization: either the professional (owner) or the patient may act
-		$isPatient = ((int)($appt->patient_id ?? 0) === (int)$user->id);
+		// Authorization: only the professional can accept
 		$isProfessional = ((int)($appt->professional_id ?? 0) === (int)$user->id);
-		if (!($isPatient || $isProfessional)) {
+		if (!$isProfessional) {
 			return response()->json(['error' => 'No autorizado'], 403);
 		}
 
 		$appt->status = 'accepted';
 		$appt->save();
 
-		// Notify the other party: if patient accepted, notify professional; if professional accepted (creating directly), notify patient.
+		// Notify the patient that the professional accepted
 		try {
-			if ($isPatient && $appt->professional) {
-				$appt->professional->notify(new \App\Notifications\AppointmentAccepted($appt));
-			} else if ($isProfessional && $appt->patient) {
+			if ($appt->patient) {
 				$appt->patient->notify(new \App\Notifications\AppointmentAccepted($appt));
 			}
 		} catch (\Throwable $ex) {}
@@ -58,24 +55,51 @@ class AppointmentController extends Controller
 		if (!$appt) {
 			return response()->json(['error' => 'No encontrado'], 404);
 		}
-		// Authorization: either the professional or the patient may reject
-		$isPatient = ((int)($appt->patient_id ?? 0) === (int)$user->id);
+		// Authorization: only the professional may reject
 		$isProfessional = ((int)($appt->professional_id ?? 0) === (int)$user->id);
-		if (!($isPatient || $isProfessional)) {
+		if (!$isProfessional) {
 			return response()->json(['error' => 'No autorizado'], 403);
 		}
+		// Reason is now mandatory
+		$data = $request->validate([
+			'reason' => ['required','string','min:3']
+		]);
+		$reason = $data['reason'];
 		$appt->status = 'rejected';
+		$appt->rejection_reason = $reason;
 		$appt->save();
-		$reason = $request->input('reason') ?? null;
 		try {
-			if ($isPatient && $appt->professional) {
-				$appt->professional->notify(new \App\Notifications\AppointmentRejected($appt, $reason));
-			} else if ($isProfessional && $appt->patient) {
-				// notify the patient and include the professional-provided reason when available
-				$appt->patient->notify(new \App\Notifications\AppointmentRejected($appt, $reason));
-			}
+			// notify the patient and include the professional-provided reason when available
+			if ($appt->patient) { $appt->patient->notify(new \App\Notifications\AppointmentRejected($appt, $reason)); }
 		} catch (\Throwable $ex) {}
 
+		return response()->json(['ok' => true]);
+	}
+
+	public function cancel(Request $request, $appointment)
+	{
+		$user = Auth::user();
+		$appt = Appointment::withTrashed()->find($appointment);
+		if (!$appt) {
+			return response()->json(['error' => 'No encontrado'], 404);
+		}
+		// Authorization: only the patient who requested can cancel
+		$isPatient = ((int)($appt->patient_id ?? 0) === (int)$user->id);
+		if (!$isPatient) {
+			return response()->json(['error' => 'No autorizado'], 403);
+		}
+		if ($appt->status !== 'pending') {
+			return response()->json(['error' => 'Solo se puede cancelar si está pendiente'], 422);
+		}
+		$appt->status = 'cancelled';
+		$appt->save();
+		$reason = $request->input('reason') ?? null;
+		// Notify the professional that the patient cancelled
+		try {
+			if ($appt->professional) {
+				$appt->professional->notify(new \App\Notifications\AppointmentCancelled($appt, $reason));
+			}
+		} catch (\Throwable $ex) {}
 		return response()->json(['ok' => true]);
 	}
 }

@@ -67,7 +67,6 @@ function renderCard(p) {
 export default function init() {
 	const $q = document.getElementById('pf_q');
 	const $spec = document.getElementById('pf_speciality');
-	const $type = document.getElementById('pf_type');
 	const $btn = document.getElementById('pf_search');
 	const $results = document.getElementById('pf_results');
 	const $empty = document.getElementById('pf_empty');
@@ -76,8 +75,7 @@ export default function init() {
 		ensureCardHelperStyles();
 		const params = {
 			q: $q?.value || '',
-			speciality: $spec?.value || '',
-			type: $type?.value || ''
+			speciality: $spec?.value || ''
 		};
 		$results.innerHTML = '<div class="col-12 text-center py-5">Buscando...</div>';
 		try {

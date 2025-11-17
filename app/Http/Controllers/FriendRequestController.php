@@ -5,12 +5,18 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use App\Events\FriendRequestSent;
 use App\Events\FriendRequestAccepted;
+use App\Notifications\FriendRequestReceived;
+use App\Notifications\FriendRequestAcceptedNotification;
 class FriendRequestController extends Controller {
     public function send(Request $r, User $user){
         $me = $r->user();
         if ($me->id === $user->id) return response()->json(['ok'=>false,'error'=>'same_user'],400);
         $fr = FriendRequest::firstOrCreate(['from_id'=>$me->id,'to_id'=>$user->id],[]);
-        if ($fr->wasRecentlyCreated) { broadcast(new FriendRequestSent($fr->load('from')))->toOthers(); }
+        if ($fr->wasRecentlyCreated) {
+            try { broadcast(new FriendRequestSent($fr->load('from')))->toOthers(); } catch (\Throwable $_) {}
+            // Database notification to the recipient
+            try { $user->notify(new FriendRequestReceived($me)); } catch (\Throwable $_) {}
+        }
         return response()->json(['ok'=>true,'status'=>$fr->status]);
     }
     public function accept(Request $r, FriendRequest $requestModel){
@@ -23,6 +29,8 @@ class FriendRequestController extends Controller {
         $requestModel->load('from','to');
         // Notify the original sender that their request was accepted
         try { broadcast(new FriendRequestAccepted($requestModel))->toOthers(); } catch(\Throwable $_) {}
+        // Notify the original sender via database notification
+        try { $requestModel->from?->notify(new FriendRequestAcceptedNotification($me)); } catch(\Throwable $_) {}
 
         // Return minimal friend data so the client can update the UI without a full reload
         $friend = $requestModel->from;

@@ -49,6 +49,7 @@ class DatabaseSeeder extends Seeder
 			['name' => 'adminarea'],
 			['name' => 'professionalarea'],
 			['name' => 'userarea'],
+			['name' => 'professional_applications'],
 		];
 		foreach ($perms as $p) {
 			DB::table('permissions')->updateOrInsert(
@@ -78,6 +79,7 @@ class DatabaseSeeder extends Seeder
 		$attach('admin', array_keys($permIds->toArray()));
 		$attach('professional', ['professionalarea']);
 		$attach('user', ['userarea']);
+		$attach('professional_applications', ['professional_applications']);
 
 		// Asignar roles por defecto (idempotente)
 		$users = DB::table('users')->select('id', 'email')->get();

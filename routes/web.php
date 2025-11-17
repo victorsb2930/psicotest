@@ -239,13 +239,12 @@ Route::middleware(['auth'])->group(function(){
 	// Availability APIs (JSON)
 	Route::get('/professionals/{id}/availability/check', [\App\Http\Controllers\ProfessionalAvailabilityApiController::class, 'check'])->name('professional.availability.check');
 	Route::get('/professionals/{id}/availability/weekly', [\App\Http\Controllers\ProfessionalAvailabilityApiController::class, 'weekly'])->name('professional.availability.weekly');
-	Route::prefix('professional')->middleware(['perm:professionalarea'])->group(function(){
+	// Professional calendar: remove permission middleware so basic calendar loads regardless of perm, keep auth
+	Route::prefix('professional')->middleware(['auth'])->group(function(){
 		Route::get('/calendar', [\App\Http\Controllers\ProfessionalCalendarController::class, 'index'])->name('professional.calendar');
-		// API endpoints for calendar events (initially returns empty list)
 		Route::get('/calendar/events', [\App\Http\Controllers\ProfessionalCalendarController::class, 'events'])->name('professional.calendar.events');
 		Route::post('/calendar/events', [\App\Http\Controllers\ProfessionalCalendarController::class, 'store'])->name('professional.calendar.events.store');
 		Route::get('/calendar/patients', [\App\Http\Controllers\ProfessionalCalendarController::class, 'searchPatients'])->name('professional.calendar.patients');
-		// endpoints for patients to accept/reject invitations
 		Route::post('/calendar/events/{appointment}/accept', [\App\Http\Controllers\AppointmentController::class, 'accept'])->name('appointments.accept');
 		Route::post('/calendar/events/{appointment}/reject', [\App\Http\Controllers\AppointmentController::class, 'reject'])->name('appointments.reject');
 	});
@@ -1059,6 +1058,8 @@ Route::middleware('auth')->group(function(){
 	// Patient accept/reject endpoints (calls to AppointmentController)
 	Route::post('/appointments/{appointment}/accept', [\App\Http\Controllers\AppointmentController::class, 'accept'])->name('appointments.patient.accept');
 	Route::post('/appointments/{appointment}/reject', [\App\Http\Controllers\AppointmentController::class, 'reject'])->name('appointments.patient.reject');
+	// Patient cancel endpoint (cancel a pending request)
+	Route::post('/appointments/{appointment}/cancel', [\App\Http\Controllers\AppointmentController::class, 'cancel'])->name('appointments.patient.cancel');
 
 	// Unified chat hub (combines conversations + friends UI)
 	Route::get('/chat', function(){
@@ -1448,6 +1449,11 @@ Route::middleware('auth')->group(function(){
 				'id' => $n->id,
 				'data' => $data,
 				'time' => $n->created_at->diffForHumans(),
+				// flatten common fields for ease on client
+				'title' => $data['title'] ?? null,
+				'body' => $data['body'] ?? ($data['message'] ?? null),
+				'icon' => $data['icon'] ?? 'bell',
+				'link' => $data['link'] ?? ($data['url'] ?? '#'),
 			];
 		});
 		return response()->json(['count' => $user->unreadNotifications()->count(), 'items' => $items]);
@@ -1466,6 +1472,17 @@ Route::middleware('auth')->group(function(){
 	Route::post('/api/notifications/mark-read-all', function(){
 		$user = auth()->user();
 		$user->unreadNotifications->markAsRead();
+		return response()->json(['ok' => true]);
+	});
+
+	// Delete a notification
+	Route::post('/api/notifications/delete', function(\Illuminate\Http\Request $r){
+		$user = auth()->user();
+		$id = $r->input('id');
+		if ($id) {
+			$notif = $user->notifications()->where('id', $id)->first();
+			if ($notif) { $notif->delete(); }
+		}
 		return response()->json(['ok' => true]);
 	});
 

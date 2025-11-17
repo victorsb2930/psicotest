@@ -1,5 +1,4 @@
 import flatpickr from 'flatpickr';
-import axios from 'axios';
 
 // Round a date to the next 15-minute increment
 function roundToNext15(d) {
@@ -34,9 +33,27 @@ function formatForInput(dt) {
  * }
  */
 export async function openAppointmentModal(options = {}) {
-	const mode = options.mode === 'professional' ? 'professional' : 'patient';
+	// Resolver modo priorizando SIEMPRE el rol real del usuario (meta/attr),
+	// luego caer a options.mode y finalmente 'patient'.
+	let mode = 'patient';
+	try {
+		const roleGuess = (document.documentElement.getAttribute('data-user-role') || document.querySelector('meta[name="current-user-role"]')?.getAttribute('content') || '').toLowerCase();
+		if (roleGuess.includes('professional') || roleGuess.includes('profesional')) {
+			mode = 'professional';
+		} else if (roleGuess.includes('user') || roleGuess.includes('cliente') || roleGuess.includes('patient') || roleGuess.includes('paciente')) {
+			mode = 'patient';
+		} else if (options.mode === 'professional' || options.mode === 'patient') {
+			mode = options.mode;
+		}
+	} catch(_) {
+		if (options.mode === 'professional' || options.mode === 'patient') mode = options.mode;
+	}
+	try { console.debug('[openAppointmentModal] mode resolved =', mode, '(role/meta preferred), options.mode =', options.mode); } catch(_) {}
 	const defaults = options.defaults || {};
 	const calendar = options.calendar || null;
+
+	// ID del usuario autenticado (para fijar professional_id en modo profesional)
+	const currentUserId = (()=>{ try { return document.querySelector('meta[name="auth-user-id"]')?.getAttribute('content') || null; } catch(_) { return null; } })();
 
 	const storeUrl = options.urls?.storeUrl || document.querySelector('meta[name="appointments-store-url"]')?.content;
 	const profCreateUrl = options.urls?.professionalCreateUrl || document.querySelector('meta[name="professional-create-url"]')?.content;
@@ -51,15 +68,18 @@ export async function openAppointmentModal(options = {}) {
 	// Professional display (single declaration)
 	const profDisplayHtml = `<div class="mb-2 professional-display"><div class="form-control-plaintext" id="am_professional_display"></div><input type="hidden" id="am_professional_id" name="professional_id"></div><div id="am_prof_avail_table_wrap" class="mb-3 small" style="display:none"></div>`;
 
+	// Patient display (for professional mode): shows selected patient and allows clearing
+	const patientDisplayHtml = `<div class="mb-2 patient-display"><div class="form-control-plaintext" id="am_patient_display"></div><input type="hidden" id="am_patient_id" name="patient_id"></div>`;
+
 	// Fijamos modalidad en 'virtual' para ambos modos (se eliminó selección presencial/virtual)
 	const fixedTypeValue = 'virtual';
 	const formHtml = `
 		<form id="sharedAppointmentForm">
 			${mode === 'professional' ? `
-			<div class="mb-2 patient-field">
-				<label>Paciente</label>
-				<input type="text" id="am_patient_search" class="form-control" placeholder="Buscar por nombre o email">
-				<input type="hidden" id="am_patient_id" name="patient_id">
+			${patientDisplayHtml}
+			<div class="mb-2 patient-field" id="am_patient_search_block">
+				<label>Buscar paciente</label>
+				<input type="text" id="am_patient_search" class="form-control" placeholder="Nombre o email del paciente">
 				<div id="am_patient_results" class="list-group mt-2"></div>
 			</div>
 			` : ''}
@@ -67,14 +87,11 @@ export async function openAppointmentModal(options = {}) {
 			${profDisplayHtml}
 			<div class="mb-2" id="am_prof_search_block">
 				<label>Buscar profesional</label>
-				<input type="text" id="am_prof_search" class="form-control" placeholder="Nombre, email o especialidad">
+				<input type="text" id="am_prof_search" class="form-control" placeholder="Nombre o email del profesional">
 				<div id="am_prof_results" class="list-group mt-2"></div>
 			</div>
 			` : `
-			<div class="mb-2 professional-field">
-				<label>Profesional (ID)</label>
-				<input type="number" id="am_professional_id" name="professional_id" class="form-control">
-			</div>
+			<input type="hidden" id="am_professional_id" name="professional_id" value="${currentUserId || ''}">
 			`}
 
 			<div class="mb-2">
@@ -131,7 +148,7 @@ export async function openAppointmentModal(options = {}) {
 
 						// strict validation: for patient mode require all fields
 						if (mode === 'professional') {
-							if (!patientId && patientSearch.length === 0) { window.modalNotification?.('Paciente requerido', 'Selecciona un paciente', { template: 'warning' }); $modal.find('#am_patient_search').trigger('focus'); return; }
+							if (!patientId) { window.modalNotification?.('Paciente requerido', 'Selecciona un paciente de la lista', { template: 'warning' }); $modal.find('#am_patient_search').trigger('focus'); return; }
 						} else {
 							if (!professionalId) { window.modalNotification?.('Profesional requerido', 'Selecciona un profesional', { template: 'warning' }); $modal.find('#am_prof_search').trigger('focus'); return; }
 							// require appointment type, title, start, end, notes for patient requests
@@ -470,6 +487,7 @@ export async function openAppointmentModal(options = {}) {
 	if (mode === 'professional') {
 		const $search = $m.find('#am_patient_search');
 		const $results = $m.find('#am_patient_results');
+		const $searchBlock = $m.find('#am_patient_search_block');
 		let timer = null;
 		$search.off('input').on('input', function () {
 			clearTimeout(timer);
@@ -480,11 +498,16 @@ export async function openAppointmentModal(options = {}) {
 			timer = setTimeout(() => {
 				fetch((profPatientsUrl || '/professional/calendar/patients') + '?q=' + encodeURIComponent(q))
 					.then(r => r.json()).then(data => {
-						const html = data.map(u => `<button type="button" class="list-group-item list-group-item-action" data-id="${u.id}" data-name="${u.name}">${u.name} <small class="text-muted">${u.email}</small></button>`).join('');
+						const html = data.map(u => `<button type="button" class="list-group-item list-group-item-action" data-id="${u.id}" data-name="${u.name}" data-email="${u.email}"><strong>${u.name}</strong><br><small class="text-muted">${u.email}</small></button>`).join('');
 						$results.html(html);
 						$results.find('button[data-id]').on('click', function () {
-							$search.val($(this).attr('data-name'));
-							$m.find('#am_patient_id').val($(this).attr('data-id'));
+							const selId = $(this).attr('data-id');
+							const selName = $(this).attr('data-name') || '';
+							const selEmail = $(this).attr('data-email') || '';
+							$m.find('#am_patient_id').val(selId);
+							const safe = s => { try { return window.escapeHtml ? window.escapeHtml(String(s)) : String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); } catch(_) { return String(s); } };
+							$m.find('#am_patient_display').html(`Paciente: <strong>${safe(selName)}</strong> <small class="text-muted">${safe(selEmail)}</small> <button type="button" class="btn btn-sm btn-outline-danger ms-2" id="am_patient_clear">Quitar</button>`);
+							if ($searchBlock && $searchBlock.length) $searchBlock.hide();
 							$results.empty();
 						});
 					}).catch(() => { });
@@ -492,6 +515,19 @@ export async function openAppointmentModal(options = {}) {
 		});
 		$m.one('hidden.bs.modal', () => { clearTimeout(timer); });
 	}
+
+	// Handler to clear selected patient (professional mode)
+	try {
+		$m.off('click', '#am_patient_clear').on('click', '#am_patient_clear', function(){
+			try {
+				$m.find('#am_patient_id').val('');
+				$m.find('#am_patient_display').html('');
+				$m.find('#am_patient_search').val('');
+				$m.find('#am_patient_results').empty();
+				$m.find('#am_patient_search_block').show();
+			} catch(_){ }
+		});
+	} catch(_) { }
 
 	// Handler to clear selected professional (patient mode) using delegated events
 	try {

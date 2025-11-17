@@ -30,6 +30,10 @@ class UserAppointmentController extends Controller
                     'end' => $a->end?->setTimezone('UTC')->toIso8601String(),
                     'allDay' => (bool) $a->all_day,
                     'status' => $a->status,
+                    // extra props for UI modal
+                    'notes' => $a->notes,
+                    'rejection_reason' => $a->rejection_reason ?? null,
+                    'professional_name' => $a->professional?->name,
                 ];
             });
         return response()->json($events);
@@ -72,6 +76,17 @@ class UserAppointmentController extends Controller
             'appointment_type' => $data['appointment_type'] ?? null,
             'status' => 'pending'
         ]);
+
+        try {
+            \Log::info('appointment.requested', [
+                'appointment_id' => $appt->id,
+                'professional_id' => (int) $appt->professional_id,
+                'patient_id' => (int) $appt->patient_id,
+                'start' => (string) $appt->start,
+                'end' => (string) ($appt->end ?? ''),
+                'status' => $appt->status,
+            ]);
+        } catch (\Throwable $_) { }
 
         // Notify the professional using the AppointmentCreated notification
         try {

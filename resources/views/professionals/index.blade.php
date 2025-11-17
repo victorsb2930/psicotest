@@ -12,13 +12,6 @@
         <div class="col-md-3">
             <input id="pf_speciality" class="form-control" placeholder="Especialidad">
         </div>
-        <div class="col-md-3">
-            <select id="pf_type" class="form-select">
-                <option value="">Tipo de cita (ambos)</option>
-                <option value="presencial">Presencial</option>
-                <option value="virtual">Virtual</option>
-            </select>
-        </div>
         <div class="col-md-2">
             <button id="pf_search" class="btn btn-primary w-100">Buscar</button>
         </div>

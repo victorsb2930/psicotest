@@ -8,6 +8,10 @@
 	<h1 class="me-3">Calendario</h1>
 	<button class="btn btn-sm btn-primary" id="newAppointmentBtn">Crear nueva cita</button>
 	</div>
+	<div class="mb-3 form-check">
+		<input type="checkbox" class="form-check-input" id="hideCancelledChk">
+		<label for="hideCancelledChk" class="form-check-label">Ocultar canceladas</label>
+	</div>
 	<div id="calendar" style="max-width: 1100px; margin: 0 auto;"></div>
 </div>
 

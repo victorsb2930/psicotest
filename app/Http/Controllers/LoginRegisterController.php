@@ -591,6 +591,17 @@ class LoginRegisterController extends Controller
 			} catch (\Throwable $_) { $page = null; }
 
 			if (!$page) { $page = '/'; }
+			// Notificación de bienvenida (una sola vez, si verificado)
+			try {
+				if (!empty($user->email_verified_at) && \Illuminate\Support\Facades\Schema::hasTable('notifications')) {
+					$exists = \DB::table('notifications')
+						->where('notifiable_id', $user->id)
+						->where('notifiable_type', \App\Models\User::class)
+						->where('type', \App\Notifications\WelcomeNotification::class)
+						->exists();
+					if (!$exists) { $user->notify(new \App\Notifications\WelcomeNotification()); }
+				}
+			} catch (\Throwable $_) {}
 			// Si el usuario tiene 2FA habilitado, iniciar desafío antes de conceder acceso
 			$twoFactorEnabled = false; $twoFactorMethod = 'email';
 			try {
