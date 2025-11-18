@@ -32,7 +32,7 @@
 					<div class="field">
 						<label for="login_email" class="field-label">Email</label>
 						<div class="type">
-							<input type="email" name="email" placeholder="Email" id="login_email" />
+							<input type="email" name="email" placeholder="Email" id="login_email" value="{{ old('email') }}" />
 						</div>
 					</div>
 					<div class="field">
@@ -42,7 +42,7 @@
 						</div>
 					</div>
 					<div class="forgot">
-						<span>¿Olvidaste tu contraseña?</span>
+						<a href="{{ route('password.request') }}" class="text-decoration-underline">¿Olvidaste tu contraseña?</a>
 					</div>
 					<button id="login_submit_btn" class="btn bkg" type="submit">Iniciar Sesión</button>
 				</form>
@@ -68,19 +68,19 @@
 					<div class="field">
 						<label for="reg_name" class="field-label">Nombres</label>
 						<div class="type">
-							<input type="text" placeholder="Nombre" id="reg_name" name="reg_name" />
+							<input type="text" placeholder="Nombre" id="reg_name" name="reg_name" value="{{ old('reg_name') }}" />
 						</div>
 					</div>
 					<div class="field">
 						<label for="reg_lastname" class="field-label">Apellidos</label>
 						<div class="type">
-							<input type="text" placeholder="Apellidos" id="reg_lastname" name="reg_lastname" />
+							<input type="text" placeholder="Apellidos" id="reg_lastname" name="reg_lastname" value="{{ old('reg_lastname') }}" />
 						</div>
 					</div>
 					<div class="field">
 						<label for="reg_birthdate" class="field-label">Fecha de nacimiento</label>
 						<div class="type">
-							<input type="date" id="reg_birthdate" name="reg_birthdate" />
+							<input type="date" id="reg_birthdate" name="reg_birthdate" value="{{ old('reg_birthdate') }}" />
 						</div>
 					</div>
 					<div class="field">
@@ -88,15 +88,15 @@
 						<div class="type">
 							<select id="reg_gender" name="reg_gender" class="form-select bg-transparent border-0">
 								<option value="">Selecciona una opción</option>
-								<option value="masculino">Masculino</option>
-								<option value="femenino">Femenino</option>
+								<option value="masculino" @selected(old('reg_gender')==='masculino')>Masculino</option>
+								<option value="femenino" @selected(old('reg_gender')==='femenino')>Femenino</option>
 							</select>
 						</div>
 					</div>
 					<div class="field">
 						<label for="reg_email" class="field-label">Email</label>
 						<div class="type">
-							<input type="email" placeholder="Email" id="reg_email" name="reg_email" />
+							<input type="email" placeholder="Email" id="reg_email" name="reg_email" value="{{ old('reg_email') }}" />
 						</div>
 					</div>
 					<div class="field">
@@ -121,7 +121,7 @@
 					<div class="field">
 						<label for="reg_location" class="field-label">Ubicación</label>
 						<div class="type">
-							<input type="text" placeholder="Ciudad, provincia" id="reg_location" name="reg_location" />
+							<input type="text" placeholder="Ciudad, provincia" id="reg_location" name="reg_location" value="{{ old('reg_location') }}" />
 						</div>
 					</div>
 					<div class="field professional-only d-none">

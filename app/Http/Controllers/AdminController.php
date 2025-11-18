@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Role as SpatieRole;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
 
 class AdminController extends Controller {
@@ -82,6 +83,13 @@ class AdminController extends Controller {
 		$user->birthdate = $validated['birthdate'];
 		$user->gender = $validated['gender'];
 		$user->is_active = true; // crear activo por defecto
+        // Optionally mark email as verified when created by admin (default: true)
+        try {
+            $markVerified = $request->boolean('mark_verified', true);
+            if ($markVerified && \Schema::hasColumn('users','email_verified_at')) {
+                $user->email_verified_at = now();
+            }
+        } catch (\Throwable $_) { /* ignore */ }
 		$user->save();
 		// asignar rol si se proporciona
 		if (!empty($validated['role_id'])) {
@@ -90,18 +98,23 @@ class AdminController extends Controller {
 				if ($role) { $user->syncRoles([$role->name]); }
 			} catch (\Throwable $_) { /* ignore */ }
 		}
-		// send notification email with temporary password
-		$mailOk = true; $mailErr = null;
+		// Optionally send a password set (reset) link to the user's email
+		$mailOk = true; $mailErr = null; $status = null;
 		try {
-			Mail::to($user->email)->send(new \App\Mail\AdminCreatedUser($user, $plainPassword));
+			$sendLink = $request->boolean('send_password_link', true);
+			if ($sendLink) {
+				$status = Password::sendResetLink(['email' => $user->email]);
+				$mailOk = ($status === Password::RESET_LINK_SENT);
+				try { Log::info('admin.create_user.reset_link', ['email' => $user->email, 'status' => $status]); } catch (\Throwable $_) {}
+			}
 		} catch (\Throwable $e) {
 			$mailOk = false; $mailErr = $e->getMessage();
-			Log::warning('admin.create_user.mail_failed', ['email' => $user->email, 'error' => $mailErr]);
+			Log::warning('admin.create_user.reset_link_failed', ['email' => $user->email, 'error' => $mailErr]);
 		}
 		if ($mailOk) {
-			return back()->with('success', 'Usuario agregado correctamente. Se envió el correo con la contraseña temporal.');
+			return back()->with('success', 'Usuario agregado correctamente. Se envió un enlace para establecer la contraseña.');
 		}
-		return back()->with('success', 'Usuario agregado correctamente. No se pudo enviar el correo de notificación.');
+		return back()->with('success', 'Usuario agregado correctamente. No se pudo enviar el enlace para establecer la contraseña.');
 	}
 
 	public function toggleActive(Request $request, User $user) {

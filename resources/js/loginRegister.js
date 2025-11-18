@@ -181,20 +181,57 @@ function setEvents(){
 			if (typeof label === 'string') btn.innerText = label;
 		} catch(_){}
 	};
-	$('#login_form').off('submit').on('submit', function (e) {
+	$('#login_form').off('submit').on('submit', async function (e) {
+		e.preventDefault();
 		const email = $('#login_email').val()?.toString().trim();
 		const password = $('#login_password').val()?.toString().trim();
 		if (!email || !password) {
-			e.preventDefault();
 			modalNotification('Error', 'Por favor ingresa email y contraseña.');
 			return;
 		}
-		// disable button and change label to avoid double submits
 		setLoginBtn(true, 'Iniciando...');
-		// allow form to submit normally; in case of server validation errors the page
-		// will reload with errors; for AJAX flows the axios handlers below will
-		// need to re-enable button on errors (handled in quickLogin/other code)
-		setTimeout(() => { /* safety: if somehow the form didn't navigate, re-enable after 10s */ setLoginBtn(false, 'Iniciar Sesión'); }, 10000);
+		try {
+			const fd = new FormData(this);
+			// CSRF token already included via hidden input; add headers for JSON response
+			const csrf = (document.querySelector('meta[name="csrf-token"]')||{}).content || '';
+			const res = await window.axios.post(this.action || '/login', fd, {
+				withCredentials: true,
+				headers: { 'X-CSRF-TOKEN': csrf, 'X-Requested-With': 'XMLHttpRequest' }
+			});
+			const data = res?.data || {};
+			if (data.verify_email) {
+				// Mostrar modal para reenviar verificación directamente
+				modalConfirm({
+					title: 'Verifica tu email',
+					body: `<p>Debes verificar tu cuenta antes de continuar.</p><p>Pulsa "Reenviar" para recibir un nuevo enlace en: <strong>${window.escapeHtml(email)}</strong></p>`,
+					btnsType: 'ac',
+					confirmLabel: 'Reenviar',
+					cancelLabel: 'Cerrar',
+					onClickYes: async () => {
+						try {
+							await window.axios.post('/email/verification-notification', { email }, { headers:{'X-CSRF-TOKEN': csrf,'X-Requested-With':'XMLHttpRequest'} });
+							modalNotification('Enviado', 'Si el email existe, se ha reenviado el enlace.', { template: 'info' });
+						} catch(_) {
+							modalNotification('Error', 'No se pudo reenviar el enlace.', { template: 'danger' });
+						}
+					}
+				}, 'normal', { centered: true, size: '' });
+				setLoginBtn(false, 'Iniciar Sesión');
+				return;
+			}
+			if (data.ok) {
+				window.location.href = data.redirect || '/';
+				return;
+			}
+			// Credenciales inválidas u otro mensaje
+			modalNotification('Acceso', window.escapeHtml(data.message || 'Credenciales inválidas.'), { template: 'warning' });
+			setLoginBtn(false, 'Iniciar Sesión');
+		} catch (err) {
+			const res = err?.response; let msg = 'Error al iniciar sesión.';
+			if (res?.data?.message) msg = res.data.message;
+			modalNotification('Error', window.escapeHtml(msg), { template: 'danger' });
+			setLoginBtn(false, 'Iniciar Sesión');
+		}
 	});
 
 	// Live validation en el formulario de registro
@@ -261,6 +298,8 @@ function setEvents(){
 		}
 
 		if (!isValid) {
+			// Rehabilitar botón si validación local falla para evitar bloqueo permanente
+			try { const rbtn = document.getElementById('register_submit_btn'); if (rbtn) { rbtn.disabled = false; rbtn.innerText = 'Registrarte'; } } catch(_){ }
 			modalNotification('Formulario incompleto', 'Corrige los campos marcados en rojo.');
 			return;
 		}

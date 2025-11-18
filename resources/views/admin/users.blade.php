@@ -285,7 +285,7 @@
 									<input type="email" name="email" class="form-control" required>
 								</div>
 								<div class="col-12">
-									<div class="alert alert-info small mb-0">La contraseña será generada automáticamente y enviada al email proporcionado. Pide al usuario que la cambie tras iniciar sesión.</div>
+									<div class="alert alert-info small mb-0">Se enviará un enlace para que el usuario establezca su contraseña. El email queda marcado como verificado.</div>
 								</div>
 								<div class="col-md-4">
 									<label class="form-label">Fecha de nacimiento *</label>
@@ -307,6 +307,18 @@
 											<option value="{{ $r->id }}">{{ $r->signup_label ?? $r->name }} ({{ $r->name }})</option>
 										@endforeach
 									</select>
+								</div>
+								<div class="col-12">
+									<div class="form-check mt-1">
+										<input class="form-check-input" type="checkbox" id="markVerified" name="mark_verified" value="1" checked>
+										<label class="form-check-label" for="markVerified">Marcar email como verificado</label>
+									</div>
+								</div>
+								<div class="col-12">
+									<div class="form-check">
+										<input class="form-check-input" type="checkbox" id="sendPasswordLink" name="send_password_link" value="1" checked>
+										<label class="form-check-label" for="sendPasswordLink">Enviar enlace para establecer contraseña</label>
+									</div>
 								</div>
 							</div>
 						</div>
