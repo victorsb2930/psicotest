@@ -105,9 +105,10 @@ docker-compose exec app php artisan migrate --seed
 8. Limpiar y recargar cachés
 
 ```bash
-docker-compose exec app php artisan config:clear
+docker-compose exec app php artisan config:clear                               
 docker-compose exec app php artisan cache:clear
 docker-compose exec app php artisan view:clear
+docker-compose exec app php artisan route:clear
 ```
 
 9. Ajustar permisos si ves errores de escritura (views / cache)
