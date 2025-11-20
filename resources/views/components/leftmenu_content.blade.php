@@ -87,8 +87,6 @@
                 @endforeach
             @endforeach
 
-            {{-- Nota: 'Planes' eliminado del hardcode. Si se requiere, agregar como item en DB (sección user o common). --}}
-
             {{-- COMMON LINKS (desde DB) --}}
             @php $commonItems = $dbMenu->get('common', collect()); @endphp
             @if($commonItems->count() > 0)

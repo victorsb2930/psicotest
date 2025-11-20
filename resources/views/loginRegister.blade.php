@@ -55,7 +55,7 @@
 					<div class="field">
 						<label for="reg_photo" class="field-label">Foto de perfil</label>
 						<div class="type">
-							<input type="file" id="reg_photo" name="reg_photo" accept="image/*" />
+							<input type="file" id="reg_photo" name="reg_photo" accept=".jpg,.jpeg,.png" />
 						</div>
 						<small class="field-help">Imagen opcional. Tamaño recomendado: 400x400.</small>
 					</div>

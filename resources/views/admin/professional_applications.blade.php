@@ -82,8 +82,8 @@
             </td>
             <td>
               @if($a->reviewed_at)
-                <div class="small">Por: {{$a->reviewer?->name}}</div>
-                <div class="text-muted small">{{$a->reviewed_at}}</div>
+                <div class="small">Por: {{$a->reviewer?->name . ' ' . $a->reviewer?->lastname}}</div>
+                <div class="text-muted small">{{ \Carbon\Carbon::parse($a->reviewed_at)->format('d/m/Y H:i')}}</div>
                 @if($a->notes)<div class="small">Nota: {{ $a->notes }}</div>@endif
               @else
                 <span class="text-muted small">Sin revisar</span>

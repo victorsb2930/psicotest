@@ -60,7 +60,7 @@ Route::get('/email/verification-notice', function(){
 	return view('auth.verify_notice');
 })->name('verification.notice');
 
-// Resend verification email (adds debug logging for SMTP failures)
+// Resend verification email (adds debug logging for SMTP failures) - now uses one-time token stored on user
 Route::post('/email/verification-notification', function(\Illuminate\Http\Request $r){
 	$email = (string) $r->input('email');
 	if ($email === '') {
@@ -74,7 +74,11 @@ Route::post('/email/verification-notification', function(\Illuminate\Http\Reques
 	if (!empty($user->email_verified_at)) {
 		return back()->with('success','Tu email ya está verificado.');
 	}
-	$url = \URL::temporarySignedRoute('verification.verify', now()->addMinutes(60), ['id'=>$user->id,'hash'=>sha1(strtolower($user->email))]);
+	// Generar nuevo token único (invalida cualquier anterior)
+	$user->email_verification_token = Str::random(40);
+	$user->email_verification_token_expires_at = now()->addMinutes(60);
+	try { $user->save(); } catch (\Throwable $_) {}
+	$url = url('/email/verify/'.$user->id.'/'.$user->email_verification_token);
 	$fromAddr = config('mail.from.address');
 	$fromName = config('mail.from.name');
 	try {
@@ -120,18 +124,35 @@ if (app()->environment('local')) {
 	})->name('_debug.mail.test');
 }
 
-// Verify signed link
-Route::get('/email/verify/{id}/{hash}', function(\Illuminate\Http\Request $r, int $id, string $hash){
-	if (!$r->hasValidSignature()) { abort(403, 'Enlace inválido o expirado'); }
+// Verify one-time token link (token stored in users table)
+Route::get('/email/verify/{id}/{token}', function(\Illuminate\Http\Request $r, int $id, string $token){
 	$user = \App\Models\User::find($id);
 	if (!$user) { abort(404); }
-	$expected = sha1(strtolower($user->email));
-	if (!hash_equals($expected, $hash)) { abort(403, 'Hash inválido'); }
-	if (!empty($user->email_verified_at)) {
-		// Link ya consumido: UX amable -> redirige con aviso
-		return redirect('/')->with('info','Tu email ya estaba verificado.');
+	$stored = (string) ($user->email_verification_token ?? '');
+	$expiresAt = $user->email_verification_token_expires_at ?? null;
+	$expired = false;
+	if ($expiresAt instanceof \DateTimeInterface) {
+		$expired = now()->greaterThan($expiresAt);
+	} elseif ($expiresAt) {
+		try { $expired = now()->greaterThan(\Carbon\Carbon::parse($expiresAt)); } catch (\Throwable $_) { $expired = true; }
+	} else { $expired = true; }
+	$alreadyVerified = !empty($user->email_verified_at);
+	$invalidToken = empty($stored) || !hash_equals($stored, $token);
+	// Any of these states means the link should not work anymore
+	if ($alreadyVerified || $expired || $invalidToken) {
+		// UX amable: mensaje único sin revelar cuál condición falló
+		// Si aún NO estaba verificado pero token venció o inválido, ofrecer reenviar
+		$msg = $alreadyVerified
+			? 'Tu email ya está verificado.'
+			: 'El enlace de verificación ya no es válido (usado o expirado). Solicita uno nuevo.';
+		// Prefill email if not verified so la vista notice pueda mostrarlo
+		if (!$alreadyVerified) { try { session(['pending_verification_email' => $user->email]); } catch (\Throwable $_) {} }
+		return redirect()->route('verification.notice')->with($alreadyVerified ? 'info' : 'error', $msg);
 	}
+	// Consumir token y verificar
 	$user->email_verified_at = now();
+	$user->email_verification_token = null;
+	$user->email_verification_token_expires_at = null;
 	try { $user->save(); } catch (\Throwable $_) {}
 	return redirect('/')->with('success','Email verificado. Ahora puedes iniciar sesión.');
 })->name('verification.verify');
@@ -275,7 +296,28 @@ Route::middleware(['auth'])->group(function(){
 			return redirect()->back()->with('success','Todos los dispositivos han sido revocados');
 		})->name('user.devices.revoke_all');
 	Route::get('/professionalarea', function () {
-		return view('professionalArea');
+		$user = auth()->user();
+		$nextAppt = null;
+		try {
+			$nextAppt = \App\Models\Appointment::with('patient')
+				->where('professional_id', $user->id)
+				->whereNull('deleted_at')
+				->where('status', 'accepted')
+				->where('start', '>=', now())
+				->orderBy('start', 'asc')
+				->first();
+			if (!$nextAppt) {
+				// Fallback: show next pending in case there is no accepted one yet
+				$nextAppt = \App\Models\Appointment::with('patient')
+					->where('professional_id', $user->id)
+					->whereNull('deleted_at')
+					->where('status', 'pending')
+					->where('start', '>=', now())
+					->orderBy('start', 'asc')
+					->first();
+			}
+		} catch (\Throwable $_) { $nextAppt = null; }
+		return view('professionalArea', ['nextAppt' => $nextAppt]);
 	})->middleware(['perm:professionalarea'])->name('professionalarea');
 
 	// Professional calendar and related endpoints
@@ -283,8 +325,10 @@ Route::middleware(['auth'])->group(function(){
 		// Availability management (professional)
 		Route::get('/professional/availability', [\App\Http\Controllers\ProfessionalAvailabilityController::class, 'index'])->name('professional.availability');
 		Route::post('/professional/availability', [\App\Http\Controllers\ProfessionalAvailabilityController::class, 'store'])->name('professional.availability.store');
+		Route::patch('/professional/availability/{availability}', [\App\Http\Controllers\ProfessionalAvailabilityController::class, 'update'])->name('professional.availability.update');
 		Route::delete('/professional/availability/{availability}', [\App\Http\Controllers\ProfessionalAvailabilityController::class, 'destroy'])->name('professional.availability.destroy');
 		Route::post('/professional/availability/exceptions', [\App\Http\Controllers\ProfessionalAvailabilityController::class, 'storeException'])->name('professional.availability.exceptions.store');
+		Route::patch('/professional/availability/exceptions/{exception}', [\App\Http\Controllers\ProfessionalAvailabilityController::class, 'updateException'])->name('professional.availability.exceptions.update');
 		Route::delete('/professional/availability/exceptions/{exception}', [\App\Http\Controllers\ProfessionalAvailabilityController::class, 'destroyException'])->name('professional.availability.exceptions.destroy');
 	});
 

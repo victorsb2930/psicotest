@@ -40,6 +40,7 @@ class MenuItemsSeeder extends Seeder
             ['label' => 'Buscar profesionales', 'route_name' => 'professionals.index', 'icon_class' => 'bi bi-search', 'section' => 'user', 'sort_order' => 30, 'permission' => 'userarea'],
             ['label' => 'Favoritos', 'route_name' => 'favorites', 'icon_class' => 'bi bi-star', 'section' => 'user', 'sort_order' => 40, 'permission' => 'userarea'],
             ['label' => 'Chat', 'route_name' => 'chat.index', 'icon_class' => 'bi bi-chat-dots', 'section' => 'user', 'sort_order' => 50, 'permission' => 'userarea'],
+            ['label' => 'Planes', 'route_name' => 'plans.index', 'icon_class' => 'bi bi-card-list', 'section' => 'user', 'sort_order' => 60, 'permission' => 'userarea'],
         ];
 
         $idByLabel = [];

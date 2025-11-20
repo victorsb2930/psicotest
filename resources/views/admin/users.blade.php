@@ -191,8 +191,8 @@
 							<button class="btn btn-sm btn-primary" type="submit">Guardar</button>
 						</form>
 					</td>
-					<td>{{ $u->created_at?->format('Y-m-d H:i') ?? '' }}</td>
-					<td>{{ $u->updated_at?->format('Y-m-d H:i') ?? '' }}</td>
+					<td>{{ $u->created_at?->format('d/m/Y H:i') ?? '' }}</td>
+					<td>{{ $u->updated_at?->format('d/m/Y H:i') ?? '' }}</td>
 				</tr>
 				@endforeach
 			</tbody>

@@ -4,30 +4,43 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\DB;
 
 class Appointment extends Model
 {
-    use SoftDeletes;
+	use SoftDeletes;
 
-    protected $fillable = ['professional_id','patient_id','title','start','end','all_day','status','notes','rejection_reason'];
+	protected $fillable = ['professional_id','patient_id','title','start','end','all_day','status','notes','rejection_reason'];
 
-    /**
-     * Cast date fields to Carbon instances and booleans
-     * so we can safely convert timezones when returning events.
-     */
-    protected $casts = [
-        'start' => 'datetime',
-        'end' => 'datetime',
-        'all_day' => 'boolean',
-    ];
+	/**
+	 * Cast date fields to Carbon instances and booleans
+	 * so we can safely convert timezones when returning events.
+	 */
+	protected $casts = [
+		'start' => 'datetime',
+		'end' => 'datetime',
+		'all_day' => 'boolean',
+	];
 
-    public function professional()
-    {
-        return $this->belongsTo(User::class, 'professional_id');
-    }
+	public function professional()
+	{
+		return $this->belongsTo(User::class, 'professional_id');
+	}
 
-    public function patient()
-    {
-        return $this->belongsTo(User::class, 'patient_id');
-    }
+	public function patient()
+	{
+		return $this->belongsTo(User::class, 'patient_id');
+	}
+
+	/**
+	 * Citas cuyo estado bloquea nueva programación.
+	 * Rechazado / cancelado NO bloquea la disponibilidad.
+	 * Se aplica comparación case-insensitive por seguridad.
+	 */
+	public function scopeBlocking($q)
+	{
+		$blocking = ['pending','requested','accepted'];
+		// Normaliza status en la comparación (lower + trim) para evitar falsos bloqueos por mayúsculas o espacios
+		return $q->whereIn(DB::raw("LOWER(TRIM(status))"), $blocking);
+	}
 }

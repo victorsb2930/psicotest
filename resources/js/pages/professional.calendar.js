@@ -193,8 +193,6 @@ export default function init() {
 						try { console.debug('[professional.calendar] events normalized', list.length); } catch(_) {}
 						if (list.length === 0) {
 							try { console.warn('[professional.calendar] empty events list after fetch; raw=', data); } catch(_) {}
-							// Inject a temporary diagnostic event so we can see if rendering works at all
-							list.push({ id: '__diagnostic__', title: 'Diagnóstico (no borrar)', start: fetchInfo.startStr, end: fetchInfo.startStr, allDay: true, status: 'pending', notes: 'Evento inyectado para verificar render.' });
 						}
 						// Force each event to have a backgroundColor to rule out CSS hiding
 						list = list.map(ev => ({ ...ev, backgroundColor: '#0d6efd', borderColor: '#0d6efd' }));

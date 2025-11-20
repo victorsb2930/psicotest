@@ -11,8 +11,23 @@ class FriendRequestController extends Controller {
     public function send(Request $r, User $user){
         $me = $r->user();
         if ($me->id === $user->id) return response()->json(['ok'=>false,'error'=>'same_user'],400);
-        $fr = FriendRequest::firstOrCreate(['from_id'=>$me->id,'to_id'=>$user->id],[]);
-        if ($fr->wasRecentlyCreated) {
+        $fr = FriendRequest::firstOrNew(['from_id'=>$me->id,'to_id'=>$user->id]);
+        $shouldNotify = false;
+        if (!$fr->exists) {
+            // brand new request
+            $fr->status = 'pending';
+            $fr->save();
+            $shouldNotify = true;
+        } else {
+            // If an existing request is not pending (e.g., was rejected), allow resend and notify again
+            if ($fr->status !== 'pending') {
+                $fr->status = 'pending';
+                $fr->accepted_at = null; $fr->rejected_at = null;
+                $fr->save();
+                $shouldNotify = true;
+            }
+        }
+        if ($shouldNotify) {
             try { broadcast(new FriendRequestSent($fr->load('from')))->toOthers(); } catch (\Throwable $_) {}
             // Database notification to the recipient
             try { $user->notify(new FriendRequestReceived($me)); } catch (\Throwable $_) {}

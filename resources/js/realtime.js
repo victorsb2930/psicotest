@@ -45,18 +45,38 @@ if (echoConfig) {
 	const userId = window.__authUserId;
 	if (userId) {
 		const channelName = `user.${userId}`;
+		let __lastCountersFetch = 0; let __countersFetchT = null;
+		function scheduleCountersRefresh(){
+			const now = Date.now();
+			const since = now - __lastCountersFetch;
+			if (since > 800) { // fetch immediately if been a while
+				__lastCountersFetch = now;
+				fetch('/api/counters').then(r=>r.json()).then(d=>{ if(d && d.ok){ document.dispatchEvent(new CustomEvent('counters:update',{ detail: d })); updateChatBadgeFromCounters(d); } });
+				return;
+			}
+			if (__countersFetchT) return; // already scheduled
+			__countersFetchT = setTimeout(()=>{
+				__countersFetchT = null; __lastCountersFetch = Date.now();
+				fetch('/api/counters').then(r=>r.json()).then(d=>{ if(d && d.ok){ document.dispatchEvent(new CustomEvent('counters:update',{ detail: d })); updateChatBadgeFromCounters(d); } });
+			}, 350);
+		}
+		function updateChatBadgeFromCounters(payload){
+			try {
+				const link = document.querySelector('#left-menu a.nav-link i.bi-chat-dots')?.closest('a');
+				if (!link) return;
+				let badge = link.querySelector('.badge');
+				const unread = payload.messages_unread ?? payload.messages ?? null;
+				if (unread === null) return; // nothing to render
+				if (unread <= 0){ if (badge) { badge.remove(); } return; }
+				if (!badge) { badge = document.createElement('span'); badge.className = 'badge text-bg-light text-dark ms-2'; link.appendChild(badge); }
+				badge.textContent = String(unread);
+			} catch(_){}
+		}
 		window.Echo.private(channelName)
 			.listen('MessageSent', (e) => {
 				window.dispatchEvent(new CustomEvent('rt:message', { detail: e }));
-				// Actualiza badge mensajes
-				try {
-					const link = document.querySelector('#left-menu a.nav-link i.bi-chat-dots')?.closest('a');
-					if (link) {
-						let badge = link.querySelector('.badge');
-						if (!badge) { badge = document.createElement('span'); badge.className = 'badge text-bg-light text-dark ms-2'; link.appendChild(badge); badge.textContent = '0'; }
-						badge.textContent = String(parseInt(badge.textContent || '0', 10) + 1);
-					}
-				} catch (_) { }
+				// Solicitar counters reales (evita esperar al polling y elimina incremento inexacto)
+				scheduleCountersRefresh();
 				if (window.modalNotification) window.modalNotification('Nuevo mensaje', e.body || 'Tienes un nuevo mensaje', { template: 'info' });
 			})
 			.listen('FriendRequestSent', (e) => {

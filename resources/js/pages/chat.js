@@ -4,7 +4,7 @@ import RtcUI from '../rtc-ui';
 // Módulo de la página de mensajes: inicializa la UI, enlaza handlers y limpia en destroy
 
 // Estado del módulo
-let _state = { currentPartnerId: null, renderedMessageIds: new Set() };
+let _state = { currentPartnerId: null, renderedMessageIds: new Set(), autoOpened: false };
 let _els = {}; let _handlers = {}; let _presenceInterval = null; let _friendsInterval = null;
 const PRESENCE = { labels: { online: 'Online', busy: 'Ocupado', dnd: 'No molestar', away: 'Ausente', offline: 'No disponible' }, colors: { online: '#28a745', busy: '#fd7e14', dnd: '#dc3545', away: '#ffc107', offline: '#6c757d' } };
 
@@ -92,7 +92,14 @@ function setHeaderPresence(status) { try { applyPresenceToDot(_els.chatPartnerPr
 
 function appendMessageToChat(msg, opts = {}) { if (msg.id && _state.renderedMessageIds.has(msg.id)) return; const AUTH_ID = getAuthId(); const isMine = String(msg.from_id) === String(AUTH_ID); try { _els.chatMessages.classList.remove('is-empty'); } catch (_) { } const wrap = document.createElement('div'); wrap.className = 'msg mb-2 ' + (isMine ? 'text-end msg-me' : 'msg-other'); const bubble = document.createElement('div'); bubble.className = 'msg-bubble d-inline-block p-2 rounded ' + (isMine ? 'bg-primary text-white' : 'bg-light'); bubble.style.maxWidth = '70%'; bubble.style.whiteSpace = 'pre-wrap'; bubble.textContent = msg.body || ''; const meta = document.createElement('div'); meta.className = 'msg-meta small text-muted mt-1'; meta.textContent = msg.created_at ? (new Date(msg.created_at)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''; if (msg.id) { _state.renderedMessageIds.add(msg.id); wrap.dataset.msgId = msg.id; } if (opts.tempId) wrap.dataset.tempId = opts.tempId; wrap.appendChild(bubble); wrap.appendChild(meta); _els.chatMessages.appendChild(wrap); try { const threshold = 120; const atBottom = (_els.chatMessages.scrollHeight - _els.chatMessages.clientHeight - _els.chatMessages.scrollTop) < threshold; if (atBottom) _els.chatMessages.scrollTop = _els.chatMessages.scrollHeight; } catch (_) { _els.chatMessages.scrollTop = _els.chatMessages.scrollHeight; } }
 
-function openChatFor(userId, userName) { _state.currentPartnerId = userId; if (_els.chatPartnerName) _els.chatPartnerName.textContent = userName; if (_els.chatEmpty) _els.chatEmpty.style.display = 'none'; if (_els.chatContainer) _els.chatContainer.style.display = ''; if (_els.chatMessages) { _els.chatMessages.innerHTML = ''; try { _els.chatMessages.classList.add('is-empty'); } catch (_) { } } _state.renderedMessageIds = new Set(); (async () => { try { const res = await fetch(`/messages/thread/${encodeURIComponent(userId)}?ajax=1`, { headers: { 'Accept': 'application/json' } }); if (!res.ok) return; const j = await res.json(); if (!j.ok) return; if (!j.messages || !j.messages.length) { try { _els.chatMessages.classList.add('is-empty'); } catch (_) { } } else { j.messages.forEach(m => { if (!m || (m.id && _state.renderedMessageIds.has(m.id))) return; appendMessageToChat(m); }); } try { await fetch(`/messages/thread/${encodeURIComponent(userId)}?ajax=1`, { headers: { 'Accept': 'application/json' } }); } catch (_) { } } catch (err) { } })(); }
+function openChatFor(userId, userName) { _state.currentPartnerId = userId; if (_els.chatPartnerName) _els.chatPartnerName.textContent = userName; if (_els.chatEmpty) _els.chatEmpty.style.display = 'none'; if (_els.chatContainer) _els.chatContainer.style.display = ''; if (_els.chatMessages) { _els.chatMessages.innerHTML = ''; try { _els.chatMessages.classList.add('is-empty'); } catch (_) { } } _state.renderedMessageIds = new Set(); (async () => { try { const res = await fetch(`/messages/thread/${encodeURIComponent(userId)}?ajax=1`, { headers: { 'Accept': 'application/json' } }); if (!res.ok) return; const j = await res.json(); if (!j.ok) return; if (!j.messages || !j.messages.length) { try { _els.chatMessages.classList.add('is-empty'); } catch (_) { } } else { j.messages.forEach(m => { if (!m || (m.id && _state.renderedMessageIds.has(m.id))) return; appendMessageToChat(m); }); }
+			try {
+				await fetch(`/messages/thread/${encodeURIComponent(userId)}?ajax=1`, { headers: { 'Accept': 'application/json' } });
+				try {
+					await fetch('/api/counters').then(r => r.json()).then(d => document.dispatchEvent(new CustomEvent('counters:update', { detail: d })));
+				} catch (_) { }
+			} catch (_) { }
+		} catch (err) { } })(); }
 
 function closeChat() { _state.currentPartnerId = null; if (_els.chatPartnerName) _els.chatPartnerName.textContent = ''; if (_els.chatContainer) _els.chatContainer.style.display = 'none'; if (_els.chatEmpty) _els.chatEmpty.style.display = ''; if (_els.chatMessages) _els.chatMessages.innerHTML = ''; }
 
@@ -164,6 +171,8 @@ async function makeVideoCall(appUserId) {
 
 export function init() {
 	_els = { contactsList: el('contacts-list'), searchInput: el('contacts-search'), chatPanel: el('chat-panel'), chatEmpty: el('chat-empty'), chatContainer: el('chat-container'), chatMessages: el('chat-messages'), chatSendForm: el('chat-send-form'), chatPartnerName: el('chat-partner-name'), chatPartnerPresence: el('chat-partner-presence'), chatClose: el('chat-close') };
+	// Reset auto-open guard on each page init so /chat?open=ID works reliably
+	try { _state.autoOpened = false; } catch (_) {}
 	if (!_els.contactsList || !_els.chatMessages) return;
 	// Fast-filter bookkeeping: keep a cached list and lowercase fields to avoid repeated DOM reads
 	const _filter = { items: [], tId: null };
@@ -246,6 +255,17 @@ export function init() {
 			} else {
 				_els.contactsList.appendChild(frag);
 			}
+			// Auto-open chat if URL param present and not yet opened
+			try {
+				if (!_state.autoOpened) {
+					const params = new URLSearchParams(window.location.search);
+					const openId = params.get('open') || params.get('open_user');
+					if (openId) {
+						const btn = _els.contactsList.querySelector(`.contact-item[data-user-id="${openId}"]`);
+						if (btn) { _state.autoOpened = true; btn.click(); }
+					}
+				}
+			} catch(_){}
 			// Rebuild fast-filter index and re-apply if a query is present
 			rebuildFilterIndex();
 			try { if (_els.searchInput && _els.searchInput.value) { _handlers.applyFilter?.(); } } catch(_){}

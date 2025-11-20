@@ -284,11 +284,26 @@ export async function openAppointmentModal(options = {}) {
 			const s = $m.find('#am_start').val();
 			const e = $m.find('#am_end').val();
 			if (!pid || !s || !e) { setAvailabilityUI(null); return; }
+			// Asegurar que fin > inicio; si el usuario lo dejó menor, auto-ajustar +30min
+			try {
+				const sd = new Date(s);
+				const ed = new Date(e);
+				if (ed <= sd) {
+					const fixed = new Date(sd.getTime() + 30*60000);
+					$m.find('#am_end').val(formatForInput(fixed));
+				}
+			} catch(_){}
+			const endVal = $m.find('#am_end').val();
+			if (!endVal) { setAvailabilityUI(null); return; }
 			const url = `/professionals/${encodeURIComponent(pid)}/availability/check`;
-			const res = await axios.get(url, { params: { start: new Date(s).toISOString(), end: new Date(e).toISOString() } });
-			setAvailabilityUI(!!(res && res.data && res.data.available));
-			if (res && res.data && res.data.reason && res.data.available === false) {
-				$m.find('#am_availability_status').attr('title', res.data.reason);
+			const res = await axios.get(url, { params: { start: new Date(s).toISOString(), end: new Date(endVal).toISOString() } });
+			const avail = !!(res && res.data && res.data.available);
+			setAvailabilityUI(avail);
+			// Tooltip sólo cuando existe razón de sobreposición y está No disponible
+			const stEl = $m.find('#am_availability_status');
+			try { stEl.removeAttr('title'); } catch(_){}
+			if (!avail && res && res.data && res.data.reason && /sobrepone/i.test(res.data.reason)) {
+				stEl.attr('title', res.data.reason);
 			}
 		} catch (_) { setAvailabilityUI(null); }
 	};

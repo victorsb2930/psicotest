@@ -11,26 +11,52 @@
 			</header>
 
 			<section class="row g-3">
-				<div class="col-lg-4">
-					<div class="card card-compact">
-						<div class="d-flex justify-content-between align-items-start">
-							<div>
-								<small class="text-muted">PRÓXIMA CITA</small>
-								<div class="fw-bold">--</div>
-								<div>Paciente: <strong>--</strong></div>
-								<div class="mt-2"><button class="btn btn-sm btn-success">Ir a sala</button> <button class="btn btn-sm btn-outline-secondary">Reprogramar</button></div>
-							</div>
-							<div class="text-end">
-								<small class="text-muted">Modalidad</small>
-								<div class="badge bg-info text-dark">Telemedicina</div>
-							</div>
-						</div>
-					</div>
+				<style>
+					/* make the recent messages card a bit smaller and remove hover lift for this page only */
+					.pg-small-card { max-width: 420px; }
+					.pg-small-card .card-anim-lift { transition: none !important; transform: none !important; }
+				</style>
 
-					<div class="card card-compact mt-3">
-						<small class="text-muted">Mini calendario</small>
-						<div class="mini-cal mt-2 p-2">[Bloques horarios — arrastrar para reprogramar]</div>
-					</div>
+				<div class="col-lg-4">
+					<x-card title="PRÓXIMA CITA" :hover="false" :center="false" class="card-compact" height="auto" width="100%">
+						@php
+							$hasAppt = isset($nextAppt) && $nextAppt;
+						@endphp
+						@if($hasAppt)
+							@php
+								$apptTitle = $nextAppt->title ?: ($nextAppt->patient?->name ?? 'Cita');
+								$startStr = $nextAppt->start ? $nextAppt->start->format('d/m/Y H:i') : null;
+								$endStr = $nextAppt->end ? $nextAppt->end->format('d/m/Y H:i') : null;
+								$notes = trim((string)($nextAppt->notes ?? ''));
+							@endphp
+							<div class="text-start" id="pg-next-appt"
+								data-appt-id="{{ $nextAppt->id }}"
+								data-patient-id="{{ $nextAppt->patient_id }}"
+								data-title="{{ $apptTitle }}"
+								data-start="{{ $nextAppt->start?->toIso8601String() }}"
+								data-end="{{ $nextAppt->end?->toIso8601String() }}"
+								data-start-human="{{ $startStr }}"
+								data-end-human="{{ $endStr }}"
+								data-notes="{{ e($notes) }}">
+								<div class="fw-bold mb-1">{{ $apptTitle }}</div>
+								<div>Paciente: <strong>{{ $nextAppt->patient?->name ?? '—' }}</strong></div>
+								@if($startStr)
+									<div class="text-muted small mt-1">Horario: {{ $startStr }}@if($endStr) – {{ $endStr }}@endif</div>
+								@endif
+								<div class="mt-3 d-flex gap-2 flex-wrap">
+									<button type="button" class="btn btn-sm btn-outline-secondary" data-appt-action="details">Ver detalles</button>
+									<button type="button" class="btn btn-sm btn-success" data-appt-action="join">Acceder a la cita</button>
+									<button type="button" class="btn btn-sm btn-outline-primary" data-appt-action="reschedule">Reprogramar cita</button>
+								</div>
+							</div>
+						@else
+							<div class="text-start">
+								<small class="text-muted">PRÓXIMA CITA</small>
+								<div class="mt-1 text-muted">No tienes próximas citas.</div>
+								<div class="mt-2"><a href="{{ route('professional.calendar') }}" class="btn btn-sm btn-outline-secondary">Abrir calendario</a></div>
+							</div>
+						@endif
+					</x-card>
 
 					<div class="card card-compact mt-3">
 						<small class="text-muted">Onboarding</small>
@@ -43,35 +69,11 @@
 				</div>
 
 				<div class="col-lg-5">
-					<div class="card p-3">
-						<div class="d-flex justify-content-between align-items-center mb-2">
-							<h5 class="mb-0">Mensajes recientes</h5>
-							<small class="text-muted">-- sin leer</small>
+					<x-card title="Mensajes recientes" titleRight="-- últimos" :hover="false" :center="false" class="p-0" height="auto" width="100%" >
+						<div class="list-group list-group-flush" id="pg-prof-messages-list">
+							<!-- JS rellenará aquí hasta 3 conversaciones -->
 						</div>
-						<div class="list-group list-group-flush">
-							<div class="list-group-item">
-								<div class="d-flex justify-content-between">
-									<div>
-										<div class="fw-bold">--</div>
-										<div class="text-muted small">--</div>
-									</div>
-									<div><button class="btn btn-sm btn-outline-primary">Abrir</button></div>
-								</div>
-							</div>
-						</div>
-					</div>
-
-					<div class="card p-3 mt-3">
-						<h5 class="mb-2">Próximas 7 citas</h5>
-						<div class="table-responsive">
-							<table class="table table-borderless">
-								<thead class="small text-muted"><tr><th>Fecha</th><th>Paciente</th><th>Modalidad</th><th></th></tr></thead>
-								<tbody>
-									<tr><td>--</td><td>--</td><td>--</td><td><button class="btn btn-sm btn-outline-secondary">Detalles</button></td></tr>
-								</tbody>
-							</table>
-						</div>
-					</div>
+					</x-card>
 				</div>
 
 				<aside class="col-lg-3">

@@ -10,14 +10,19 @@
 	<div class="alert alert-info small">Define rangos horarios por día y excepciones (bloqueos o disponibilidad adicional).</div>
 	<div id="weeklySlots" class="mb-4">
 		<table class="table table-sm align-middle">
-			<thead><tr><th>Día</th><th>Inicio</th><th>Fin</th><th></th></tr></thead>
+			<thead><tr><th scope="col">Día</th><th scope="col">Inicio</th><th scope="col">Fin</th><th scope="col" class="text-center">Acciones</th></tr></thead>
 			<tbody>
 			@foreach($weekly as $w)
-			<tr data-id="{{ $w->id }}">
+			@php $start = substr($w->start_time,0,5); $end = substr($w->end_time,0,5); @endphp
+			<tr data-id="{{ $w->id }}" data-day="{{ $w->day_of_week }}" data-start="{{ $start }}" data-end="{{ $end }}">
 				<td>{{ ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'][$w->day_of_week] }}</td>
-				<td>{{ substr($w->start_time,0,5) }}</td>
-				<td>{{ substr($w->end_time,0,5) }}</td>
-				<td><button class="btn btn-sm btn-outline-danger btn-del-slot" data-id="{{ $w->id }}">Eliminar</button></td>
+				<td>{{ $start }}</td>
+				<td>{{ $end }}</td>
+				<td class="text-nowrap text-center">
+					<button class="btn btn-sm btn-outline-secondary" data-action="edit-slot" data-id="{{ $w->id }}">Editar</button>
+					<button class="btn btn-sm btn-outline-primary" data-action="dup-slot" data-id="{{ $w->id }}" title="Duplicar">Duplicar</button>
+					<button class="btn btn-sm btn-outline-danger" data-action="del-slot" data-id="{{ $w->id }}">Eliminar</button>
+				</td>
 			</tr>
 			@endforeach
 			@if($weekly->isEmpty())
@@ -28,17 +33,22 @@
 	</div>
 	<h2 class="mb-3 d-flex align-items-center gap-2"><span>Excepciones</span><button id="btn-add-exc" class="btn btn-sm btn-secondary ms-auto">Añadir excepción</button></h2>
 	<div id="exceptionsList">
-		<table class="table table-sm">
-			<thead><tr><th>Fecha</th><th>Tipo</th><th>Inicio</th><th>Fin</th><th>Razón</th><th></th></tr></thead>
+		<table class="table table-sm align-middle">
+			<thead><tr><th scope="col">Fecha</th><th scope="col">Tipo</th><th scope="col">Inicio</th><th scope="col">Fin</th><th scope="col">Razón</th><th scope="col" class="text-center">Acciones</th></tr></thead>
 			<tbody>
 			@foreach($exceptions as $e)
-			<tr data-id="{{ $e->id }}">
-				<td>{{ $e->date->format('Y-m-d') }}</td>
+			@php $st = $e->start_time? substr($e->start_time,0,5): ''; $et = $e->end_time? substr($e->end_time,0,5): ''; @endphp
+			<tr data-id="{{ $e->id }}" data-date="{{ $e->date->format('Y-m-d') }}" data-status="{{ $e->status }}" data-start="{{ $st }}" data-end="{{ $et }}" data-reason="{{ $e->reason }}">
+				<td>{{ $e->date->format('d/m/Y') }}</td>
 				<td>{{ $e->status === 'blocked' ? 'Bloqueado' : 'Disponible extra' }}</td>
-				<td>{{ $e->start_time? substr($e->start_time,0,5): '-' }}</td>
-				<td>{{ $e->end_time? substr($e->end_time,0,5): '-' }}</td>
+				<td>{{ $st ?: '-' }}</td>
+				<td>{{ $et ?: '-' }}</td>
 				<td>{{ $e->reason ?? '-' }}</td>
-				<td><button class="btn btn-sm btn-outline-danger btn-del-exc" data-id="{{ $e->id }}">Eliminar</button></td>
+				<td class="text-nowrap text-center">
+					<button class="btn btn-sm btn-outline-secondary" data-action="edit-exc" data-id="{{ $e->id }}">Editar</button>
+					<button class="btn btn-sm btn-outline-primary" data-action="dup-exc" data-id="{{ $e->id }}" title="Duplicar">Duplicar</button>
+					<button class="btn btn-sm btn-outline-danger" data-action="del-exc" data-id="{{ $e->id }}">Eliminar</button>
+				</td>
 			</tr>
 			@endforeach
 			@if($exceptions->isEmpty())

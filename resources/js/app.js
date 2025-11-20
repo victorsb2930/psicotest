@@ -35,6 +35,7 @@ const pageModuleMap = {
 	,'plans': './components/plans.js'
 	,'chat': './pages/chat.js'
 	,'professional-availability': './pages/professional.availability.js'
+	,'professional-area': './pages/professional.area.js'
 	,'2fa-challenge': './pages/2fa/twofactor_challenge.js'
 };
 

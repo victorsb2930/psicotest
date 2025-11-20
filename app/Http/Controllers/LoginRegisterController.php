@@ -34,6 +34,7 @@ class LoginRegisterController extends Controller
 			'reg_lastname' => ['required', 'string', 'max:255'],
 			'reg_email' => ['required', 'email', 'max:255', 'unique:users,email'],
 			'reg_password' => ['required', 'string', 'min:6', 'confirmed'],
+			'reg_photo' => ['nullable','file','mimes:jpg,jpeg,png','max:8192'],
 			'reg_titulo' => ['nullable','file','mimes:pdf,jpg,jpeg,png','max:8192'],
 			'reg_cedula' => ['nullable','file','mimes:pdf,jpg,jpeg,png','max:8192'],
 			'reg_cv' => ['nullable','file','mimes:pdf,jpg,jpeg,png','max:8192'],
@@ -45,6 +46,21 @@ class LoginRegisterController extends Controller
 		];
 
 		$messages = [
+			'reg_photo.file' => 'La foto de perfil debe ser un archivo válido.',
+			'reg_photo.mimes' => 'La foto de perfil debe ser un archivo de tipo: jpg, jpeg, png.',
+			'reg_photo.max' => 'La foto de perfil no debe superar los 8 MB.',
+			'reg_cedula.file' => 'La cédula debe ser un archivo válido.',
+			'reg_cedula.mimes' => 'La cédula debe ser un archivo de tipo: pdf, jpg, jpeg, png.',
+			'reg_cedula.max' => 'La cédula no debe superar los 8 MB.',
+			'reg_titulo.file' => 'El título profesional debe ser un archivo válido.',
+			'reg_titulo.mimes' => 'El título profesional debe ser un archivo de tipo: pdf, jpg, jpeg, png.',
+			'reg_titulo.max' => 'El título profesional no debe superar los 8 MB.',
+			'reg_cv.file' => 'El curriculum vitae debe ser un archivo válido.',
+			'reg_cv.mimes' => 'El curriculum vitae debe ser un archivo de tipo: pdf, jpg, jpeg, png.',
+			'reg_cv.max' => 'El curriculum vitae no debe superar los 8 MB.',
+			'reg_exequatur.file' => 'El exequátur debe ser un archivo válido.',
+			'reg_exequatur.mimes' => 'El exequátur debe ser un archivo de tipo: pdf, jpg, jpeg, png.',
+			'reg_exequatur.max' => 'El exequátur no debe superar los 8 MB.',
 			'reg_name.required' => 'El nombre es obligatorio.',
 			'reg_lastname.required' => 'El apellido es obligatorio.',
 			'reg_birthdate.required' => 'La fecha de nacimiento es obligatoria.',
@@ -57,6 +73,7 @@ class LoginRegisterController extends Controller
 		];
 
 		$attributes = [
+			'reg_photo' => 'foto de perfil',
 			'reg_type' => 'tipo de usuario',
 			'reg_name' => 'nombre',
 			'reg_lastname' => 'apellido',
@@ -335,16 +352,13 @@ class LoginRegisterController extends Controller
 			}
 		} catch (\Throwable $e) { /* noop */ }
 
-		// TODO: Enviar email de verificación, etc.
-		// Enviar email de verificación (enlace firmado, 60 minutos)
+		// Generar token de verificación único (válido 60 minutos) y enviar enlace
 		try {
-			$verifyUrl = \URL::temporarySignedRoute(
-				'verification.verify', now()->addMinutes(60), [
-					'id' => $user->id,
-					'hash' => sha1(strtolower($user->email)),
-				]
-			);
-			\Mail::raw("Hola ${validated['reg_name']},\n\nPor favor verifica tu email haciendo clic en el siguiente enlace:\n${verifyUrl}\n\nSi no fuiste tú, ignora este mensaje.", function($m) use ($user){
+			$user->email_verification_token = Str::random(40);
+			$user->email_verification_token_expires_at = now()->addMinutes(60);
+			$user->save();
+			$verifyUrl = url('/email/verify/'.$user->id.'/'.$user->email_verification_token);
+			\Mail::raw("Hola ${validated['reg_name']},\n\nVerifica tu email haciendo clic en el siguiente enlace (válido 60 minutos):\n${verifyUrl}\n\nSi no fuiste tú, ignora este mensaje.", function($m) use ($user){
 				$m->to($user->email)->subject('Verifica tu email');
 			});
 		} catch (\Throwable $_) { /* best-effort */ }

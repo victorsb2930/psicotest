@@ -34,7 +34,7 @@ class ProfessionalAvailabilityController extends Controller
                   ->where('end_time','>',$data['start_time']);
             })->exists();
         if ($conflict) {
-            return response()->json(['ok'=>false,'message'=>'Rango solapa con otro existente'],422);
+            return response()->json(['ok'=>false,'message'=>'Rango se sobrepone con otro existente'],422);
         }
         $row = ProfessionalAvailability::create([
             'user_id'=>$user->id,
@@ -52,6 +52,33 @@ class ProfessionalAvailabilityController extends Controller
         if ($availability->user_id !== $user->id) return response()->json(['ok'=>false],403);
         try { $availability->delete(); } catch(\Throwable $e) {}
         return response()->json(['ok'=>true]);
+    }
+
+    public function update(Request $request, ProfessionalAvailability $availability)
+    {
+        $user = Auth::user();
+        if ($availability->user_id !== $user->id) return response()->json(['ok'=>false,'message'=>'No autorizado'],403);
+        $data = $request->validate([
+            'day_of_week' => ['required','integer','between:0,6'],
+            'start_time' => ['required','date_format:H:i'],
+            'end_time' => ['required','date_format:H:i','after:start_time'],
+        ]);
+        // Overlap guard excluding current slot
+        $conflict = ProfessionalAvailability::where('user_id',$user->id)
+            ->where('id','!=',$availability->id)
+            ->where('day_of_week',$data['day_of_week'])
+            ->where(function($q) use ($data){
+                $q->where('start_time','<',$data['end_time'])
+                  ->where('end_time','>',$data['start_time']);
+            })->exists();
+        if ($conflict) {
+            return response()->json(['ok'=>false,'message'=>'Rango se sobrepone con otro existente'],422);
+        }
+        $availability->day_of_week = $data['day_of_week'];
+        $availability->start_time = $data['start_time'].':00';
+        $availability->end_time = $data['end_time'].':00';
+        try { $availability->save(); } catch(\Throwable $e) { return response()->json(['ok'=>false,'message'=>'Error guardando'],500); }
+        return response()->json(['ok'=>true,'slot'=>$availability]);
     }
 
     public function storeException(Request $request)
@@ -84,5 +111,28 @@ class ProfessionalAvailabilityController extends Controller
         if ($exception->user_id !== $user->id) return response()->json(['ok'=>false],403);
         try { $exception->delete(); } catch(\Throwable $e) {}
         return response()->json(['ok'=>true]);
+    }
+
+    public function updateException(Request $request, ProfessionalAvailabilityException $exception)
+    {
+        $user = Auth::user();
+        if ($exception->user_id !== $user->id) return response()->json(['ok'=>false,'message'=>'No autorizado'],403);
+        $data = $request->validate([
+            'date' => ['required','date'],
+            'status' => ['required','in:available,blocked'],
+            'start_time' => ['nullable','date_format:H:i'],
+            'end_time' => ['nullable','date_format:H:i','after:start_time'],
+            'reason' => ['nullable','string','max:255'],
+        ]);
+        if (($data['start_time'] && !$data['end_time']) || (!$data['start_time'] && $data['end_time'])) {
+            return response()->json(['ok'=>false,'message'=>'Debe indicar ambos tiempos o ninguno'],422);
+        }
+        $exception->date = Carbon::parse($data['date'])->toDateString();
+        $exception->status = $data['status'];
+        $exception->start_time = $data['start_time']? $data['start_time'].':00': null;
+        $exception->end_time = $data['end_time']? $data['end_time'].':00': null;
+        $exception->reason = $data['reason'] ?? null;
+        try { $exception->save(); } catch(\Throwable $e) { return response()->json(['ok'=>false,'message'=>'Error guardando'],500); }
+        return response()->json(['ok'=>true,'exception'=>$exception]);
     }
 }

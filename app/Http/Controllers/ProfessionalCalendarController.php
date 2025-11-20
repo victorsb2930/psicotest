@@ -111,7 +111,7 @@ class ProfessionalCalendarController extends Controller
 			return response()->json([
 				'error' => 'conflict',
 				'field' => 'start',
-				'message' => 'La nueva cita solapa con citas existentes.',
+				'message' => 'La nueva cita se sobrepone con citas existentes.',
 				'conflicts' => $conflicts->map(function($c){
 					return [
 						'id' => $c->id,

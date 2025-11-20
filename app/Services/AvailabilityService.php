@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\ProfessionalAvailability;
 use App\Models\ProfessionalAvailabilityException;
 use App\Models\Appointment;
+use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
 class AvailabilityService
@@ -78,21 +79,20 @@ class AvailabilityService
             return [false, 'Fuera del horario disponible'];
         }
 
-        // Overlap with existing appointments (same professional)
+        // Overlap with existing BLOCKING appointments (ignore rejected/cancelled)
+        $blockingStatuses = ['pending','requested','accepted'];
         $conflict = Appointment::where('professional_id', $professionalId)
             ->whereNull('deleted_at')
+            ->whereIn(DB::raw("LOWER(TRIM(status))"), $blockingStatuses)
             ->where(function($q) use ($startUtc,$endUtc) {
-                // Overlap condition: start < existing.end AND end > existing.start (treat null end as start-only slot)
-                $q->where(function($q2) use ($startUtc,$endUtc) {
-                    $q2->where('start','<',$endUtc->toDateTimeString())
-                       ->where(function($q3) use ($startUtc) {
-                           $q3->whereNotNull('end')->where('end','>', $startUtc->toDateTimeString())
-                              ->orWhere(function($q4) use ($startUtc) { $q4->whereNull('end')->where('start','>=',$startUtc->toDateTimeString())->where('start','<',$startUtc->toDateTimeString()); });
-                       });
-                });
-            })->exists();
+                $q->where('start', '<', $endUtc->toDateTimeString())
+                  ->where(function($q2) use ($startUtc) {
+                      $q2->whereNull('end')->orWhere('end','>', $startUtc->toDateTimeString());
+                  });
+            })
+            ->exists();
         if ($conflict) {
-            return [false, 'Solapa con otra cita'];
+            return [false, 'Se sobrepone con otra cita'];
         }
 
         return [true, null];
