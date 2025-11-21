@@ -162,5 +162,8 @@ class DatabaseSeeder extends Seeder
 		if (\Illuminate\Support\Facades\Schema::hasTable('menu_items')) {
 			$this->call(\Database\Seeders\MenuItemsSeeder::class);
 		}
+
+		// Seed test users (one 'user' and one 'professional') for faster QA flows
+		$this->call(\Database\Seeders\TestUsersSeeder::class);
 	}
 }
