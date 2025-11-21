@@ -10,6 +10,15 @@ class Appointment extends Model
 {
 	use SoftDeletes;
 
+	public const STATUSES = [
+		'pending','requested','accepted','in_progress','completed','skipped','no_show','cancelled','canceled','rejected','reschedule_pending'
+	];
+
+	public static function isValidStatus(string $status): bool
+	{
+		return in_array($status, self::STATUSES, true);
+	}
+
 	protected $fillable = ['professional_id','patient_id','title','start','end','all_day','status','notes','rejection_reason','room_id'];
 
 	/**
@@ -47,5 +56,14 @@ class Appointment extends Model
 		$blocking = ['pending','requested','accepted','in_progress'];
 		// Normaliza status en la comparación (lower + trim) para evitar falsos bloqueos por mayúsculas o espacios
 		return $q->whereIn(DB::raw("LOWER(TRIM(status))"), $blocking);
+	}
+
+	public function setStatusAttribute($value)
+	{
+		$val = is_string($value) ? trim($value) : $value;
+		if ($val && !self::isValidStatus($val)) {
+			throw new \InvalidArgumentException('Estado de cita inválido: ' . $val);
+		}
+		$this->attributes['status'] = $val;
 	}
 }
