@@ -29,6 +29,7 @@ const pageModuleMap = {
 	,'admin-roles': './pages/admin.roles.js'
 	,'admin-users': './pages/admin.users.js'
 	,'admin-professional-apps': './pages/admin.profapps.js'
+	,'admin-appointment-settings': './pages/admin.appointment.settings.js'
 	,'professional-calendar': './pages/professional.calendar.js'
 	,'user-appointments': './pages/user.appointments.js'
 	,'professionals-search': './pages/professionals.search.js'
@@ -36,6 +37,8 @@ const pageModuleMap = {
 	,'chat': './pages/chat.js'
 	,'professional-availability': './pages/professional.availability.js'
 	,'professional-area': './pages/professional.area.js'
+	,'professional-ratings': './pages/professional.ratings.js'
+	,'user-area': './pages/user.area.js'
 	,'2fa-challenge': './pages/2fa/twofactor_challenge.js'
 };
 

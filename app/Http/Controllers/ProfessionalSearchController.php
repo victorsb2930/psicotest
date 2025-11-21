@@ -119,7 +119,8 @@ class ProfessionalSearchController extends Controller
 				'email' => $u->email,
 				'photo' => $photo,
 				'speciality' => $u->speciality ?? null,
-				'rating' => $u->rating ?? null,
+				'ratings_avg' => (float) ($u->ratings_avg ?? 0),
+				'ratings_count' => (int) ($u->ratings_count ?? 0),
 				'appointment_types' => $types,
 				'location' => $u->location ?? null,
 			];
@@ -165,5 +166,34 @@ class ProfessionalSearchController extends Controller
 		}
 
 		return view('professionals.show', compact('u', 'avatar'));
+	}
+
+	// Public JSON list of latest public ratings (comments) for a professional
+	public function publicRatings(Request $request, int $id)
+	{
+		$u = User::findOrFail($id);
+		$limit = (int) min(50, max(1, (int)$request->query('limit', 10)));
+		$ratings = \App\Models\AppointmentRating::query()
+			->where('professional_id', $u->id)
+			->where('is_public', true)
+			->orderByDesc('created_at')
+			->limit($limit)
+			->get(['id','rating','comment','response_text','created_at']);
+		$items = $ratings->map(function($r){
+			return [
+				'id' => $r->id,
+				'score' => (int)$r->rating,
+				'comment' => (string) ($r->comment ?? ''),
+				'response' => (string) ($r->response_text ?? ''),
+				'created_at' => optional($r->created_at)->toIso8601String(),
+			];
+		});
+		return response()->json([
+			'ok' => true,
+			'professional_id' => $u->id,
+			'ratings_avg' => (float) ($u->ratings_avg ?? 0),
+			'ratings_count' => (int) ($u->ratings_count ?? 0),
+			'items' => $items,
+		]);
 	}
 }

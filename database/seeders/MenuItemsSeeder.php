@@ -14,6 +14,22 @@ class MenuItemsSeeder extends Seeder
 
         $roles = DB::table('roles')->pluck('id', 'name');
 
+        // Set default role landing paths if missing
+        try {
+            foreach ([
+                'admin' => '/adminarea',
+                'professional' => '/professionalarea',
+                'user' => '/userarea',
+            ] as $roleName => $home) {
+                if (isset($roles[$roleName])) {
+                    $existingHome = DB::table('roles')->where('name', $roleName)->value('home_path');
+                    if (empty($existingHome)) {
+                        DB::table('roles')->where('name', $roleName)->update(['home_path' => $home]);
+                    }
+                }
+            }
+        } catch (\Throwable $e) { /* noop */ }
+
         $items = [
             // Admin section
             ['label' => 'Dashboard', 'route_name' => 'adminarea', 'icon_class' => 'bi bi-speedometer2', 'section' => 'admin', 'sort_order' => 10, 'permission' => 'adminarea'],
@@ -23,25 +39,38 @@ class MenuItemsSeeder extends Seeder
             ['label' => 'Permisos', 'route_name' => 'admin.permissions.index', 'icon_class' => 'bi bi-key', 'section' => 'admin', 'sort_order' => 50, 'permission' => 'adminarea'],
             ['label' => 'Gestion del menú', 'route_name' => 'admin.menuitems.index', 'icon_class' => 'bi bi-list-task', 'section' => 'admin', 'sort_order' => 55, 'permission' => 'adminarea'],
             ['label' => 'Dispositivos', 'route_name' => 'admin.devices', 'icon_class' => 'bi bi-phone', 'section' => 'admin', 'sort_order' => 60, 'permission' => 'adminarea'],
+        ];
 
-            // Professional section
+        // Add appointment settings item if route exists
+        try {
+            if (\Route::has('admin.appointment.settings')) {
+                $items[] = ['label' => 'Ajustes de Citas', 'route_name' => 'admin.appointment.settings', 'icon_class' => 'bi bi-sliders', 'section' => 'admin', 'sort_order' => 65, 'permission' => 'adminarea'];
+            }
+        } catch (\Throwable $e) { /* ignore */ }
+
+        // Professional section items
+        $items = array_merge($items, [
             ['label' => 'Mi panel', 'route_name' => 'professionalarea', 'icon_class' => 'bi bi-person-badge', 'section' => 'professional', 'sort_order' => 10, 'permission' => 'professionalarea'],
             ['label' => 'Calendario', 'route_name' => 'professional.calendar', 'icon_class' => 'bi bi-calendar3', 'section' => 'professional', 'sort_order' => 20, 'permission' => 'professionalarea'],
             ['label' => 'Disponibilidad', 'route_name' => 'professional.availability', 'icon_class' => 'bi bi-clock', 'section' => 'professional', 'sort_order' => 25, 'permission' => 'professionalarea'],
             ['label' => 'Chat', 'route_name' => 'chat.index', 'icon_class' => 'bi bi-chat-dots', 'section' => 'professional', 'sort_order' => 30, 'permission' => 'professionalarea'],
+            ['label' => 'Mis Calificaciones', 'route_name' => 'professional.ratings.index', 'icon_class' => 'bi bi-stars', 'section' => 'professional', 'sort_order' => 35, 'permission' => 'professionalarea'],
             ['label' => 'Pacientes', 'route_name' => 'professional.patients', 'icon_class' => 'bi bi-people', 'section' => 'professional', 'sort_order' => 40, 'permission' => 'professionalarea'],
             ['label' => 'Servicios', 'route_name' => 'professional.services', 'icon_class' => 'bi bi-briefcase', 'section' => 'professional', 'sort_order' => 50, 'permission' => 'professionalarea'],
+            ['label' => 'Historial de Citas', 'route_name' => 'professional.appointments.history', 'icon_class' => 'bi bi-journal-text', 'section' => 'professional', 'sort_order' => 55, 'permission' => 'professionalarea'],
             ['label' => 'Historial de Pagos', 'route_name' => 'professional.payments', 'icon_class' => 'bi bi-credit-card', 'section' => 'professional', 'sort_order' => 60, 'permission' => 'professionalarea'],
             ['label' => 'Configuración', 'route_name' => 'professional.settings', 'icon_class' => 'bi bi-gear', 'section' => 'professional', 'sort_order' => 70, 'permission' => 'professionalarea'],
+        ]);
 
-            // User section
+        // User section items
+        $items = array_merge($items, [
             ['label' => 'Mi cuenta', 'route_name' => 'userarea', 'icon_class' => 'bi bi-house', 'section' => 'user', 'sort_order' => 10, 'permission' => 'userarea'],
             ['label' => 'Calendario', 'route_name' => 'appointments.index', 'icon_class' => 'bi bi-calendar3', 'section' => 'user', 'sort_order' => 20, 'permission' => 'userarea'],
             ['label' => 'Buscar profesionales', 'route_name' => 'professionals.index', 'icon_class' => 'bi bi-search', 'section' => 'user', 'sort_order' => 30, 'permission' => 'userarea'],
             ['label' => 'Favoritos', 'route_name' => 'favorites', 'icon_class' => 'bi bi-star', 'section' => 'user', 'sort_order' => 40, 'permission' => 'userarea'],
             ['label' => 'Chat', 'route_name' => 'chat.index', 'icon_class' => 'bi bi-chat-dots', 'section' => 'user', 'sort_order' => 50, 'permission' => 'userarea'],
             ['label' => 'Planes', 'route_name' => 'plans.index', 'icon_class' => 'bi bi-card-list', 'section' => 'user', 'sort_order' => 60, 'permission' => 'userarea'],
-        ];
+        ]);
 
         $idByLabel = [];
         foreach ($items as $i) {
@@ -54,7 +83,6 @@ class MenuItemsSeeder extends Seeder
                 'sort_order' => $i['sort_order'] ?? 0,
                 'enabled' => true,
                 'permission' => $i['permission'] ?? null,
-                'created_at' => now(),
                 'updated_at' => now(),
             ];
             $existing = DB::table('menu_items')->where('label', $i['label'])->first();
@@ -77,11 +105,11 @@ class MenuItemsSeeder extends Seeder
         };
 
         // Admin items -> role admin
-    foreach (['Dashboard','Usuarios','Solicitudes','Roles','Permisos','Gestion del menú','Dispositivos'] as $lbl) { $attach($lbl, ['admin']); }
+        foreach (['Dashboard','Usuarios','Solicitudes','Roles','Permisos','Gestion del menú','Dispositivos','Ajustes de Citas'] as $lbl) { $attach($lbl, ['admin']); }
         // Professional items -> role professional
-        foreach (['Mi panel','Calendario','Chat','Pacientes','Servicios','Historial de Pagos','Configuración'] as $lbl) { $attach($lbl, ['professional']); }
+        foreach (['Mi panel','Calendario','Disponibilidad','Chat','Mis Calificaciones','Pacientes','Servicios','Historial de Citas','Historial de Pagos','Configuración'] as $lbl) { $attach($lbl, ['professional']); }
         // User items -> role user
-        foreach (['Mi cuenta','Calendario','Buscar profesionales','Favoritos','Chat'] as $lbl) { $attach($lbl, ['user']); }
+        foreach (['Mi cuenta','Calendario','Buscar profesionales','Favoritos','Chat','Planes'] as $lbl) { $attach($lbl, ['user']); }
         // Common: no pivot to show for all roles
     }
 }

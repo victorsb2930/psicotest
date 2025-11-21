@@ -71,7 +71,7 @@ export function init(){
 	root.addEventListener('click', root.__pg_prof_area_onOpenThread);
 
 	// Appointment actions: details/join/reschedule for "PRÓXIMA CITA"
-	root.__pg_prof_area_onApptAction = function(ev){
+	root.__pg_prof_area_onApptAction = async function(ev){
 		const btn = ev.target.closest && ev.target.closest('[data-appt-action]');
 		if(!btn) return;
 		const action = btn.getAttribute('data-appt-action');
@@ -93,6 +93,20 @@ export function init(){
 			return;
 		}
 		if(action === 'join'){
+			// Start session (create room + broadcast) before redirecting to chat
+			if(apptId){
+				try {
+					const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+					await fetch(`/appointments/${encodeURIComponent(apptId)}/session/start`, {
+						method: 'POST',
+						headers: {
+							'Accept':'application/json',
+							'X-Requested-With':'XMLHttpRequest',
+							...(token ? { 'X-CSRF-TOKEN': token } : {})
+						}
+					});
+				} catch(_) { /* ignore start errors */ }
+			}
 			if(patientId){ window.location.href = `/chat?open=${encodeURIComponent(patientId)}`; return; }
 			window.location.href = '/chat';
 			return;

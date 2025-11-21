@@ -56,6 +56,12 @@ class ProfessionalApplicationController extends Controller
 	public function approve(Request $request, ProfessionalApplication $application)
 	{
 		$this->ensureAccess($request, ['professional_applications']);
+		// Require all existing documents to have been viewed before approving
+		$requiredDocs = collect(['titulo','cedula','cv','exequatur'])->filter(fn($d)=>!empty($application->{$d.'_path'}))->values();
+		$unviewed = $requiredDocs->filter(fn($d)=>empty($application->{$d.'_viewed_at'}))->values();
+		if ($unviewed->count() > 0) {
+			return back()->with('error', 'Debes revisar todos los documentos antes de aprobar. Faltan: '.implode(', ', $unviewed->all()));
+		}
 		if ($application->status !== 'pending') {
 			return back()->with('info', 'Esta solicitud ya fue revisada (estado: '.$application->status.').');
 		}
@@ -87,6 +93,11 @@ class ProfessionalApplicationController extends Controller
 	public function reject(Request $request, ProfessionalApplication $application)
 	{
 		$this->ensureAccess($request, ['professional_applications']);
+		$requiredDocs = collect(['titulo','cedula','cv','exequatur'])->filter(fn($d)=>!empty($application->{$d.'_path'}))->values();
+		$unviewed = $requiredDocs->filter(fn($d)=>empty($application->{$d.'_viewed_at'}))->values();
+		if ($unviewed->count() > 0) {
+			return back()->with('error', 'Debes revisar todos los documentos antes de rechazar. Faltan: '.implode(', ', $unviewed->all()));
+		}
 		if ($application->status !== 'pending') {
 			return back()->with('info', 'Esta solicitud ya fue revisada (estado: '.$application->status.').');
 		}
@@ -139,11 +150,43 @@ class ProfessionalApplicationController extends Controller
 		$mime = $disk->mimeType($path) ?: 'application/octet-stream';
 		$filename = basename($path);
 
+		// Mark document as viewed (best-effort; ignore failures)
+		$col = $field.'_viewed_at';
+		try {
+			if (\Illuminate\Support\Facades\Schema::hasColumn('professional_applications', $col)) {
+				$application->{$col} = now();
+				$application->save();
+			}
+		} catch (\Throwable $_) { }
+
 		return Response::stream(function () use ($stream) {
 			fpassthru($stream);
 		}, 200, [
 			'Content-Type' => $mime,
 			'Content-Disposition' => 'inline; filename="' . $filename . '"',
 		]);
+	}
+
+	public function markDocViewed(Request $request, ProfessionalApplication $application)
+	{
+		$this->ensureAccess($request, ['professional_applications']);
+		$field = (string)$request->input('field');
+		if (!in_array($field, ['titulo','cedula','cv','exequatur'], true)) {
+			return response()->json(['ok'=>false,'message'=>'invalid_field'], 422);
+		}
+		$pathAttr = $field.'_path';
+		$col = $field.'_viewed_at';
+		if (empty($application->{$pathAttr})) {
+			return response()->json(['ok'=>false,'message'=>'missing_document'], 404);
+		}
+		try {
+			if (\Illuminate\Support\Facades\Schema::hasColumn('professional_applications', $col)) {
+				if (empty($application->{$col})) { $application->{$col} = now(); $application->save(); }
+				return response()->json(['ok'=>true,'viewed_at'=>$application->{$col}->toDateTimeString()]);
+			}
+		} catch (\Throwable $e) {
+			return response()->json(['ok'=>false,'message'=>'persist_error'], 500);
+		}
+		return response()->json(['ok'=>false,'message'=>'column_missing'], 500);
 	}
 }

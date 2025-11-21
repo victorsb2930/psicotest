@@ -28,35 +28,37 @@ function escapeHtml(s) {
 function renderCard(p) {
 	const photo = p.photo || '/images/default-avatar.png';
 	const speciality = p.speciality || 'General';
-	const rating = (p.rating !== null && p.rating !== undefined)
-		? `<span class="badge bg-success">${(typeof p.rating === 'number' && p.rating.toFixed) ? p.rating.toFixed(1) : escapeHtml(String(p.rating))}</span>`
-		: '';
+	const hasRatings = (p.ratings_count || 0) > 0;
+	const avg = hasRatings ? (Number(p.ratings_avg) || 0) : null;
+	const rating = hasRatings ? `<button type="button" class="btn btn-sm btn-outline-success ms-1 btn-show-ratings" data-id="${escapeHtml(String(p.id))}" aria-label="Ver reseñas">${avg.toFixed(1)}★</button>` : '<span class="badge bg-secondary ms-1">Sin reseñas</span>';
 	const location = p.location || 'No especificada';
 
 	// Markup mirrors our Blade Card classes (card, card-compact, card-anim-lift)
 	return `
 		<div class="col-md-6 col-lg-4">
-			<div class="card h-100 shadow-brand mx-auto card-anim-lift">
-				<div class="card-body card-compact d-flex">
-					<div class="me-3" style="width:72px;flex:0 0 72px;">
-						<img src="${escapeHtml(photo)}" class="rounded pf-thumb" style="width:72px;height:72px;object-fit:cover;cursor:pointer;" data-photo-src="${escapeHtml(photo)}">
-					</div>
-					<div class="flex-grow-1">
-						<div class="d-flex justify-content-between align-items-start">
-							<div>
-								<h5 class="mb-1 card-title fw-bold text-primary">${escapeHtml(p.name + ' ' + p.lastname || 'Profesional')}</h5>
-								<div class="card-text text-muted small">${escapeHtml(p.email || '')}</div>
-							</div>
-							<div>${rating}</div>
+			<div class="card h-100 shadow-brand mx-auto card-anim-lift overflow-hidden">
+				<div class="card-body card-compact">
+					<div class="d-flex">
+						<div class="me-3" style="width:72px;flex:0 0 72px;">
+							<img src="${escapeHtml(photo)}" class="rounded pf-thumb" style="width:72px;height:72px;object-fit:cover;cursor:pointer;" data-photo-src="${escapeHtml(photo)}">
 						</div>
-						<div class="mt-2 small text-muted">Especialidad: <strong>${escapeHtml(speciality)}</strong></div>
-						<div class="mt-1 small">Ubicación: <strong>${escapeHtml(location)}</strong></div>
-						<div class="mt-3">
-							<a href="/professional/profile/${encodeURIComponent(p.id)}" class="btn btn-sm btn-outline-primary">Ver perfil</a>
-							<button data-id="${escapeHtml(String(p.id))}"
-											data-name="${escapeHtml(p.name || '')}"
-											data-title="${escapeHtml(speciality)}"
-											class="btn btn-sm btn-primary ms-2 btn-request">Solicitar cita</button>
+						<div class="flex-grow-1">
+							<div class="d-flex justify-content-between align-items-start flex-wrap">
+								<div class="pe-2" style="min-width:140px;">
+									<h5 class="mb-1 card-title fw-bold text-primary">${escapeHtml(p.name + ' ' + p.lastname || 'Profesional')}</h5>
+									<div class="card-text text-muted small">${escapeHtml(p.email || '')}</div>
+								</div>
+								<div class="pf-rating-holder">${rating}</div>
+							</div>
+							<div class="mt-2 small text-muted">Especialidad: <strong>${escapeHtml(speciality)}</strong></div>
+							<div class="mt-1 small">Ubicación: <strong>${escapeHtml(location)}</strong></div>
+							<div class="mt-3">
+								<a href="/professional/profile/${encodeURIComponent(p.id)}" class="btn btn-sm btn-outline-primary">Perfil</a>
+								<button data-id="${escapeHtml(String(p.id))}"
+										data-name="${escapeHtml(p.name || '')}"
+										data-title="${escapeHtml(speciality)}"
+										class="btn btn-sm btn-primary ms-2 btn-request">Solicitar cita</button>
+							</div>
 						</div>
 					</div>
 				</div>
@@ -135,6 +137,15 @@ export default function init() {
 				});
 			});
 
+			// wire ratings buttons
+			Array.from(document.querySelectorAll('.btn-show-ratings')).forEach(b => {
+				b.addEventListener('click', async () => {
+					const id = b.getAttribute('data-id');
+					if (!id) return;
+					await showRatingsModal(id, b);
+				});
+			});
+
 		} catch (e) {
 			$results.innerHTML = '<div class="col-12 text-danger">Error al buscar</div>';
 		}
@@ -146,4 +157,77 @@ export default function init() {
 
 	// initial load
 	doSearch();
+}
+
+async function showRatingsModal(profId, btn){
+	try {
+		// create modal shell if needed
+		if (!document.getElementById('profRatingsModal')) {
+			document.body.insertAdjacentHTML('beforeend', `
+				<div class="modal fade" id="profRatingsModal" tabindex="-1" aria-hidden="true">
+					<div class="modal-dialog modal-dialog-centered modal-lg">
+						<div class="modal-content">
+							<div class="modal-header">
+								<h5 class="modal-title">Calificaciones</h5>
+								<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+							</div>
+							<div class="modal-body">
+								<div id="profRatingsModalContent" class="py-2"></div>
+							</div>
+						</div>
+					</div>
+				</div>`);
+		}
+		const modalEl = document.getElementById('profRatingsModal');
+		const contentEl = document.getElementById('profRatingsModalContent');
+		if (!modalEl || !contentEl) return;
+		contentEl.innerHTML = '<div class="text-center text-muted py-3">Cargando...</div>';
+		// Fetch public ratings list
+		const url = `/professionals/${encodeURIComponent(profId)}/ratings/public`; 
+		let data = null;
+		try {
+			const res = await fetch(url, { headers: { 'Accept':'application/json' } });
+			if (!res.ok) throw new Error(await res.text());
+			data = await res.json();
+		} catch (e) {
+			contentEl.innerHTML = '<div class="text-danger">Error al cargar reseñas.</div>';
+			new bootstrap.Modal(modalEl).show();
+			return;
+		}
+		const items = Array.isArray(data.items) ? data.items : [];
+		const avg = (data.ratings_avg || 0).toFixed(2);
+		const count = data.ratings_count || 0;
+		let headerHtml = `<div class="d-flex justify-content-between align-items-center mb-2">
+				<div><strong>Promedio:</strong> ${avg} ⭐ (${count} reseña${count===1?'':'s'})</div>
+				<button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
+			</div>`;
+			if (count === 0) {
+				contentEl.innerHTML = '<div class="text-muted">Sin calificaciones públicas aún.</div>';
+			} else {
+			const listHtml = items.map(r => renderRatingRow(r)).join('');
+			contentEl.innerHTML = headerHtml + `<div class="list-group">${listHtml}</div>`;
+		}
+		new bootstrap.Modal(modalEl).show();
+	} catch (e) {
+		console.error(e);
+	}
+}
+
+function renderRatingRow(r){
+	const stars = buildStars(r.score);
+	const date = r.created_at ? new Date(r.created_at).toLocaleDateString() : '';
+	const comment = (r.comment || '').trim() !== '' ? escapeHtml(r.comment) : '<span class="text-muted">(Sin comentario)</span>';
+	const response = (r.response || '').trim() !== '' ? `<div class="small mt-1"><strong>Respuesta:</strong> ${escapeHtml(r.response)}</div>` : '';
+	return `<div class="list-group-item">
+		<div class="d-flex justify-content-between align-items-center">
+			<div>${stars}</div>
+			<div class="small text-muted">${date}</div>
+		</div>
+		<div class="mt-1">${comment}</div>
+		${response}
+	</div>`;
+}
+
+function buildStars(n){
+	n = Number(n) || 0; const out=[]; for(let i=1;i<=5;i++){ out.push(`<i class="bi ${i<=n?'bi-star-fill text-warning':'bi-star text-secondary'}"></i>`); } return out.join('');
 }

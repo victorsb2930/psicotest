@@ -45,7 +45,7 @@
 								@endif
 								<div class="mt-3 d-flex gap-2 flex-wrap">
 									<button type="button" class="btn btn-sm btn-outline-secondary" data-appt-action="details">Ver detalles</button>
-									<button type="button" class="btn btn-sm btn-success" data-appt-action="join">Acceder a la cita</button>
+									<button type="button" class="btn btn-sm btn-success" data-appt-action="join">Iniciar / Acceder</button>
 									<button type="button" class="btn btn-sm btn-outline-primary" data-appt-action="reschedule">Reprogramar cita</button>
 								</div>
 							</div>
@@ -91,6 +91,7 @@
 						<div class="d-grid gap-2 mt-2">
 							<a href="#" class="btn btn-outline-primary btn-sm">Nuevo cupón</a>
 							<a href="#" class="btn btn-outline-secondary btn-sm">Exportar facturas</a>
+							<a href="{{ route('professional.appointments.history') }}" class="btn btn-outline-success btn-sm">Historial de citas</a>
 						</div>
 					</div>
 				</aside>

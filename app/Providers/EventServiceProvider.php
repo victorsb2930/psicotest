@@ -18,6 +18,15 @@ class EventServiceProvider extends ServiceProvider
         \Illuminate\Auth\Events\Logout::class => [
             \App\Listeners\LogSuccessfulLogout::class,
         ],
+        \App\Events\AppointmentRescheduled::class => [
+            \App\Listeners\SendAppointmentRescheduledNotifications::class,
+        ],
+        \App\Events\AppointmentSkipped::class => [
+            \App\Listeners\SendAppointmentSkippedNotifications::class,
+        ],
+        \App\Events\AppointmentCompleted::class => [
+            \App\Listeners\SendAppointmentCompletedNotifications::class,
+        ],
     ];
 
     /**

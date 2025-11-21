@@ -10,7 +10,7 @@ class Appointment extends Model
 {
 	use SoftDeletes;
 
-	protected $fillable = ['professional_id','patient_id','title','start','end','all_day','status','notes','rejection_reason'];
+	protected $fillable = ['professional_id','patient_id','title','start','end','all_day','status','notes','rejection_reason','room_id'];
 
 	/**
 	 * Cast date fields to Carbon instances and booleans
@@ -27,6 +27,11 @@ class Appointment extends Model
 		return $this->belongsTo(User::class, 'professional_id');
 	}
 
+	public function rating()
+	{
+		return $this->hasOne(AppointmentRating::class);
+	}
+
 	public function patient()
 	{
 		return $this->belongsTo(User::class, 'patient_id');
@@ -39,7 +44,7 @@ class Appointment extends Model
 	 */
 	public function scopeBlocking($q)
 	{
-		$blocking = ['pending','requested','accepted'];
+		$blocking = ['pending','requested','accepted','in_progress'];
 		// Normaliza status en la comparación (lower + trim) para evitar falsos bloqueos por mayúsculas o espacios
 		return $q->whereIn(DB::raw("LOWER(TRIM(status))"), $blocking);
 	}

@@ -16,6 +16,9 @@ class Kernel extends ConsoleKernel
     protected $commands = [
         \App\Console\Commands\CloseStaleSessions::class,
         \App\Console\Commands\ScanSecurityEvents::class,
+        \App\Console\Commands\FinalizeAppointmentsCommand::class,
+        \App\Console\Commands\QueueAppointmentRemindersCommand::class,
+        \App\Console\Commands\ApplyAppointmentPenaltiesCommand::class,
     ];
 
     /**
@@ -27,6 +30,12 @@ class Kernel extends ConsoleKernel
         $schedule->command('sessions:close-stale --hours=24')->dailyAt('02:00')->withoutOverlapping();
         // Run security log scanner periodically to detect suspicious token reuse events
         $schedule->command('security:scan-events')->everyFiveMinutes()->withoutOverlapping();
+        // Finalize appointments (completion / no-show / skipped) every 5 minutes
+        $schedule->command('appointments:finalize')->everyFiveMinutes()->withoutOverlapping();
+        // Queue appointment reminders every 15 minutes
+        $schedule->command('appointments:queue-reminders')->everyFifteenMinutes()->withoutOverlapping();
+        // Apply penalties for skipped/no-show appointments every 30 minutes
+        $schedule->command('appointments:apply-penalties')->everyThirtyMinutes()->withoutOverlapping();
     }
 
     /**

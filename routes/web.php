@@ -23,6 +23,7 @@ Route::middleware(['auth','perm:professional_applications'])->group(function(){
 	Route::post('/admin/professional-applications/{application}/approve', [\App\Http\Controllers\ProfessionalApplicationController::class, 'approve'])->name('admin.profapps.approve');
 	Route::post('/admin/professional-applications/{application}/reject', [\App\Http\Controllers\ProfessionalApplicationController::class, 'reject'])->name('admin.profapps.reject');
 	Route::get('/admin/professional-applications/{application}/file/{field}', [\App\Http\Controllers\ProfessionalApplicationController::class, 'file'])->name('admin.profapps.file');
+	Route::post('/admin/professional-applications/{application}/doc-view', [\App\Http\Controllers\ProfessionalApplicationController::class, 'markDocViewed'])->name('admin.profapps.docview');
 });
 #endregion
 
@@ -299,21 +300,28 @@ Route::middleware(['auth'])->group(function(){
 		$user = auth()->user();
 		$nextAppt = null;
 		try {
+			$allowedStatuses = ['accepted','pending','in_progress']; // requested may be internal; we target actionable states
+			$now = now();
+			// Core query: next upcoming OR currently active window (start <= now < end)
 			$nextAppt = \App\Models\Appointment::with('patient')
 				->where('professional_id', $user->id)
 				->whereNull('deleted_at')
-				->where('status', 'accepted')
-				->where('start', '>=', now())
-				->orderBy('start', 'asc')
+				->where(function($q) use ($now){
+					$q->where('start','>=',$now)
+					  ->orWhere(function($q2) use ($now){ $q2->where('start','<=',$now)->where('end','>=',$now); });
+				})
+				->whereIn(\Illuminate\Support\Facades\DB::raw('LOWER(TRIM(status))'), array_map('strtolower',$allowedStatuses))
+				->orderBy('start','asc')
 				->first();
 			if (!$nextAppt) {
-				// Fallback: show next pending in case there is no accepted one yet
+				// Fallback: earliest future pending/accepted within next 24h regardless of exact status formatting
+				$futureLimit = $now->copy()->addHours(24);
 				$nextAppt = \App\Models\Appointment::with('patient')
-					->where('professional_id', $user->id)
+					->where('professional_id',$user->id)
 					->whereNull('deleted_at')
-					->where('status', 'pending')
-					->where('start', '>=', now())
-					->orderBy('start', 'asc')
+					->where('start','>=',$now)
+					->where('start','<=',$futureLimit)
+					->orderBy('start','asc')
 					->first();
 			}
 		} catch (\Throwable $_) { $nextAppt = null; }
@@ -343,6 +351,9 @@ Route::middleware(['auth'])->group(function(){
 		Route::get('/calendar/patients', [\App\Http\Controllers\ProfessionalCalendarController::class, 'searchPatients'])->name('professional.calendar.patients');
 		Route::post('/calendar/events/{appointment}/accept', [\App\Http\Controllers\AppointmentController::class, 'accept'])->name('appointments.accept');
 		Route::post('/calendar/events/{appointment}/reject', [\App\Http\Controllers\AppointmentController::class, 'reject'])->name('appointments.reject');
+			// Appointment history (past & finalized appointments)
+			Route::get('/appointments/history', [\App\Http\Controllers\ProfessionalAppointmentHistoryController::class, 'index'])->name('professional.appointments.history');
+			Route::get('/appointments/history/export', [\App\Http\Controllers\ProfessionalAppointmentHistoryController::class, 'export'])->name('professional.appointments.history.export');
 	});
 
 });
@@ -353,10 +364,27 @@ Route::middleware(['auth'])->group(function(){
 		Route::get('/professionals/search', [\App\Http\Controllers\ProfessionalSearchController::class, 'search'])->name('professionals.search');
         // Show public profile page for a professional
         Route::get('/professional/profile/{id}', [\App\Http\Controllers\ProfessionalSearchController::class, 'show'])->name('professionals.show');
+		Route::get('/professionals/{id}/ratings/public', [\App\Http\Controllers\ProfessionalSearchController::class, 'publicRatings'])->name('professionals.ratings.public');
 	});
 
 	Route::get('/userarea', function () {
-		return view('userArea');
+		$user = auth()->user();
+		$pendingRatings = collect();
+		try {
+			if (\Illuminate\Support\Facades\Schema::hasTable('appointments') && \Illuminate\Support\Facades\Schema::hasTable('appointment_ratings')) {
+				$windowDays = (int) config('appointments.rating_window_days');
+				$cutoff = now()->subDays($windowDays);
+				$pendingRatings = \App\Models\Appointment::query()
+					->where('patient_id', $user->id)
+					->where('status','completed')
+					->where('end','>=',$cutoff)
+					->whereDoesntHave('rating')
+					->orderBy('end','desc')
+					->limit(10)
+					->get();
+			}
+		} catch (\Throwable $e) { $pendingRatings = collect(); }
+		return view('userArea', [ 'pendingRatings' => $pendingRatings ]);
 	})->middleware(['perm:userarea'])->name('userarea');
 
 	// Perfil del usuario
@@ -371,7 +399,7 @@ Route::middleware(['auth'])->group(function(){
 			'deleted' => method_exists(User::class, 'onlyTrashed') ? User::onlyTrashed()->count() : 0,
 			'roles' => DB::table('roles')->count(),
 			'permissions' => DB::table('permissions')->count(),
-			'prof_pending' => \Illuminate\Support\Facades\Schema::hasTable('professional_applications')
+			'prof_pending' => Schema::hasTable('professional_applications')
 				? DB::table('professional_applications')->where('status','pending')->count()
 				: 0,
 			'byRole' => (function(){
@@ -481,6 +509,10 @@ Route::middleware(['auth'])->group(function(){
 		Route::put('/menu-items/{menuItem}', [\App\Http\Controllers\Admin\MenuItemController::class, 'update'])->name('admin.menuitems.update');
 		Route::delete('/menu-items/{menuItem}', [\App\Http\Controllers\Admin\MenuItemController::class, 'destroy'])->name('admin.menuitems.destroy');
 		Route::post('/menu-items/{menuItem}/toggle', [\App\Http\Controllers\Admin\MenuItemController::class, 'toggle'])->name('admin.menuitems.toggle');
+
+		// Appointment lifecycle global settings UI
+		Route::get('/appointment-settings', [\App\Http\Controllers\Admin\AppointmentSettingsController::class, 'index'])->name('admin.appointment.settings');
+		Route::post('/appointment-settings', [\App\Http\Controllers\Admin\AppointmentSettingsController::class, 'update'])->name('admin.appointment.settings.update');
 
 		// Professional applications review (moved below with flexible permission)
 	});
@@ -1192,6 +1224,24 @@ Route::middleware('auth')->group(function(){
 	Route::post('/appointments/{appointment}/reject', [\App\Http\Controllers\AppointmentController::class, 'reject'])->name('appointments.patient.reject');
 	// Patient cancel endpoint (cancel a pending request)
 	Route::post('/appointments/{appointment}/cancel', [\App\Http\Controllers\AppointmentController::class, 'cancel'])->name('appointments.patient.cancel');
+
+	// Appointment session lifecycle endpoints
+	Route::post('/appointments/{appointment}/session/start', [\App\Http\Controllers\AppointmentSessionController::class, 'start'])->name('appointments.session.start');
+	Route::post('/appointments/{appointment}/session/heartbeat', [\App\Http\Controllers\AppointmentSessionController::class, 'heartbeat'])->name('appointments.session.heartbeat');
+	Route::post('/appointments/{appointment}/session/complete', [\App\Http\Controllers\AppointmentSessionController::class, 'complete'])->name('appointments.session.complete');
+
+	// Ratings endpoints (patient -> professional)
+	Route::post('/appointments/{appointment}/rating', [\App\Http\Controllers\AppointmentRatingController::class, 'store'])->name('appointments.rating.store');
+	Route::put('/appointments/{appointment}/rating', [\App\Http\Controllers\AppointmentRatingController::class, 'update'])->name('appointments.rating.update');
+	Route::get('/professionals/{professionalId}/ratings/summary', [\App\Http\Controllers\AppointmentRatingController::class, 'summary'])->name('professionals.ratings.summary');
+	// Professional ratings management (summary + moderation/response)
+	Route::get('/professional/ratings', [\App\Http\Controllers\AppointmentRatingController::class, 'professionalIndex'])->middleware('perm:professionalarea')->name('professional.ratings.index');
+	Route::patch('/professional/ratings/{rating}', [\App\Http\Controllers\AppointmentRatingController::class, 'moderate'])->middleware('perm:professionalarea')->name('professional.ratings.moderate');
+
+	// Reschedule workflow endpoints
+	Route::post('/appointments/{appointment}/reschedules', [\App\Http\Controllers\AppointmentRescheduleController::class, 'store'])->name('appointments.reschedules.store');
+	Route::post('/reschedules/{reschedule}/accept', [\App\Http\Controllers\AppointmentRescheduleController::class, 'accept'])->name('appointments.reschedules.accept');
+	Route::post('/reschedules/{reschedule}/reject', [\App\Http\Controllers\AppointmentRescheduleController::class, 'reject'])->name('appointments.reschedules.reject');
 
 	// Unified chat hub (combines conversations + friends UI)
 	Route::get('/chat', function(){

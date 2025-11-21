@@ -5,6 +5,7 @@
 <div class="container py-4">
     <meta name="professionals-search-url" content="{{ route('professionals.search') }}">
     <h1>Buscar profesionales</h1>
+    <div class="small text-muted mb-3">Haz clic en el promedio (ej. 4.5★) para ver reseñas públicas del profesional.</div>
     <div class="row mb-3">
         <div class="col-md-4">
             <input id="pf_q" class="form-control" placeholder="Buscar por nombre o email">
@@ -17,7 +18,7 @@
         </div>
     </div>
 
-    <div id="pf_results" class="row gy-3">
+    <div id="pf_results" class="row gy-3" aria-live="polite">
         <!-- cards injected here -->
     </div>
 

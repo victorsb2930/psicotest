@@ -16,6 +16,38 @@
 
 	<div class="row g-3">
 		<div class="col-lg-8">
+				@if(isset($pendingRatings) && $pendingRatings->count() > 0)
+				<div class="card p-3 mb-3" id="pg-rating-pending-wrapper">
+					<h5 class="mb-2">Califica tus últimas citas</h5>
+					@foreach($pendingRatings as $appt)
+					@php
+					 $prof = $appt->professional; $profName = $prof?->name ?? 'Profesional';
+					 $endHuman = $appt->end?->format('d/m/Y H:i');
+					@endphp
+					<div class="border rounded p-2 mb-2 rating-item" data-appt-id="{{ $appt->id }}">
+						<div class="d-flex justify-content-between align-items-center">
+							<div class="me-3">
+								<div class="fw-semibold">{{ $profName }}</div>
+								<div class="small text-muted">Finalizada: {{ $endHuman }}</div>
+							</div>
+							<div class="rating-stars" data-selected="0">
+								@for($i=1;$i<=5;$i++)
+									<button type="button" class="btn btn-link p-0 m-0 text-warning rating-star" data-score="{{ $i }}" aria-label="{{ $i }} estrellas"><i class="bi bi-star"></i></button>
+								@endfor
+							</div>
+						</div>
+						<div class="mt-2">
+							<textarea class="form-control form-control-sm rating-comment" rows="2" maxlength="1000" placeholder="Comentario opcional (máx 1000 caracteres)"></textarea>
+						</div>
+						<div class="mt-2 d-flex justify-content-end gap-2">
+							<button type="button" class="btn btn-sm btn-outline-secondary rating-skip" data-action="skip">Omitir ahora</button>
+							<button type="button" class="btn btn-sm btn-primary rating-submit" data-action="submit" disabled>Enviar</button>
+						</div>
+					</div>
+					@endforeach
+					<div class="small text-muted">Dispones de {{ config('appointments.rating_window_days') }} días para calificar después de cada cita completada.</div>
+				</div>
+				@endif
 			<div class="card card-compact p-3 mb-3">
 				<div class="d-flex justify-content-between align-items-center">
 					<div>

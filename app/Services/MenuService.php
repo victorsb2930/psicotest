@@ -85,4 +85,34 @@ class MenuService
             Cache::increment('menu:version');
         } catch (\Throwable $__) { /* ignore cache failures */ }
     }
+
+    /**
+     * Compute per-route/menu badges (e.g. chat unread, professional applications pending)
+     * Centralized to keep Blade lean. Returns array keyed by route_name.
+     */
+    public function computeBadges(?User $user): array
+    {
+        if (!$user) return [];
+        $out = [];
+        try {
+            // Professional applications pending (admin panel)
+            if (Schema::hasTable('professional_applications')) {
+                $pending = \DB::table('professional_applications')->where('status','pending')->count();
+                if ($pending > 0) { $out['admin.profapps.index'] = $pending; }
+            }
+        } catch (\Throwable $__) {}
+        try {
+            // Chat unread + pending friend requests
+            $unread = 0; $friendPending = 0;
+            if (Schema::hasTable('messages')) {
+                $unread = \DB::table('messages')->where('to_id', $user->id)->whereNull('read_at')->count();
+            }
+            if (Schema::hasTable('friend_requests')) {
+                $friendPending = \DB::table('friend_requests')->where('to_id', $user->id)->where('status','pending')->count();
+            }
+            $chatTotal = $unread + $friendPending;
+            if ($chatTotal > 0) { $out['chat.index'] = $chatTotal; }
+        } catch (\Throwable $__) {}
+        return $out;
+    }
 }
