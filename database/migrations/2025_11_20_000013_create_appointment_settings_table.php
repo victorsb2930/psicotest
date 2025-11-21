@@ -11,21 +11,22 @@ return new class extends Migration
     {
         Schema::create('appointment_settings', function (Blueprint $table) {
             $table->id();
-            $table->unsignedTinyInteger('presence_threshold_pct')->default(config('appointments.presence_threshold_pct'));
-            $table->unsignedTinyInteger('early_access_minutes')->default(config('appointments.early_access_minutes'));
-            $table->unsignedSmallInteger('reschedule_deadline_hours')->default(config('appointments.reschedule_deadline_hours'));
-            $table->unsignedSmallInteger('unanswered_reprogram_hours')->default(config('appointments.unanswered_reprogram_hours'));
-            $table->unsignedSmallInteger('ping_interval_seconds')->default(config('appointments.ping_interval_seconds'));
+            // Use explicit defaults to avoid relying on config() during migrations
+            $table->unsignedTinyInteger('presence_threshold_pct')->default(97);
+            $table->unsignedTinyInteger('early_access_minutes')->default(5);
+            $table->unsignedSmallInteger('reschedule_deadline_hours')->default(24);
+            $table->unsignedSmallInteger('unanswered_reprogram_hours')->default(5);
+            $table->unsignedSmallInteger('ping_interval_seconds')->default(45);
             $table->timestamps();
         });
 
-        // Seed a single row so UI can edit later.
+        // Seed a single row so UI can edit later. Use the same explicit defaults.
         DB::table('appointment_settings')->insert([
-            'presence_threshold_pct' => config('appointments.presence_threshold_pct'),
-            'early_access_minutes' => config('appointments.early_access_minutes'),
-            'reschedule_deadline_hours' => config('appointments.reschedule_deadline_hours'),
-            'unanswered_reprogram_hours' => config('appointments.unanswered_reprogram_hours'),
-            'ping_interval_seconds' => config('appointments.ping_interval_seconds'),
+            'presence_threshold_pct' => 97,
+            'early_access_minutes' => 5,
+            'reschedule_deadline_hours' => 24,
+            'unanswered_reprogram_hours' => 5,
+            'ping_interval_seconds' => 45,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
