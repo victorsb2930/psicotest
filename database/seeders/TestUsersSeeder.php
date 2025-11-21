@@ -22,8 +22,8 @@ class TestUsersSeeder extends Seeder
         $hasIsActive = Schema::hasColumn('users','is_active');
 
         // Normal user
-        $userEmail = env('SEED_USER_EMAIL', 'victornorberto123059@gmail.com');
-        $userPass = env('SEED_USER_PASSWORD', 'test123');
+        $userEmail = env('SEED_USER_EMAIL', 'user@example.com');
+        $userPass = env('SEED_USER_PASSWORD', 'password');
         $user = User::firstOrNew(['email' => strtolower($userEmail)]);
         $user->name = $user->name ?: 'Usuario';
         $user->lastname = $user->lastname ?: 'User';
@@ -39,8 +39,8 @@ class TestUsersSeeder extends Seeder
         try { $user->syncRoles(['user']); } catch (\Throwable $_) {}
 
         // Professional user
-        $proEmail = env('SEED_PRO_EMAIL', 'victornorberto850321@gmail.com');
-        $proPass = env('SEED_PRO_PASSWORD', 'test123');
+        $proEmail = env('SEED_PRO_EMAIL', 'pro@example.com');
+        $proPass = env('SEED_PRO_PASSWORD', 'password');
         $pro = User::firstOrNew(['email' => strtolower($proEmail)]);
         $pro->name = $pro->name ?: 'Usuario';
         $pro->lastname = $pro->lastname ?: 'Profesional';
