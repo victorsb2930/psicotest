@@ -56,7 +56,8 @@ class MenuService
                         });
                     }
                 })
-                ->orderBy('section')
+                // Ordenar secciones explícitamente y dejar 'common' al final para que no opaque las principales
+                ->orderByRaw("CASE section WHEN 'admin' THEN 1 WHEN 'professional' THEN 2 WHEN 'user' THEN 3 WHEN 'common' THEN 99 ELSE 100 END")
                 ->orderBy('sort_order');
 
             $items = $q->get();

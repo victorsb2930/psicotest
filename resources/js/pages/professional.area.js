@@ -1,7 +1,10 @@
 // Professional Area dashboard page module
+import '../utils/videoCallModal.js';
+import { autoOpenOngoingAppointmentCall } from '../utils/videoCallModal.js';
 // Adjusted "Abrir" buttons to route to unified chat hub /chat?open={id}
 export function init(){
 	const root = document.querySelector('[data-page="professional-area"]') || document.body;
+	try { autoOpenOngoingAppointmentCall(); } catch(_){}
 
 	root.__pg_prof_area_click = function(ev){
 		const btn = ev.target.closest && ev.target.closest('button');
@@ -9,10 +12,6 @@ export function init(){
 		const txt = (btn.textContent||'').trim();
 		if(txt === 'Ir a sala'){
 			window.modalNotification?.('Sala','Redirigiendo a la sala...',{template:'info'});
-			return;
-		}
-		if(txt === 'Reprogramar'){
-			window.modalConfirm?.({ title:'Reprogramar', body:'Funcionalidad de reprogramar aún no está implementada en esta demo.', buttons:[ { text:'Cerrar', className:'btn-primary', closeOnClick:true } ] });
 			return;
 		}
 	};
@@ -93,31 +92,83 @@ export function init(){
 			return;
 		}
 		if(action === 'join'){
-			// Start session (create room + broadcast) before redirecting to chat
-			if(apptId){
-				try {
-					const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-					await fetch(`/appointments/${encodeURIComponent(apptId)}/session/start`, {
-						method: 'POST',
-						headers: {
-							'Accept':'application/json',
-							'X-Requested-With':'XMLHttpRequest',
-							...(token ? { 'X-CSRF-TOKEN': token } : {})
-						}
-					});
-				} catch(_) { /* ignore start errors */ }
-			}
-			if(patientId){ window.location.href = `/chat?open=${encodeURIComponent(patientId)}`; return; }
-			window.location.href = '/chat';
+			const currentUserId = window.__authUserId || document.querySelector('meta[name="auth-user-id"]')?.getAttribute('content');
+			if(apptId){ window.openAppointmentCall?.({ id: apptId, otherUserId: patientId, role: 'profesional', currentUserId }); }
 			return;
 		}
 		if(action === 'reschedule'){
-			const url = apptId ? `/professional/calendar?open=${encodeURIComponent(apptId)}` : '/professional/calendar';
-			window.location.href = url;
+			// Open modal to propose new start/end
+			const existingStart = (wrap.getAttribute('data-start')||'').slice(0,16); // ISO
+			const existingEnd = (wrap.getAttribute('data-end')||'').slice(0,16);
+			const body = `
+				<div class=\"mb-2\">Proponer nuevo horario</div>
+				<div class=\"mb-2\"><label class=\"form-label small\">Inicio</label><input type=\"datetime-local\" class=\"form-control form-control-sm\" id=\"pg-res-proposed-start\" value=\"${escapeAttr(toLocalInputValue(existingStart))}\"></div>
+				<div class=\"mb-2\"><label class=\"form-label small\">Fin</label><input type=\"datetime-local\" class=\"form-control form-control-sm\" id=\"pg-res-proposed-end\" value=\"${escapeAttr(toLocalInputValue(existingEnd))}\"></div>
+				<div class=\"mb-2\"><label class=\"form-label small\">Motivo (opcional)</label><textarea class=\"form-control form-control-sm\" id=\"pg-res-reason\" rows=\"2\" maxlength=\"1000\"></textarea></div>
+			`;
+			const onConfirm = async () => {
+				const ps = document.getElementById('pg-res-proposed-start')?.value;
+				const pe = document.getElementById('pg-res-proposed-end')?.value;
+				const reason = document.getElementById('pg-res-reason')?.value || '';
+				if(!ps || !pe){ window.modalNotification?.('Error','Completa inicio y fin',{template:'danger'}); return false; }
+				if(apptId){
+					try {
+						const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+						const res = await fetch(`/appointments/${encodeURIComponent(apptId)}/reschedules`, { method:'POST', headers:{ 'Accept':'application/json','Content-Type':'application/json','X-Requested-With':'XMLHttpRequest', ...(token?{'X-CSRF-TOKEN':token}:{}) }, body: JSON.stringify({ proposed_start: toServerDateTime(ps), proposed_end: toServerDateTime(pe), reason }) });
+						const j = await res.json().catch(()=>({}));
+						if(!res.ok){
+							if(j && j.error === 'deadline_passed'){ window.modalNotification?.('No permitido','Se pasó el plazo para reprogramar',{template:'warning'}); }
+							else { window.modalNotification?.('Error','No se pudo solicitar reprogramación',{template:'danger'}); }
+							return false;
+						}
+						// Update banner/UI
+						const pStart = ps; const pEnd = pe;
+						wrap.setAttribute('data-reschedule-id', String(j?.reschedule?.id||''));
+						wrap.setAttribute('data-reschedule-start', new Date(ps).toISOString());
+						wrap.setAttribute('data-reschedule-end', new Date(pe).toISOString());
+						ensureRescheduleBanner(wrap, pStart, pEnd, j?.reschedule?.id);
+						window.modalNotification?.('Enviado','Reprogramación solicitada',{template:'success'});
+						return true;
+					} catch(_){ window.modalNotification?.('Error','No se pudo solicitar reprogramación',{template:'danger'}); return false; }
+				}
+				return false;
+			};
+			window.modalConfirm?.({ title:'Reprogramar cita', body, buttons:[ { text:'Cancelar', className:'btn-outline-secondary', closeOnClick:true }, { text:'Enviar', className:'btn-primary', onClick:onConfirm, closeOnClick:true } ] });
 			return;
 		}
 	};
 	root.addEventListener('click', root.__pg_prof_area_onApptAction);
+
+	// Accept/Reject reschedule actions
+	root.__pg_prof_area_onRescheduleAction = async function(ev){
+		const btn = ev.target.closest && ev.target.closest('[data-reschedule-action]');
+		if(!btn) return;
+		const action = btn.getAttribute('data-reschedule-action');
+		const id = btn.getAttribute('data-reschedule-id');
+		if(!id) return;
+		const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+		try {
+			const url = action === 'accept' ? `/reschedules/${encodeURIComponent(id)}/accept` : `/reschedules/${encodeURIComponent(id)}/reject`;
+			const res = await fetch(url, { method:'POST', headers:{ 'Accept':'application/json','X-Requested-With':'XMLHttpRequest', ...(token?{'X-CSRF-TOKEN':token}:{}) } });
+			const j = await res.json().catch(()=>({}));
+			if(!res.ok){ window.modalNotification?.('Error','Acción no disponible',{template:'danger'}); return; }
+			const wrap = document.getElementById('pg-next-appt'); if(!wrap) return;
+			const banner = document.getElementById('pg-reschedule-banner'); if(banner) banner.remove();
+			wrap.removeAttribute('data-reschedule-id'); wrap.removeAttribute('data-reschedule-start'); wrap.removeAttribute('data-reschedule-end');
+			if(action === 'accept' && j && j.appointment){
+				// Update displayed time
+				const startIso = j.appointment.start; const endIso = j.appointment.end;
+				const humanStart = toHuman(startIso); const humanEnd = toHuman(endIso, true);
+				wrap.setAttribute('data-start', startIso); wrap.setAttribute('data-end', endIso);
+				wrap.setAttribute('data-start-human', humanStart); wrap.setAttribute('data-end-human', humanEnd);
+				const timeEl = Array.from(wrap.querySelectorAll('.text-muted.small')).find(el=> el.textContent && el.textContent.includes('Horario:')); if(timeEl){ timeEl.textContent = `Horario: ${humanStart}${humanEnd?(' – '+humanEnd):''}`; }
+				window.modalNotification?.('Actualizado','Reprogramación aceptada',{template:'success'});
+			} else {
+				window.modalNotification?.('Listo','Reprogramación rechazada',{template:'info'});
+			}
+		} catch(_){ window.modalNotification?.('Error','No se pudo completar la acción',{template:'danger'}); }
+	};
+	root.addEventListener('click', root.__pg_prof_area_onRescheduleAction);
 
 	root.__pg_prof_area_onRtMessage = function(ev){
 		try {
@@ -154,6 +205,46 @@ export function init(){
 
 	root.__pg_prof_area_pollInterval = setInterval(()=>{ try { root.__pg_prof_area_loadMessages(); } catch(_){} }, 15000);
 	root.__pg_prof_area_loadMessages();
+
+	function ensureRescheduleBanner(wrap, startVal, endVal, id){
+		let banner = document.getElementById('pg-reschedule-banner');
+		if(!banner){
+			banner = document.createElement('div');
+			banner.id = 'pg-reschedule-banner';
+			banner.className = 'alert alert-warning py-2 px-3 mt-2';
+			wrap.insertBefore(banner, wrap.querySelector('.mt-3'));
+		}
+		const humanStart = toHuman(startVal);
+		const humanEnd = toHuman(endVal);
+		banner.innerHTML = `<div class=\"small\">Reprogramación pendiente: <strong>${escapeHtml(humanStart)}</strong>${humanEnd?` – <strong>${escapeHtml(humanEnd)}</strong>`:''}</div>
+			<div class=\"mt-2 d-flex gap-2 flex-wrap\">
+				<button type=\"button\" class=\"btn btn-sm btn-primary\" data-reschedule-action=\"accept\" data-reschedule-id=\"${id||''}\">Aceptar</button>
+				<button type=\"button\" class=\"btn btn-sm btn-outline-secondary\" data-reschedule-action=\"reject\" data-reschedule-id=\"${id||''}\">Rechazar</button>
+			</div>`;
+	}
+
+	function toLocalInputValue(iso){
+		if(!iso) return '';
+		const d = new Date(iso);
+		if(isNaN(d)) return '';
+		const pad = n => String(n).padStart(2,'0');
+		return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+	}
+	function toServerDateTime(localVal){
+		// local "YYYY-MM-DDTHH:mm" -> server "YYYY-MM-DD HH:mm"
+		if(!localVal) return localVal;
+		return localVal.replace('T',' ');
+	}
+	function toHuman(val, timeOnly){
+		if(!val) return '';
+		const d = new Date(val);
+		if(isNaN(d)) return '';
+		const pad = n => String(n).padStart(2,'0');
+		const date = `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()}`;
+		const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+		return timeOnly ? time : `${date} ${time}`;
+	}
+	function escapeAttr(s){ return (s||'').replace(/\"/g,'&quot;'); }
 }
 
 export function destroy(){
@@ -162,6 +253,7 @@ export function destroy(){
 	try { if(root.__pg_prof_area_mini_click) root.removeEventListener('click', root.__pg_prof_area_mini_click); } catch(_){}
 	try { if(root.__pg_prof_area_onOpenThread) root.removeEventListener('click', root.__pg_prof_area_onOpenThread); } catch(_){}
 	try { if(root.__pg_prof_area_onApptAction) root.removeEventListener('click', root.__pg_prof_area_onApptAction); } catch(_){}
+	try { if(root.__pg_prof_area_onRescheduleAction) root.removeEventListener('click', root.__pg_prof_area_onRescheduleAction); } catch(_){}
 	try { if(window && root.__pg_prof_area_onRtMessage) window.removeEventListener('rt:message', root.__pg_prof_area_onRtMessage); } catch(_){}
 	try { if(window && root.__pg_prof_area_onCountersUpdate) window.removeEventListener('counters:update', root.__pg_prof_area_onCountersUpdate); } catch(_){}
 	try { if(root.__pg_prof_area_pollInterval) { clearInterval(root.__pg_prof_area_pollInterval); } } catch(_){}

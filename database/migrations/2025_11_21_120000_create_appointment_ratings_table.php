@@ -14,8 +14,10 @@ return new class extends Migration {
             $table->foreignId('patient_id')->constrained('users')->cascadeOnDelete();
             $table->tinyInteger('rating'); // 1-5
             $table->text('comment')->nullable();
+            $table->text('response_text')->nullable(); // consolidated from add migration
             $table->boolean('is_public')->default(true);
             $table->timestamp('edited_at')->nullable();
+            $table->timestamp('responded_at')->nullable(); // consolidated from add migration
             $table->timestamps();
             $table->unique('appointment_id');
             $table->index(['professional_id','rating']);

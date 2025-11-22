@@ -15,27 +15,54 @@ function setupItem(item, wrapper){
   let current = 0;
   starsContainer.querySelectorAll('.rating-star').forEach(btn=>{
     btn.addEventListener('click', ()=>{
-      current = parseInt(btn.dataset.score,10);
+      const score = parseInt(btn.dataset.score,10);
+      // Toggle off if clicking the same selected score
+      if(current === score){
+        current = 0;
+      } else {
+        current = score;
+      }
       starsContainer.dataset.selected = String(current);
       updateVisual(starsContainer, current);
-      submitBtn.disabled = current === 0;
+      submitBtn.disabled = current === 0 || !hasComment(commentEl);
     });
   });
+  // Live validation on comment input
+  commentEl.addEventListener('input', ()=>{
+    submitBtn.disabled = current === 0 || !hasComment(commentEl);
+    // remove previous inline error when user types
+    const err = item.querySelector('.rating-error'); if(err) err.remove();
+  });
   submitBtn.addEventListener('click', ()=>{
-    if(current===0 || submitBtn.disabled) return;
+    if(current===0){ return; }
+    if(!hasComment(commentEl)){
+      showInlineError(item, 'Debes ingresar un comentario para enviar la calificación.');
+      submitBtn.disabled = true;
+      return;
+    }
     submitBtn.disabled = true;
     const apptId = item.dataset.apptId;
-    const payload = { appointment_id: apptId, score: current, comment: commentEl.value.trim() };
-    postJSON('/ratings', payload)
-      .then(()=>{
+    const payload = { rating: current, comment: commentEl.value.trim() };
+    const url = apptId ? `/appointments/${encodeURIComponent(apptId)}/ratings` : '/ratings';
+    postJSON(url, payload)
+      .then((resp)=>{
+        if(!resp || resp.ok !== true){ throw new Error(resp && resp.message ? resp.message : 'error'); }
         item.classList.add('opacity-50');
         item.querySelectorAll('button,textarea').forEach(el=>{ el.disabled = true; });
         item.insertAdjacentHTML('beforeend','<div class="mt-2 text-success small">¡Gracias! Calificación registrada.</div>');
       })
       .catch(err=>{
         console.error(err);
-        submitBtn.disabled = false;
-        item.insertAdjacentHTML('beforeend','<div class="mt-2 text-danger small">Error al enviar, intenta nuevamente.</div>');
+        submitBtn.disabled = current === 0 || !hasComment(commentEl);
+        const msgBase = (err && err.message) ? String(err.message) : '';
+        // Distinguish validation vs generic
+        if(msgBase.includes('rating')){
+          showInlineError(item, 'Error de validación en la puntuación.');
+        } else if(msgBase.includes('comment') || msgBase.includes('Comentario')){
+          showInlineError(item, 'El comentario es obligatorio.');
+        } else {
+          showInlineError(item, 'Error al enviar, intenta nuevamente.');
+        }
       });
   });
   skipBtn.addEventListener('click', ()=>{
@@ -82,6 +109,14 @@ function getCsrf(){
   const el = document.querySelector('meta[name=csrf-token]');
   return el ? el.getAttribute('content') : '';
 }
+
+function hasComment(el){ return !!(el && el.value && el.value.trim().length > 0); }
+function showInlineError(item, text){
+  if(!item) return;
+  const prev = item.querySelector('.rating-error'); if(prev) prev.remove();
+  item.insertAdjacentHTML('beforeend', `<div class="mt-2 rating-error text-danger small">${escapeHtml(text)}</div>`);
+}
+function escapeHtml(s){ if(!s) return ''; return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','>':'&gt;','"':'&quot;'}[c])); }
 
 // Expose init for page loader
 export function init(){ initRatings(); }

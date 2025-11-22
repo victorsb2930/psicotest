@@ -13,6 +13,11 @@ return new class extends Migration {
 			$table->string('cedula_path')->nullable();
 			$table->string('cv_path')->nullable();
 			$table->string('exequatur_path')->nullable();
+			// viewed_at timestamps consolidated from later add migration
+			$table->timestamp('titulo_viewed_at')->nullable();
+			$table->timestamp('cedula_viewed_at')->nullable();
+			$table->timestamp('cv_viewed_at')->nullable();
+			$table->timestamp('exequatur_viewed_at')->nullable();
 			$table->enum('status', ['pending','approved','rejected'])->default('pending');
 			$table->text('notes')->nullable();
 			$table->foreignId('reviewed_by')->nullable()->constrained('users')->nullOnDelete();

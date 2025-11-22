@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Appointment;
 use App\Models\AppointmentSession;
+use App\Models\AppointmentSessionLog;
 use App\Models\AppointmentAudit;
 use App\Events\AppointmentStarted;
 use App\Events\AppointmentCompleted;
@@ -122,5 +123,63 @@ class AppointmentSessionService
     {
         $minutes = config('appointments.early_access_minutes');
         return now()->between($appointment->start->copy()->subMinutes($minutes), $appointment->end);
+    }
+
+    /**
+     * Early classification for no_show / skipped before appointment end.
+     * Returns new status string if changed, or null if no action.
+     */
+    public function earlyClassify(Appointment $appointment, int $graceMinutes): ?string
+    {
+        $now = now();
+        if (!in_array($appointment->status, ['accepted','in_progress'], true)) return null;
+        if ($appointment->status === 'reschedule_pending') return null;
+        // Within active window: start passed + grace, not yet ended
+        if (!($appointment->start->lt($now->copy()->subMinutes($graceMinutes)) && $appointment->end->gt($now))) return null;
+        $session = AppointmentSession::where('appointment_id', $appointment->id)->first();
+        if (!$session) return null;
+        $profJoined = (bool) $session->professional_joined_at;
+        $patientJoined = (bool) $session->patient_joined_at;
+        if ($profJoined && $patientJoined) return null; // both present
+        $from = $appointment->status;
+        if (!$profJoined && !$patientJoined) {
+            $appointment->status = 'no_show';
+            $appointment->save();
+            AppointmentAudit::record($appointment,'early_no_show',$from,$appointment->status,[ 'grace_minutes'=>$graceMinutes ]);
+            event(new AppointmentSkipped($appointment)); // treat as skipped event family
+            return $appointment->status;
+        }
+        if ($profJoined xor $patientJoined) {
+            $appointment->status = 'skipped';
+            $appointment->save();
+            AppointmentAudit::record($appointment,'early_skipped',$from,$appointment->status,[ 'grace_minutes'=>$graceMinutes, 'prof_joined'=>$profJoined, 'patient_joined'=>$patientJoined ]);
+            event(new AppointmentSkipped($appointment));
+            return $appointment->status;
+        }
+        return null;
+    }
+
+    /**
+     * Persist metrics summary from client (reconnects, quality averages, counts) and audit.
+     */
+    public function logMetrics(Appointment $appointment, array $data): void
+    {
+        $session = $this->ensureSession($appointment);
+        try {
+            AppointmentSessionLog::create([
+                'appointment_id' => $appointment->id,
+                'appointment_session_id' => $session->id,
+                'event_type' => 'metrics_summary',
+                'payload' => $data,
+            ]);
+            AppointmentAudit::record($appointment,'session_metrics',$appointment->status,$appointment->status,[
+                'metrics_id' => null,
+                'retries' => $data['total_retries'] ?? null,
+                'degraded_sequences' => $data['degraded_sequences'] ?? null,
+                'avg_bitrate_kbps' => $data['avg_bitrate_kbps'] ?? null,
+                'avg_loss_pct' => $data['avg_loss_pct'] ?? null,
+                'avg_rtt_ms' => $data['avg_rtt_ms'] ?? null,
+            ]);
+        } catch (\Throwable $e) { /* swallow */ }
     }
 }

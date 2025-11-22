@@ -12,8 +12,8 @@ class AppointmentRescheduleController extends Controller
 {
     public function store(Request $request, Appointment $appointment)
     {
+        $this->authorize('requestReschedule', $appointment);
         $user = auth()->user();
-        if (!$user || !in_array($user->id, [$appointment->professional_id, $appointment->patient_id], true)) abort(403);
 
         // Ensure reschedule allowed before deadline
         $deadlineHours = (int) config('appointments.reschedule_deadline_hours');
@@ -26,6 +26,26 @@ class AppointmentRescheduleController extends Controller
             'proposed_end' => ['required','date','after:proposed_start'],
             'reason' => ['nullable','string','max:1000']
         ]);
+
+        // Overlap validation: proposed window must not collide with other blocking appointments of either participant
+        $proposedStart = now()->parse($validated['proposed_start']);
+        $proposedEnd = now()->parse($validated['proposed_end']);
+        $conflicts = Appointment::query()
+            ->blocking()
+            ->where(function($q) use ($appointment) {
+                $q->where('professional_id', $appointment->professional_id)
+                  ->orWhere('patient_id', $appointment->patient_id);
+            })
+            ->where('id', '!=', $appointment->id)
+            ->where(function($q) use ($proposedStart, $proposedEnd) {
+                // overlap: existing.start < proposedEnd AND existing.end > proposedStart
+                $q->where('start', '<', $proposedEnd)
+                  ->where('end', '>', $proposedStart);
+            })
+            ->exists();
+        if($conflicts){
+            return response()->json(['ok'=>false,'error'=>'overlap'], 422);
+        }
 
         // Mark appointment status as reschedule_pending
         $prevStatus = $appointment->status;
@@ -55,11 +75,28 @@ class AppointmentRescheduleController extends Controller
 
     public function accept(Request $request, AppointmentReschedule $reschedule)
     {
-        $user = auth()->user();
-        if (!$user) abort(403);
+        $user = auth()->user(); if(!$user) abort(403);
+        $this->authorize('accept', $reschedule);
         $appointment = $reschedule->appointment;
-        if (!in_array($user->id, [$appointment->professional_id, $appointment->patient_id], true)) abort(403);
-        if ($reschedule->status !== 'pending') return response()->json(['ok'=>false,'error'=>'not_pending'], 422);
+
+        // Revalidate overlap before applying proposed times
+        $proposedStart = $reschedule->proposed_start;
+        $proposedEnd = $reschedule->proposed_end;
+        $conflicts = Appointment::query()
+            ->blocking()
+            ->where(function($q) use ($appointment) {
+                $q->where('professional_id', $appointment->professional_id)
+                  ->orWhere('patient_id', $appointment->patient_id);
+            })
+            ->where('id', '!=', $appointment->id)
+            ->where(function($q) use ($proposedStart, $proposedEnd) {
+                $q->where('start', '<', $proposedEnd)
+                  ->where('end', '>', $proposedStart);
+            })
+            ->exists();
+        if($conflicts){
+            return response()->json(['ok'=>false,'error'=>'overlap'], 422);
+        }
 
         $reschedule->status = 'accepted';
         $reschedule->responded_at = now();
@@ -82,11 +119,9 @@ class AppointmentRescheduleController extends Controller
 
     public function reject(Request $request, AppointmentReschedule $reschedule)
     {
-        $user = auth()->user();
-        if (!$user) abort(403);
+        $user = auth()->user(); if(!$user) abort(403);
+        $this->authorize('reject', $reschedule);
         $appointment = $reschedule->appointment;
-        if (!in_array($user->id, [$appointment->professional_id, $appointment->patient_id], true)) abort(403);
-        if ($reschedule->status !== 'pending') return response()->json(['ok'=>false,'error'=>'not_pending'], 422);
 
         $reschedule->status = 'rejected';
         $reschedule->responded_at = now();

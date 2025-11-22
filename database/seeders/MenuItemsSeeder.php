@@ -46,14 +46,17 @@ class MenuItemsSeeder extends Seeder
             if (\Route::has('admin.appointment.settings')) {
                 $items[] = ['label' => 'Ajustes de Citas', 'route_name' => 'admin.appointment.settings', 'icon_class' => 'bi bi-sliders', 'section' => 'admin', 'sort_order' => 65, 'permission' => 'adminarea'];
             }
+            // Métricas de citas (dashboard) si existe la ruta
+            if (\Route::has('admin.appointment.metrics')) {
+                $items[] = ['label' => 'Métricas de Citas', 'route_name' => 'admin.appointment.metrics', 'icon_class' => 'bi bi-graph-up', 'section' => 'admin', 'sort_order' => 70, 'permission' => 'adminarea'];
+            }
         } catch (\Throwable $e) { /* ignore */ }
 
-        // Professional section items
+        // Professional section items (usar etiqueta única para evitar colisión con Calendario usuario)
         $items = array_merge($items, [
             ['label' => 'Mi panel', 'route_name' => 'professionalarea', 'icon_class' => 'bi bi-person-badge', 'section' => 'professional', 'sort_order' => 10, 'permission' => 'professionalarea'],
-            ['label' => 'Calendario', 'route_name' => 'professional.calendar', 'icon_class' => 'bi bi-calendar3', 'section' => 'professional', 'sort_order' => 20, 'permission' => 'professionalarea'],
+            ['label' => 'Calendario Profesional', 'route_name' => 'professional.calendar', 'icon_class' => 'bi bi-calendar3', 'section' => 'professional', 'sort_order' => 20, 'permission' => 'professionalarea'],
             ['label' => 'Disponibilidad', 'route_name' => 'professional.availability', 'icon_class' => 'bi bi-clock', 'section' => 'professional', 'sort_order' => 25, 'permission' => 'professionalarea'],
-            ['label' => 'Chat', 'route_name' => 'chat.index', 'icon_class' => 'bi bi-chat-dots', 'section' => 'professional', 'sort_order' => 30, 'permission' => 'professionalarea'],
             ['label' => 'Mis Calificaciones', 'route_name' => 'professional.ratings.index', 'icon_class' => 'bi bi-stars', 'section' => 'professional', 'sort_order' => 35, 'permission' => 'professionalarea'],
             ['label' => 'Pacientes', 'route_name' => 'professional.patients', 'icon_class' => 'bi bi-people', 'section' => 'professional', 'sort_order' => 40, 'permission' => 'professionalarea'],
             ['label' => 'Servicios', 'route_name' => 'professional.services', 'icon_class' => 'bi bi-briefcase', 'section' => 'professional', 'sort_order' => 50, 'permission' => 'professionalarea'],
@@ -62,13 +65,14 @@ class MenuItemsSeeder extends Seeder
             ['label' => 'Configuración', 'route_name' => 'professional.settings', 'icon_class' => 'bi bi-gear', 'section' => 'professional', 'sort_order' => 70, 'permission' => 'professionalarea'],
         ]);
 
-        // User section items
+        // User section items (Calendario sin permiso específico)
         $items = array_merge($items, [
             ['label' => 'Mi cuenta', 'route_name' => 'userarea', 'icon_class' => 'bi bi-house', 'section' => 'user', 'sort_order' => 10, 'permission' => 'userarea'],
-            ['label' => 'Calendario', 'route_name' => 'appointments.index', 'icon_class' => 'bi bi-calendar3', 'section' => 'user', 'sort_order' => 20, 'permission' => 'userarea'],
+            ['label' => 'Calendario', 'route_name' => 'appointments.index', 'icon_class' => 'bi bi-calendar3', 'section' => 'user', 'sort_order' => 20, 'permission' => null],
             ['label' => 'Buscar profesionales', 'route_name' => 'professionals.index', 'icon_class' => 'bi bi-search', 'section' => 'user', 'sort_order' => 30, 'permission' => 'userarea'],
             ['label' => 'Favoritos', 'route_name' => 'favorites', 'icon_class' => 'bi bi-star', 'section' => 'user', 'sort_order' => 40, 'permission' => 'userarea'],
-            ['label' => 'Chat', 'route_name' => 'chat.index', 'icon_class' => 'bi bi-chat-dots', 'section' => 'user', 'sort_order' => 50, 'permission' => 'userarea'],
+            // Chat es compartido entre roles; sin permiso específico para no depender de userarea/professionalarea
+            ['label' => 'Chat', 'route_name' => 'chat.index', 'icon_class' => 'bi bi-chat-dots', 'section' => 'common', 'sort_order' => 50, 'permission' => null],
             ['label' => 'Planes', 'route_name' => 'plans.index', 'icon_class' => 'bi bi-card-list', 'section' => 'user', 'sort_order' => 60, 'permission' => 'userarea'],
         ]);
 
@@ -86,6 +90,14 @@ class MenuItemsSeeder extends Seeder
                 'updated_at' => now(),
             ];
             $existing = DB::table('menu_items')->where('label', $i['label'])->first();
+            // Si la ruta declarada no existe, marcar (o actualizar) como disabled y continuar
+            if (!empty($row['route_name']) && !\Route::has($row['route_name'])) {
+                if ($existing) {
+                    DB::table('menu_items')->where('id', $existing->id)->update(['enabled' => false, 'updated_at' => now()]);
+                    $idByLabel[$i['label']] = $existing->id;
+                }
+                continue;
+            }
             if ($existing) {
                 DB::table('menu_items')->where('id', $existing->id)->update($row);
                 $id = $existing->id;
@@ -105,11 +117,13 @@ class MenuItemsSeeder extends Seeder
         };
 
         // Admin items -> role admin
-        foreach (['Dashboard','Usuarios','Solicitudes','Roles','Permisos','Gestion del menú','Dispositivos','Ajustes de Citas'] as $lbl) { $attach($lbl, ['admin']); }
-        // Professional items -> role professional
-        foreach (['Mi panel','Calendario','Disponibilidad','Chat','Mis Calificaciones','Pacientes','Servicios','Historial de Citas','Historial de Pagos','Configuración'] as $lbl) { $attach($lbl, ['professional']); }
-        // User items -> role user
-        foreach (['Mi cuenta','Calendario','Buscar profesionales','Favoritos','Chat','Planes'] as $lbl) { $attach($lbl, ['user']); }
+        foreach (['Dashboard','Usuarios','Solicitudes','Roles','Permisos','Gestion del menú','Dispositivos','Ajustes de Citas','Métricas de Citas'] as $lbl) { $attach($lbl, ['admin']); }
+        // Professional items -> role professional (Chat y Calendario usuario se anexan aparte)
+        foreach (['Mi panel','Calendario Profesional','Disponibilidad','Mis Calificaciones','Pacientes','Servicios','Historial de Citas','Historial de Pagos','Configuración'] as $lbl) { $attach($lbl, ['professional']); }
+        // User items -> role user (Chat común más abajo)
+        foreach (['Mi cuenta','Calendario','Buscar profesionales','Favoritos','Planes'] as $lbl) { $attach($lbl, ['user']); }
+        // Chat compartido para ambos roles
+        $attach('Chat', ['professional','user']);
         // Common: no pivot to show for all roles
     }
 }

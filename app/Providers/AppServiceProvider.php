@@ -20,6 +20,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Alias del middleware de rate limiting para sesiones de cita
+        try { $this->app['router']->aliasMiddleware('appointment.session.rate', \App\Http\Middleware\AppointmentSessionRateLimit::class); } catch (\Throwable $e) {}
         // Evita errores de índices/llaves con utf8mb4 en MySQL antiguos
         Schema::defaultStringLength(191);
 

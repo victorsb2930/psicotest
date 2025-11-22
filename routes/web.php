@@ -299,6 +299,7 @@ Route::middleware(['auth'])->group(function(){
 	Route::get('/professionalarea', function () {
 		$user = auth()->user();
 		$nextAppt = null;
+		$pendingReschedule = null;
 		try {
 			$allowedStatuses = ['accepted','pending','in_progress']; // requested may be internal; we target actionable states
 			$now = now();
@@ -324,8 +325,17 @@ Route::middleware(['auth'])->group(function(){
 					->orderBy('start','asc')
 					->first();
 			}
+			// Load pending reschedule if exists for this appointment
+			if ($nextAppt && \Illuminate\Support\Facades\Schema::hasTable('appointment_reschedules')) {
+				try {
+					$pendingReschedule = \App\Models\AppointmentReschedule::where('appointment_id', $nextAppt->id)
+						->where('status','pending')
+						->latest('id')
+						->first();
+				} catch (\Throwable $_) { $pendingReschedule = null; }
+			}
 		} catch (\Throwable $_) { $nextAppt = null; }
-		return view('professionalArea', ['nextAppt' => $nextAppt]);
+		return view('professionalArea', ['nextAppt' => $nextAppt, 'pendingReschedule' => $pendingReschedule]);
 	})->middleware(['perm:professionalarea'])->name('professionalarea');
 
 	// Professional calendar and related endpoints
@@ -370,6 +380,8 @@ Route::middleware(['auth'])->group(function(){
 	Route::get('/userarea', function () {
 		$user = auth()->user();
 		$pendingRatings = collect();
+		$nextAppt = null;
+		$pendingReschedule = null;
 		try {
 			if (\Illuminate\Support\Facades\Schema::hasTable('appointments') && \Illuminate\Support\Facades\Schema::hasTable('appointment_ratings')) {
 				$windowDays = (int) config('appointments.rating_window_days');
@@ -384,7 +396,42 @@ Route::middleware(['auth'])->group(function(){
 					->get();
 			}
 		} catch (\Throwable $e) { $pendingRatings = collect(); }
-		return view('userArea', [ 'pendingRatings' => $pendingRatings ]);
+
+		// Próxima cita del paciente (misma lógica que profesional, adaptada a patient_id)
+		try {
+			$allowedStatuses = ['accepted','pending','in_progress'];
+			$now = now();
+			$nextAppt = \App\Models\Appointment::with('professional')
+				->where('patient_id', $user->id)
+				->whereNull('deleted_at')
+				->where(function($q) use ($now){
+					$q->where('start','>=',$now)
+					  ->orWhere(function($q2) use ($now){ $q2->where('start','<=',$now)->where('end','>=',$now); });
+				})
+				->whereIn(\Illuminate\Support\Facades\DB::raw('LOWER(TRIM(status))'), array_map('strtolower',$allowedStatuses))
+				->orderBy('start','asc')
+				->first();
+			if (!$nextAppt) {
+				$futureLimit = $now->copy()->addHours(24);
+				$nextAppt = \App\Models\Appointment::with('professional')
+					->where('patient_id',$user->id)
+					->whereNull('deleted_at')
+					->where('start','>=',$now)
+					->where('start','<=',$futureLimit)
+					->orderBy('start','asc')
+					->first();
+			}
+			if ($nextAppt && \Illuminate\Support\Facades\Schema::hasTable('appointment_reschedules')) {
+				try {
+					$pendingReschedule = \App\Models\AppointmentReschedule::where('appointment_id', $nextAppt->id)
+						->where('status','pending')
+						->latest('id')
+						->first();
+				} catch (\Throwable $_) { $pendingReschedule = null; }
+			}
+		} catch (\Throwable $_) { $nextAppt = null; }
+
+		return view('userArea', [ 'pendingRatings' => $pendingRatings, 'nextAppt' => $nextAppt, 'pendingReschedule' => $pendingReschedule ]);
 	})->middleware(['perm:userarea'])->name('userarea');
 
 	// Perfil del usuario
@@ -513,6 +560,9 @@ Route::middleware(['auth'])->group(function(){
 		// Appointment lifecycle global settings UI
 		Route::get('/appointment-settings', [\App\Http\Controllers\Admin\AppointmentSettingsController::class, 'index'])->name('admin.appointment.settings');
 		Route::post('/appointment-settings', [\App\Http\Controllers\Admin\AppointmentSettingsController::class, 'update'])->name('admin.appointment.settings.update');
+		// Appointment metrics dashboard
+		Route::get('/appointment-metrics', [\App\Http\Controllers\Admin\AppointmentMetricsController::class, 'index'])->name('admin.appointment.metrics');
+		Route::get('/appointment-metrics/json', [\App\Http\Controllers\Admin\AppointmentMetricsController::class, 'json'])->name('admin.appointment.metrics.json');
 
 		// Professional applications review (moved below with flexible permission)
 	});
@@ -1190,7 +1240,7 @@ Route::middleware('auth')->group(function(){
 			if ($method === 'sms' && !empty($user->phone) && env('TWILIO_SID') && env('TWILIO_TOKEN') && env('TWILIO_FROM')) {
 				try {
 					$client = new \Twilio\Rest\Client(env('TWILIO_SID'), env('TWILIO_TOKEN'));
-					$client->messages->create($user->phone, ['from' => env('TWILIO_FROM'), 'body' => "Código 2FA: {$code}"]); 
+					$client->messages->create($user->phone, ['from' => env('TWILIO_FROM'), 'body' => "Código 2FA: {$code}"]);
 				} catch (\Throwable $_) {
 					// fallback to email if SMS fails
 					$u = auth()->user(); if ($u) $u->notify(new \App\Notifications\DeviceReopen2FA($code, $request->ip(), $request->userAgent()));
@@ -1227,8 +1277,10 @@ Route::middleware('auth')->group(function(){
 
 	// Appointment session lifecycle endpoints
 	Route::post('/appointments/{appointment}/session/start', [\App\Http\Controllers\AppointmentSessionController::class, 'start'])->name('appointments.session.start');
-	Route::post('/appointments/{appointment}/session/heartbeat', [\App\Http\Controllers\AppointmentSessionController::class, 'heartbeat'])->name('appointments.session.heartbeat');
+	Route::post('/appointments/{appointment}/session/heartbeat', [\App\Http\Controllers\AppointmentSessionController::class, 'heartbeat'])->middleware('appointment.session.rate')->name('appointments.session.heartbeat');
 	Route::post('/appointments/{appointment}/session/complete', [\App\Http\Controllers\AppointmentSessionController::class, 'complete'])->name('appointments.session.complete');
+	Route::get('/appointments/{appointment}/session/status', [\App\Http\Controllers\AppointmentSessionController::class, 'status'])->name('appointments.session.status');
+	Route::post('/appointments/{appointment}/session/metrics', [\App\Http\Controllers\AppointmentSessionController::class, 'metrics'])->middleware('appointment.session.rate')->name('appointments.session.metrics');
 
 	// Ratings endpoints (patient -> professional)
 	Route::post('/appointments/{appointment}/rating', [\App\Http\Controllers\AppointmentRatingController::class, 'store'])->name('appointments.rating.store');
@@ -1675,4 +1727,4 @@ Route::middleware('auth')->group(function(){
 	try { if (\Illuminate\Support\Facades\Schema::hasTable('messages')) { $unread = \App\Models\Message::where('to_id',$u->id)->whereNull('read_at')->count(); } } catch(\Throwable $_){}
 	try { if (\Illuminate\Support\Facades\Schema::hasTable('friend_requests')) { $pending = \App\Models\FriendRequest::where('to_id',$u->id)->where('status','pending')->count(); } } catch(\Throwable $_){}
 	return response()->json(['ok'=>true,'messages_unread'=>$unread,'friend_requests_pending'=>$pending]);
-	})->name('api.counters');		
+	})->name('api.counters');

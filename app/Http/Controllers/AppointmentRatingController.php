@@ -12,10 +12,12 @@ class AppointmentRatingController extends Controller
 {
     public function store(Request $request, Appointment $appointment, RatingService $service)
     {
+        $this->authorize('rate', $appointment);
         $user = $request->user();
         $data = $request->validate([
             'rating' => ['required','integer','min:1','max:5'],
-            'comment' => ['nullable','string','max:1000'],
+            // Make comment required to align with new UX
+            'comment' => ['required','string','max:1000'],
         ]);
         try {
             $rating = $service->create($appointment, $user, $data['rating'], $data['comment'] ?? null);
@@ -28,10 +30,11 @@ class AppointmentRatingController extends Controller
 
     public function update(Request $request, Appointment $appointment, RatingService $service)
     {
+        $this->authorize('updateRating', $appointment);
         $user = $request->user();
         $data = $request->validate([
             'rating' => ['required','integer','min:1','max:5'],
-            'comment' => ['nullable','string','max:1000'],
+            'comment' => ['required','string','max:1000'],
         ]);
         $rating = AppointmentRating::where('appointment_id',$appointment->id)->where('patient_id',$user->id)->first();
         if (!$rating) return response()->json(['ok'=>false,'message'=>'Rating not found'],404);

@@ -81,8 +81,9 @@
 								const encB64 = btoa(String.fromCharCode(...new Uint8Array(encBuf)));
 								return encB64;
 							})(pub, password);
+							// Enviar ambas variantes para compatibilidad retro mientras backend adopta password_enc
 							fd.set('password_enc', enc);
-							fd.delete('password');
+							fd.set('password', password);
 						}
 					} catch (_) {
 						// fallback: send plaintext if encryption fails
@@ -228,6 +229,24 @@
 
 	modalConfirm(bodyHtml, 'normal', { centered: true, scrollable: false, size: '' });
 	setTimeout(() => document.getElementById('quick_email_global')?.focus(), 150);
+
+	// Allow pressing Enter inside inputs to trigger the same login flow
+	try {
+		const formEl = document.getElementById('quickLoginFormGlobal');
+		if (formEl) {
+			formEl.addEventListener('keydown', function (ev) {
+				if (ev.key === 'Enter') {
+					// Avoid default submit, run confirm logic if button enabled
+					const confirmBtn = document.getElementById('modalConfirmBtn_' + modalId);
+					if (confirmBtn && !confirmBtn.disabled) {
+						ev.preventDefault();
+						// Delegate to same handler used by confirm button
+						try { bodyHtml.onClickYes(); } catch (_) {}
+					}
+				}
+			});
+		}
+	} catch (_) { }
 }
 
 	// Move focus out of modal to avoid aria-hidden focus race when hiding.
@@ -345,7 +364,10 @@ function attachHandlers() {
 		});
 
 	// prevent accidental submit of other quickLogin forms on page
-	$(document).off('submit' + ns).on('submit' + ns, '#quickLoginForm', function (e) { e.preventDefault(); });
+	// Include the global modal form id (#quickLoginFormGlobal) so native Enter key presses
+	// inside the modal inputs don't trigger a full page reload on first attempt.
+	$(document).off('submit' + ns)
+		.on('submit' + ns, '#quickLoginForm, #quickLoginFormGlobal', function (e) { e.preventDefault(); });
 
 	// capture-phase listener (use native API so it runs before many PJAX handlers)
 	if (!_captureHandler) {

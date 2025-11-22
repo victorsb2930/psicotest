@@ -30,6 +30,16 @@ return new class extends Migration
 				// $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
 			}
 		});
+
+		// Partial unique index for open sessions (PostgreSQL only), originally in add migration
+		try {
+			$driver = \Illuminate\Support\Facades\DB::getDriverName();
+			if ($driver === 'pgsql') {
+				\Illuminate\Support\Facades\DB::statement("CREATE UNIQUE INDEX IF NOT EXISTS user_logins_unique_open_session ON user_logins (user_id, session_id) WHERE ended_at IS NULL;");
+			}
+		} catch (\Throwable $e) {
+			// ignore
+		}
 	}
 
 	/**

@@ -21,7 +21,7 @@
 					<h5 class="mb-2">Califica tus últimas citas</h5>
 					@foreach($pendingRatings as $appt)
 					@php
-					 $prof = $appt->professional; $profName = $prof?->name ?? 'Profesional';
+					 $prof = $appt->professional; $profName = ($prof?->name . ' ' . ($prof?->lastname ?? '')) ?? 'Profesional';
 					 $endHuman = $appt->end?->format('d/m/Y H:i');
 					@endphp
 					<div class="border rounded p-2 mb-2 rating-item" data-appt-id="{{ $appt->id }}">
@@ -37,7 +37,7 @@
 							</div>
 						</div>
 						<div class="mt-2">
-							<textarea class="form-control form-control-sm rating-comment" rows="2" maxlength="1000" placeholder="Comentario opcional (máx 1000 caracteres)"></textarea>
+							<textarea class="form-control form-control-sm rating-comment" rows="2" maxlength="1000" placeholder="Comentario (requerido, máx 1000 caracteres)" required></textarea>
 						</div>
 						<div class="mt-2 d-flex justify-content-end gap-2">
 							<button type="button" class="btn btn-sm btn-outline-secondary rating-skip" data-action="skip">Omitir ahora</button>
@@ -49,17 +49,68 @@
 				</div>
 				@endif
 			<div class="card card-compact p-3 mb-3">
-				<div class="d-flex justify-content-between align-items-center">
-					<div>
-						<small class="text-muted">PRÓXIMA CITA</small>
-						<div class="fw-bold">--</div>
-						<div>Con: <strong>--</strong></div>
+				@php $hasAppt = isset($nextAppt) && $nextAppt; @endphp
+				@if($hasAppt)
+					@php
+						$apptTitle = $nextAppt->title ?: ($nextAppt->professional?->name ? 'Cita con '.$nextAppt->professional->name : 'Cita');
+						$startStr = $nextAppt->start ? $nextAppt->start->format('d/m/Y H:i') : null;
+						$endStr = $nextAppt->end ? $nextAppt->end->format('H:i') : null;
+						$notes = trim((string)($nextAppt->notes ?? ''));
+					@endphp
+					<div class="d-flex justify-content-between align-items-start" id="pg-next-appt"
+						data-appt-id="{{ $nextAppt->id }}"
+						data-professional-id="{{ $nextAppt->professional_id }}"
+						data-title="{{ $apptTitle }}"
+						data-start="{{ $nextAppt->start?->toIso8601String() }}"
+						data-end="{{ $nextAppt->end?->toIso8601String() }}"
+						data-start-human="{{ $startStr }}"
+						data-end-human="{{ $endStr }}"
+						data-notes="{{ e($notes) }}"
+						@if(isset($pendingReschedule) && $pendingReschedule)
+							data-reschedule-id="{{ $pendingReschedule->id }}"
+							data-reschedule-start="{{ $pendingReschedule->proposed_start?->toIso8601String() }}"
+							data-reschedule-end="{{ $pendingReschedule->proposed_end?->toIso8601String() }}"
+						@endif
+					>
+						<div class="me-3">
+							<small class="text-muted">PRÓXIMA CITA</small>
+							<div class="fw-bold mt-1">{{ $apptTitle }}</div>
+							<div>Con: <strong>{{ $nextAppt->professional?->name ?? '—' }}</strong></div>
+							@if($startStr)
+								<div class="text-muted small mt-1">Horario: {{ $startStr }}@if($endStr) – {{ $endStr }}@endif</div>
+							@endif
+							@if(isset($pendingReschedule) && $pendingReschedule)
+								@php
+									$prStart = $pendingReschedule->proposed_start?->format('d/m/Y H:i');
+									$prEnd = $pendingReschedule->proposed_end?->format('d/m/Y H:i');
+								@endphp
+								<div class="alert alert-warning py-2 px-3 mt-2" id="pg-reschedule-banner">
+									<div class="small">Reprogramación pendiente: <strong>{{ $prStart }}</strong>@if($prEnd) – <strong>{{ $prEnd }}</strong>@endif</div>
+									<div class="mt-2 d-flex gap-2 flex-wrap">
+										<button type="button" class="btn btn-sm btn-primary" data-reschedule-action="accept" data-reschedule-id="{{ $pendingReschedule->id }}">Aceptar</button>
+										<button type="button" class="btn btn-sm btn-outline-secondary" data-reschedule-action="reject" data-reschedule-id="{{ $pendingReschedule->id }}">Rechazar</button>
+									</div>
+								</div>
+							@endif
+						</div>
+						<div class="text-end">
+							<button type="button" class="btn btn-outline-secondary btn-sm" data-appt-action="details">Ver detalles</button>
+							<button type="button" class="btn btn-success btn-sm" data-appt-action="join">Iniciar / Acceder</button>
+							<button type="button" class="btn btn-outline-primary btn-sm" data-appt-action="reschedule">Reprogramar</button>
+						</div>
 					</div>
-					<div>
-						<a href="#" class="btn btn-outline-secondary btn-sm">Ver detalles</a>
-						<a href="#" class="btn btn-success btn-sm">Ir a sala</a>
+				@else
+					<div class="d-flex justify-content-between align-items-center">
+						<div>
+							<small class="text-muted">PRÓXIMA CITA</small>
+							<div class="fw-bold">--</div>
+							<div>Con: <strong>--</strong></div>
+						</div>
+						<div>
+							<a href="{{ route('appointments.index') }}" class="btn btn-outline-secondary btn-sm">Abrir calendario</a>
+						</div>
 					</div>
-				</div>
+				@endif
 			</div>
 
 			<div class="card p-3 mb-3">

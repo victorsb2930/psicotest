@@ -1,12 +1,21 @@
 // Globals: jQuery, Bootstrap, Axios, tom-select, uuid, global functions, utils
 import './bootstrap';
 // RTC bootstrap/connect globally so incoming calls can reach the user on any page
-import './rtc';
+// Carga diferida de RTC para reducir tamaño del bundle principal.
+// Se importará dinámicamente sólo si el usuario está autenticado o la página requiere capacidades RTC (chat, calendario profesional, user appointments, disponibilidad).
+async function loadRTCIfNeeded() {
+	try {
+		const requiresRTC = window.__isAuth || ['chat','professional-calendar','user-appointments','professional-availability','professional-area'].includes(currentPageName);
+		if (!requiresRTC) return;
+		// Import dinámico: genera chunk separado (split) manejado por Vite
+		await import('./rtc');
+	} catch (_) {}
+}
 import './partials/quickLogin';
 import './notifications';
 import './partials/reopen2fa';
 
-/* 
+/*
 * Agrego aqui tambien la configuracion global CSRF => CSRF token mismatch.
 */
 
@@ -30,6 +39,7 @@ const pageModuleMap = {
 	,'admin-users': './pages/admin.users.js'
 	,'admin-professional-apps': './pages/admin.profapps.js'
 	,'admin-appointment-settings': './pages/admin.appointment.settings.js'
+	,'admin-appointment-metrics': './pages/admin.appointment.metrics.js'
 	,'professional-calendar': './pages/professional.calendar.js'
 	,'user-appointments': './pages/user.appointments.js'
 	,'professionals-search': './pages/professionals.search.js'
@@ -103,7 +113,7 @@ async function initPage() {
 // Ejecutar la inicialización al cargar la página (full navigation)
 
 document.addEventListener('DOMContentLoaded', () => {
-	initPage();
+	initPage().then(()=>{ try { loadRTCIfNeeded(); } catch(_){ } });
 	// Start PJAX after initial page scripts loaded
 	try { enablePJAX(); } catch (e) { /* if PJAX not supported ignore */ }
 	try { updateHeaderCTA(); } catch(_) {}
@@ -325,10 +335,12 @@ function enablePJAX() {
 			}
 			if (addToHistory) history.pushState({}, '', url);
 			if (addToHistory) {
-				try { pushToNavStack((new URL(url, location.href)).pathname); } catch(_){}
+				try { pushToNavStack((new URL(url, location.href)).pathname); } catch(_){ }
 			}
 			// Re-run page-specific initialization
 			try { await initPage(); } catch (e) {  }
+			// Tras inicializar nuevo módulo de página, evaluar si ahora se requiere RTC (navegación interna)
+			try { loadRTCIfNeeded(); } catch(_){}
 			// Update left-menu back button visibility after init
 			try { updateLeftmenuBackButton(); } catch (e) {}
 

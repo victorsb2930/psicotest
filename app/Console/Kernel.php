@@ -19,6 +19,9 @@ class Kernel extends ConsoleKernel
         \App\Console\Commands\FinalizeAppointmentsCommand::class,
         \App\Console\Commands\QueueAppointmentRemindersCommand::class,
         \App\Console\Commands\ApplyAppointmentPenaltiesCommand::class,
+        \App\Console\Commands\DetectNoShowCommand::class,
+        \App\Console\Commands\AggregateDailyAppointmentMetricsCommand::class,
+        \App\Console\Commands\AppointmentMetricsAlertsCommand::class,
     ];
 
     /**
@@ -36,6 +39,12 @@ class Kernel extends ConsoleKernel
         $schedule->command('appointments:queue-reminders')->everyFifteenMinutes()->withoutOverlapping();
         // Apply penalties for skipped/no-show appointments every 30 minutes
         $schedule->command('appointments:apply-penalties')->everyThirtyMinutes()->withoutOverlapping();
+        // Early classification of no-show/skipped during window
+        $schedule->command('appointments:detect-no-show')->everyFiveMinutes()->withoutOverlapping();
+        // Daily aggregation of metrics at 01:30 (after most sessions should be finalized)
+        $schedule->command('appointments:aggregate-daily')->dailyAt('01:30')->withoutOverlapping();
+        // Metrics alerts shortly after aggregation (01:35)
+        $schedule->command('appointments:metrics-alerts')->dailyAt('01:35')->withoutOverlapping();
     }
 
     /**

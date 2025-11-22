@@ -16,6 +16,7 @@ return new class extends Migration {
 			$table->date('birthdate');
 			$table->string('gender');
 			$table->string('email')->unique();
+			$table->string('phone', 32)->nullable()->index();
 			// timezone
 			$table->string('timezone')->nullable();
 			// Professional/profile metadata (images are stored in user_photos as file paths in 'path')
@@ -24,8 +25,12 @@ return new class extends Migration {
 			$table->string('location');
 			$table->decimal('rating', 3, 1)->nullable();
 			$table->timestamp('email_verified_at')->nullable();
+			$table->string('email_verification_token', 100)->nullable()->index();
+			$table->timestamp('email_verification_token_expires_at')->nullable()->index();
 			$table->string('password');
 			$table->boolean('is_active')->default(true);
+			$table->boolean('two_factor_enabled')->default(false)->index();
+			$table->string('two_factor_method', 20)->nullable();
 			// deactivation audit
 			$table->text('deactivated_reason')->nullable();
 			$table->timestamp('deactivated_at')->nullable();

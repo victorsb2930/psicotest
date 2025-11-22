@@ -37,11 +37,30 @@
 								data-end="{{ $nextAppt->end?->toIso8601String() }}"
 								data-start-human="{{ $startStr }}"
 								data-end-human="{{ $endStr }}"
-								data-notes="{{ e($notes) }}">
+								data-notes="{{ e($notes) }}"
+								@if(isset($pendingReschedule) && $pendingReschedule)
+									data-reschedule-id="{{ $pendingReschedule->id }}"
+									data-reschedule-start="{{ $pendingReschedule->proposed_start?->toIso8601String() }}"
+									data-reschedule-end="{{ $pendingReschedule->proposed_end?->toIso8601String() }}"
+								@endif
+							>
 								<div class="fw-bold mb-1">{{ $apptTitle }}</div>
 								<div>Paciente: <strong>{{ $nextAppt->patient?->name ?? '—' }}</strong></div>
 								@if($startStr)
 									<div class="text-muted small mt-1">Horario: {{ $startStr }}@if($endStr) – {{ $endStr }}@endif</div>
+								@endif
+								@if(isset($pendingReschedule) && $pendingReschedule)
+									@php
+										$prStart = $pendingReschedule->proposed_start?->format('d/m/Y H:i');
+										$prEnd = $pendingReschedule->proposed_end?->format('d/m/Y H:i');
+									@endphp
+									<div class="alert alert-warning py-2 px-3 mt-2" id="pg-reschedule-banner">
+										<div class="small">Reprogramación pendiente: <strong>{{ $prStart }}</strong>@if($prEnd) – <strong>{{ $prEnd }}</strong>@endif</div>
+										<div class="mt-2 d-flex gap-2 flex-wrap">
+											<button type="button" class="btn btn-sm btn-primary" data-reschedule-action="accept" data-reschedule-id="{{ $pendingReschedule->id }}">Aceptar</button>
+											<button type="button" class="btn btn-sm btn-outline-secondary" data-reschedule-action="reject" data-reschedule-id="{{ $pendingReschedule->id }}">Rechazar</button>
+										</div>
+									</div>
 								@endif
 								<div class="mt-3 d-flex gap-2 flex-wrap">
 									<button type="button" class="btn btn-sm btn-outline-secondary" data-appt-action="details">Ver detalles</button>
