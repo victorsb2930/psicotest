@@ -1284,6 +1284,21 @@ Route::middleware('auth')->group(function(){
 	Route::get('/appointments/events', [\App\Http\Controllers\UserAppointmentController::class, 'events'])->name('appointments.events');
 	// Create appointment (patient requests a new appointment)
 	Route::post('/appointments', [\App\Http\Controllers\UserAppointmentController::class, 'store'])->name('appointments.store');
+
+	// Quick meta for a specific appointment (status + start) used by UI polling
+	Route::get('/appointments/{appointment}/meta', function(\Illuminate\Http\Request $r, \App\Models\Appointment $appointment){
+		$user = auth()->user();
+		if (!$user) return response()->json(['ok'=>false,'message'=>'unauthenticated'], 401);
+		// Only allow participants (patient or professional) to query
+		if (!in_array($user->id, [(int)$appointment->patient_id, (int)$appointment->professional_id], true)) {
+			return response()->json(['ok'=>false,'message'=>'forbidden'], 403);
+		}
+		return response()->json([
+			'ok' => true,
+			'status' => (string) ($appointment->status ?? ''),
+			'start' => $appointment->start ? $appointment->start->toIso8601String() : null,
+		]);
+	})->name('appointments.meta');
 	// Patient accept/reject endpoints (calls to AppointmentController)
 	Route::post('/appointments/{appointment}/accept', [\App\Http\Controllers\AppointmentController::class, 'accept'])->name('appointments.patient.accept');
 	Route::post('/appointments/{appointment}/reject', [\App\Http\Controllers\AppointmentController::class, 'reject'])->name('appointments.patient.reject');
