@@ -3,11 +3,12 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\DB;
+//use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
 use Spatie\Permission\Models\Role as SpatieRole;
 use App\Models\User;
+use Throwable;
 
 class TestUsersSeeder extends Seeder
 {
@@ -15,7 +16,7 @@ class TestUsersSeeder extends Seeder
     {
         // Ensure base roles exist
         foreach (['admin','professional','user'] as $rn) {
-            try { SpatieRole::findOrCreate($rn, 'web'); } catch (\Throwable $e) { /* ignore */ }
+            try { SpatieRole::findOrCreate($rn, 'web'); } catch (Throwable $e) { /* ignore */ }
         }
 
         $now = now();
@@ -36,7 +37,7 @@ class TestUsersSeeder extends Seeder
         $user->email_verified_at = $user->email_verified_at ?: $now;
         if ($hasIsActive) { $user->is_active = true; }
         $user->save();
-        try { $user->syncRoles(['user']); } catch (\Throwable $_) {}
+        try { $user->syncRoles(['user']); } catch (Throwable $_) {}
 
         // Professional user
         $proEmail = env('SEED_PRO_EMAIL', 'pro@example.com');
@@ -56,7 +57,7 @@ class TestUsersSeeder extends Seeder
         $pro->email_verified_at = $pro->email_verified_at ?: $now;
         if ($hasIsActive) { $pro->is_active = true; }
         $pro->save();
-        try { $pro->syncRoles(['professional']); } catch (\Throwable $_) {}
+        try { $pro->syncRoles(['professional']); } catch (Throwable $_) {}
 
         // Optional: attach free plan to normal user if exists
         try {
@@ -76,7 +77,7 @@ class TestUsersSeeder extends Seeder
                     }
                 }
             }
-        } catch (\Throwable $_) {}
+        } catch (Throwable $_) {}
 
         if ($this->command) {
             $this->command->info('Seeded test accounts:');

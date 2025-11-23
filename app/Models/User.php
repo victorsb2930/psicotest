@@ -62,7 +62,7 @@ class User extends Authenticatable
 		'appointment_types' => 'array',
 	];
 
-	/**
+    /**
 	 * Return a data URL for the photo blob if present to be used in <img src="...">.
 	 */
 	/**

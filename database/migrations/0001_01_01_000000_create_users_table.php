@@ -37,6 +37,9 @@ return new class extends Migration {
 			// presence/status fields
 			$table->string('status', 32)->default('online')->index();
 			$table->timestamp('last_seen_at')->nullable()->index();
+			// ConnectyCube integration fields
+			$table->unsignedBigInteger('cc_user_id')->nullable()->index();
+			$table->string('cc_login', 255)->nullable()->index();
 			$table->rememberToken();
 			$table->softDeletes();
 			$table->timestamps();

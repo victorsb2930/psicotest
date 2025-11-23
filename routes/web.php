@@ -1511,8 +1511,24 @@ Route::middleware('auth')->group(function(){
 	try { if (!$ccId && \Illuminate\Support\Facades\Schema::hasColumn('users','connectycube_user_id') && !empty($user->connectycube_user_id)) { $ccId = (int)$user->connectycube_user_id; } } catch (\Throwable $_) {}
 	if (!$ccId) $ccId = (int)$user->id;
 	$ccUser = ['userId' => (int)$ccId, 'login' => $deterministicLogin, 'password' => $password];
-		// Build map like /rtc/map
+		// Build map like /rtc/map e incluir participantes explícitos de la cita
 		$ids = [];
+		// Siempre incluir usuario actual para asegurar presencia en userIdMap
+		$ids[] = (int)$user->id;
+		// Param opcional other (id del otro participante pasado desde frontend)
+		$other = (int) request()->query('other', 0);
+		if($other > 0 && $other !== (int)$user->id){ $ids[] = $other; }
+		// Param opcional appt (id de cita) para agregar professional y patient
+		$apptId = (int) request()->query('appt', 0);
+		if($apptId > 0){
+			try {
+				$appt = \App\Models\Appointment::find($apptId);
+				if($appt){
+					if($appt->professional_id && $appt->professional_id !== $user->id) $ids[] = (int)$appt->professional_id;
+					if($appt->patient_id && $appt->patient_id !== $user->id) $ids[] = (int)$appt->patient_id;
+				}
+			} catch(\Throwable $_) {}
+		}
 		try {
 			if (\Illuminate\Support\Facades\Schema::hasTable('messages')) {
 				$partners = \App\Models\Message::query()
