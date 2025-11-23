@@ -31,7 +31,7 @@ class FakeInvoice extends Mailable
      */
     public function build()
     {
-        $m = $this->subject('Factura simulada - ' . ($this->plan->name ?? 'Plan'))
+        $m = $this->subject('Factura - ' . ($this->plan->name ?? 'Plan'))
             ->view('emails.fake_invoice');
 
         // Try to generate a PDF invoice if Dompdf is installed

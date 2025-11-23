@@ -13,7 +13,7 @@
 </head>
 <body>
   <div class="header">
-    <h2>Factura simulada</h2>
+    <h2>Factura</h2>
     <div>PsicoGuia</div>
   </div>
   <p>Cliente: {{ $user->name }} &lt;{{ $user->email }}&gt;</p>

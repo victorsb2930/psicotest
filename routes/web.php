@@ -808,10 +808,25 @@ Route::get('/planes', function () {
 	return view('plans.index');
 })->middleware('auth')->name('plans.index');
 
+// Admin: update plan pricing (price in cents and discount percent)
+Route::post('/admin/plans/{plan}/pricing', [\App\Http\Controllers\PlanAdminController::class, 'updatePricing'])
+	->middleware(['auth','perm:adminarea'])
+	->name('admin.plans.update_pricing');
+
 // Billing API: subscribe to a plan (simulated provider)
 Route::post('/billing/subscribe', [\App\Http\Controllers\BillingController::class, 'subscribe'])
 	->middleware('auth')
 	->name('billing.subscribe');
+
+// Appointment credits: check remaining included + purchased credits
+Route::get('/user/appointment-credits', [\App\Http\Controllers\BillingController::class, 'appointmentCredits'])
+	->middleware('auth')
+	->name('user.appointment_credits');
+
+// Purchase a single appointment credit (simulated)
+Route::post('/billing/purchase-appointment', [\App\Http\Controllers\BillingController::class, 'purchaseAppointment'])
+	->middleware('auth')
+	->name('billing.purchase_appointment');
 
 // User notifications listing (simple)
 Route::middleware('auth')->group(function(){

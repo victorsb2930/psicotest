@@ -199,6 +199,48 @@ import RtcUI from './rtc-ui';
 		if (!ConnectyCube?.videochat) return;
 		// Centralized, one-time UI listeners using RtcUI
 		ConnectyCube.videochat.onCallListener = function (session) {
+			// If this incoming session carries an appointment marker, route it to the
+			// appointment modal handler instead of the generic chat UI.
+			try {
+				const ext = session && (session.userInfo || session.extension || session.extraParams || session.params || (session.signal && session.signal.extension) || {});
+				const apptId = ext && (ext.appointment_id || ext.appt || ext.appointmentId || ext.appointment);
+				if (apptId && typeof window.openAppointmentCall === 'function') {
+					// Determine probable caller app user id from available fields (may be a CC id)
+					const callerCcId = (session && (session.callerID || session.initiatorID || session.initiator || session.userId || session.senderId)) || '';
+					try {
+						// Pass the SDK session object to the appointment modal so it can reuse
+						// the incoming ConnectyCube session instead of creating a new one.
+						window.openAppointmentCall({ id: String(apptId), otherUserId: String(callerCcId || ''), role: undefined, currentUserId: window.__authUserId, ccSession: session });
+					} catch(_){ }
+					return; // skip generic RtcUI handling
+				}
+
+				// Fallback: If no explicit appointment marker, try to infer from the page's next-appointment data.
+				const wrap = document.getElementById('pg-next-appt');
+				if (wrap) {
+					const apptDomId = wrap.getAttribute('data-appt-id');
+					const patientAppId = wrap.getAttribute('data-patient-id');
+					const professionalAppId = wrap.getAttribute('data-professional-id');
+					// Try to derive caller's app id from CC id mapping
+					const ccCallerId = (session && (session.callerID || session.initiatorID || session.initiator || session.userId || session.senderId));
+					let callerAppId = null;
+					try {
+						const map = window.__ccUserIdMap || {};
+						for (const [appId, ccId] of Object.entries(map || {})) {
+							if (String(ccId) === String(ccCallerId)) { callerAppId = String(appId); break; }
+						}
+					} catch(_) { callerAppId = null; }
+					// If callerAppId matches either side of the appointment, route to appointment modal
+					if (apptDomId && (callerAppId === patientAppId || callerAppId === professionalAppId)) {
+						// Determine otherUserId (app id) to pass to openAppointmentCall
+						let otherUserId = (callerAppId === patientAppId) ? professionalAppId : patientAppId;
+						// If mapping produced CC ids only, pass through detected values
+						try { window.openAppointmentCall({ id: String(apptDomId), otherUserId: String(otherUserId || ''), role: undefined, currentUserId: window.__authUserId }); } catch(_){}
+						return; // appointment handled
+					}
+				}
+			} catch(_) {}
+
 			currentSession = session;
 			RtcUI.showIncoming(session, {
 				onAccept: async () => {
@@ -225,6 +267,34 @@ import RtcUI from './rtc-ui';
 			if (currentSession && session.ID !== currentSession.ID) return;
 			RtcUI.onRemoteStream(remoteStream);
 		};
+
+		// Global signalling listener: catch appointment-type messages sent via videochat signalling
+		if (typeof ConnectyCube.videochat.onMessageListener === 'undefined') {
+			ConnectyCube.videochat.onMessageListener = function(userId, message) {
+				try {
+					// message may be { type, appointment_id, module } or a JSON string in `message`
+					let payload = message;
+					if (typeof payload === 'string') {
+						try { payload = JSON.parse(payload); } catch(_) { payload = { body: String(message) }; }
+					}
+					if (payload && (payload.type === 'appointment' || payload.module === 'appointment' || payload.appointment_id)) {
+						const apptId = payload.appointment_id || payload.appt || payload.appointmentId || payload.appointment;
+						if (apptId && typeof window.openAppointmentCall === 'function') {
+							// Map sender CC id back to app user id if possible
+							let otherUserId = '';
+							try {
+								const map = window.__ccUserIdMap || {};
+								for (const [appId, ccId] of Object.entries(map || {})) {
+									if (String(ccId) === String(userId)) { otherUserId = String(appId); break; }
+								}
+							} catch(_) {}
+							try { window.openAppointmentCall({ id: String(apptId), otherUserId: String(otherUserId || userId), role: undefined, currentUserId: window.__authUserId }); } catch(_){}
+							return;
+						}
+					}
+				} catch(_) {}
+			};
+		}
 		ConnectyCube.videochat.onAcceptCallListener = function (session) {
 			currentSession = session;
 			RtcUI.showConnected();

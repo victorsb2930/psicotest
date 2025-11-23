@@ -118,7 +118,7 @@ export default function init() {
 				});
 			});
 
-			// wire request buttons: redirigir al calendario con query params para autolanzar modal
+			// wire request buttons: use requestAppointmentFlow if available, otherwise redirect to /appointments
 			Array.from(document.querySelectorAll('.btn-request')).forEach(b => {
 				b.addEventListener('click', () => {
 					const id = b.getAttribute('data-id');
@@ -126,12 +126,15 @@ export default function init() {
 					let profTitle = b.getAttribute('data-title') || '';
 					// fallback DOM extraction
 					if (!profName) {
-						try { const h5 = b.closest('.card')?.querySelector('h5'); if (h5) profName = h5.textContent.trim(); } catch(_){}
+						try { const h5 = b.closest('.card')?.querySelector('h5'); if (h5) profName = h5.textContent.trim(); } catch(_){ }
 					}
 					if (!profTitle) {
-						try { const spec = b.closest('.card')?.querySelector('.mt-2.small strong'); if (spec) profTitle = spec.textContent.trim(); } catch(_){}
+						try { const spec = b.closest('.card')?.querySelector('.mt-2.small strong'); if (spec) profTitle = spec.textContent.trim(); } catch(_){ }
 					}
 					const params = new URLSearchParams({ professional_id: id || '', professional_name: profName || '', professional_title: profTitle || '' });
+					if (typeof window.requestAppointmentFlow === 'function') {
+						try { window.requestAppointmentFlow(id || '', profName || '', profTitle || ''); return; } catch (e) { /* fallback to redirect below */ }
+					}
 					// Calendar route: asumimos /appointments (según blades y rutas)
 					window.location.href = '/appointments?' + params.toString();
 				});
@@ -183,7 +186,7 @@ async function showRatingsModal(profId, btn){
 		if (!modalEl || !contentEl) return;
 		contentEl.innerHTML = '<div class="text-center text-muted py-3">Cargando...</div>';
 		// Fetch public ratings list
-		const url = `/professionals/${encodeURIComponent(profId)}/ratings/public`; 
+		const url = `/professionals/${encodeURIComponent(profId)}/ratings/public`;
 		let data = null;
 		try {
 			const res = await fetch(url, { headers: { 'Accept':'application/json' } });

@@ -24,8 +24,26 @@ class AppointmentPolicy
     public function startSession(User $user, Appointment $appointment): bool
     {
         if(!$this->isParticipant($user, $appointment)) return false;
-        // Allow session start only if appointment accepted or in_progress
-        return in_array($appointment->status, ['accepted','in_progress'], true);
+        // Allow session start if appointment already accepted or in_progress.
+        if (in_array($appointment->status, ['accepted','in_progress'], true)) return true;
+        // Also allow early access for participants when appointment is still 'pending'
+        // but within the early access window configured in appointments. This mirrors
+        // AppointmentSessionService::isWithinEarlyAccessWindow so clients can call
+        // the start endpoint shortly before the scheduled time.
+        try {
+            if ($appointment->status === 'pending' && $appointment->start) {
+                $minutes = (int) config('appointments.early_access_minutes', 15);
+                $now = \Illuminate\Support\Carbon::now();
+                $windowStart = $appointment->start->copy()->subMinutes($minutes);
+                $windowEnd = $appointment->end ?: $appointment->start->copy()->addMinutes(60);
+                if ($now->between($windowStart, $windowEnd)) {
+                    return true;
+                }
+            }
+        } catch (\Throwable $_) {
+            // On any error, fall through to deny
+        }
+        return false;
     }
 
     public function heartbeat(User $user, Appointment $appointment): bool
