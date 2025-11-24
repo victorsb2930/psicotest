@@ -14,13 +14,13 @@ window.__currentUserTz = @json(optional(auth()->user())->timezone ?? null);
 
     let joinBtn = container.querySelector('[data-appt-action="join"]');
 
-    function disableBtn() {
-        try { if (!joinBtn) joinBtn = container.querySelector('[data-appt-action="join"]'); if (!joinBtn) return; joinBtn.disabled = true; joinBtn.classList.add('disabled'); joinBtn.setAttribute('aria-disabled','true'); } catch(e){}
-    }
+    // Make join button always enabled: disableBtn is a no-op and we enable immediately
+    function disableBtn() { /* intentionally no-op to keep button enabled */ }
     function enableBtn() {
         try { if (!joinBtn) joinBtn = container.querySelector('[data-appt-action="join"]'); if (!joinBtn) return; joinBtn.disabled = false; joinBtn.classList.remove('disabled'); joinBtn.removeAttribute('aria-disabled'); } catch(e){}
     }
-    disableBtn();
+    // Ensure button is enabled immediately
+    enableBtn();
 
     function getLocalDateParts(date, tz) {
         try {
@@ -96,7 +96,8 @@ window.__currentUserTz = @json(optional(auth()->user())->timezone ?? null);
                                 const jb = container.querySelector('[data-appt-action="join"]');
                                 if (jb) {
                                     joinBtn = jb;
-                                    disableBtn();
+                                    // keep it enabled
+                                    enableBtn();
                                     try { if (statusNode && statusNode.parentNode) {} else { if (joinBtn && joinBtn.parentNode) joinBtn.parentNode.insertBefore(statusNode, joinBtn); } } catch(_){ }
                                 }
                             }
@@ -109,9 +110,10 @@ window.__currentUserTz = @json(optional(auth()->user())->timezone ?? null);
 
         // When returning to the tab, ensure button is disabled until poll allows it
         try {
+            // Keep button enabled when tab visibility changes; continue polling as usual
             document.addEventListener('visibilitychange', function(){
                 if (document.visibilityState === 'visible') {
-                    try { disableBtn(); } catch(_){ }
+                    try { enableBtn(); } catch(_){ }
                     try { if (!pollHandle) schedulePollingOnDay(); } catch(_){ }
                 }
             });
