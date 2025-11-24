@@ -96,23 +96,49 @@
 				</div>
 
 				<aside class="col-lg-3">
-					<div class="card p-3">
-						<h6 class="small text-muted">KPIs</h6>
-						<div class="d-flex flex-column gap-2">
-							<div class="d-flex justify-content-between"><div>Sesiones hoy</div><div class="fw-bold">0</div></div>
-							<div class="d-flex justify-content-between"><div>Ingresos (30d)</div><div class="fw-bold">$0</div></div>
-							<div class="d-flex justify-content-between"><div>Rating</div><div class="fw-bold">-</div></div>
-						</div>
-					</div>
+					@php
+						$pro = auth()->user();
+						$start = \Carbon\Carbon::now()->startOfMonth();
+						$end = \Carbon\Carbon::now()->endOfMonth();
+						$sessions_today = 0; // could compute if needed
+						$completed_month = 0;
+						$completed_total = 0;
+						$income_30d = 0;
+						$income_total = 0;
+						$rating_avg = null;
+						try {
+							$completed_month = \App\Models\Appointment::where('professional_id', $pro->id)->where('status', 'completed')->whereBetween('start', [$start, $end])->count();
+							$completed_total = \App\Models\Appointment::where('professional_id', $pro->id)->where('status', 'completed')->count();
+							$income_30d = (int) (\App\Models\Payment::where('recipient_user_id', $pro->id)->where('status', 'succeeded')->where('created_at', '>=', \Carbon\Carbon::now()->subDays(30))->sum('amount_cents')) / 100;
+							$income_total = (int) (\App\Models\Payment::where('recipient_user_id', $pro->id)->where('status', 'succeeded')->sum('amount_cents')) / 100;
+							$rating_avg = $pro->ratings_avg ?? \App\Models\AppointmentRating::where('professional_id', $pro->id)->avg('rating');
+						} catch (\Throwable $_) {
+							// silently ignore DB errors in view
+						}
+					@endphp
 
-					{{-- <div class="card p-3 mt-3">
-						<small class="text-muted">Accesos rápidos</small>
-						<div class="d-grid gap-2 mt-2">
-							<a href="#" class="btn btn-outline-primary btn-sm">Nuevo cupón</a>
-							<a href="#" class="btn btn-outline-secondary btn-sm">Exportar facturas</a>
-							<a href="{{ route('professional.appointments.history') }}" class="btn btn-outline-success btn-sm">Historial de citas</a>
-						</div>
-					</div> --}}
+					<div class="d-grid gap-3">
+						<x-card title="KPIs" :hover="false" :center="false" height="auto" width="100%" >
+							<div class="d-flex flex-column gap-2">
+								<div class="d-flex justify-content-between"><div>Sesiones (este mes)</div><div class="fw-bold">{{ $completed_month }}</div></div>
+								<div class="d-flex justify-content-between"><div>Citas completadas</div><div class="fw-bold">{{ $completed_total }}</div></div>
+								<div class="d-flex justify-content-between"><div>Ingresos (30d)</div><div class="fw-bold">${{ number_format($income_30d, 2) }}</div></div>
+								<div class="d-flex justify-content-between"><div>Ingresos totales</div><div class="fw-bold">${{ number_format($income_total, 2) }}</div></div>
+								<div class="d-flex justify-content-between"><div>Rating</div><div class="fw-bold">{{ $rating_avg ? number_format($rating_avg, 2) : '-' }}</div></div>
+							</div>
+							@if(false)
+							<div class="mt-2"><a href="#" class="btn btn-outline-secondary btn-sm">Ver detalles</a></div>
+							@endif
+						</x-card>
+
+						<x-card title="Accesos rápidos" :hover="false" :center="false" height="auto" width="100%" >
+							<div class="d-grid gap-2">
+								{{-- <a href="#" class="btn btn-outline-primary btn-sm">Nuevo cupón</a>
+								<a href="#" class="btn btn-outline-secondary btn-sm">Exportar facturas</a> --}}
+								<a href="{{ route('professional.appointments.history') }}" class="btn btn-outline-success btn-sm">Historial de citas</a>
+							</div>
+						</x-card>
+					</div>
 				</aside>
 			</section>
 		</main>
