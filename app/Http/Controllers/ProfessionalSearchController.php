@@ -112,6 +112,16 @@ class ProfessionalSearchController extends Controller
 				}
 			}
 
+			// compute appointment counts: total completed and completed in current month
+			$completedTotal = 0;
+			$completedThisMonth = 0;
+			try {
+				$completedTotal = \App\Models\Appointment::where('professional_id', $u->id)->where('status', 'completed')->count();
+				$start = \Carbon\Carbon::now()->startOfMonth();
+				$end = \Carbon\Carbon::now()->endOfMonth();
+				$completedThisMonth = \App\Models\Appointment::where('professional_id', $u->id)->where('status', 'completed')->whereBetween('start', [$start, $end])->count();
+			} catch (\Throwable $_) { /* ignore */ }
+
 			return [
 				'id' => $u->id,
 				'name' => $u->name,
@@ -121,6 +131,8 @@ class ProfessionalSearchController extends Controller
 				'speciality' => $u->speciality ?? null,
 				'ratings_avg' => (float) ($u->ratings_avg ?? 0),
 				'ratings_count' => (int) ($u->ratings_count ?? 0),
+				'completed_count' => (int) $completedTotal,
+				'completed_count_month' => (int) $completedThisMonth,
 				'appointment_types' => $types,
 				'location' => $u->location ?? null,
 			];

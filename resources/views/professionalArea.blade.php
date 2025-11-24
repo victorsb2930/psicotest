@@ -77,14 +77,14 @@
 						@endif
 					</x-card>
 
-					<div class="card card-compact mt-3">
+					{{-- <div class="card card-compact mt-3">
 						<small class="text-muted">Onboarding</small>
 						<ul class="mb-0 mt-2">
 							<li>Verificar credenciales <small class="text-success">@if(auth()->user()->hasVerifiedEmail()) ✔ @endif</small></li>
 							<li>Configurar precios</li>
 							<li>Completar bio</li>
 						</ul>
-					</div>
+					</div> --}}
 				</div>
 
 				<div class="col-lg-5">
@@ -105,14 +105,14 @@
 						</div>
 					</div>
 
-					<div class="card p-3 mt-3">
+					{{-- <div class="card p-3 mt-3">
 						<small class="text-muted">Accesos rápidos</small>
 						<div class="d-grid gap-2 mt-2">
 							<a href="#" class="btn btn-outline-primary btn-sm">Nuevo cupón</a>
 							<a href="#" class="btn btn-outline-secondary btn-sm">Exportar facturas</a>
 							<a href="{{ route('professional.appointments.history') }}" class="btn btn-outline-success btn-sm">Historial de citas</a>
 						</div>
-					</div>
+					</div> --}}
 				</aside>
 			</section>
 		</main>

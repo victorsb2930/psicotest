@@ -573,6 +573,15 @@ Route::middleware(['auth'])->group(function(){
 			return view('admin.devices.index', compact('devices'));
 		})->name('admin.devices');
 
+		// Admin payments management
+		Route::get('/admin/payments', [\App\Http\Controllers\AdminPaymentController::class, 'index'])
+			->middleware(['auth','perm:adminarea'])
+			->name('admin.payments.index');
+
+		Route::post('/admin/payments/payout', [\App\Http\Controllers\AdminPaymentController::class, 'payout'])
+			->middleware(['auth','perm:adminarea'])
+			->name('admin.payments.payout');
+
 		Route::post('/devices/{device}/revoke', function(\Illuminate\Http\Request $r, \App\Models\UserDevice $device){
 			// mark revoked
 			$device->revoked_at = now();

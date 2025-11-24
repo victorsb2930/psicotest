@@ -67,14 +67,17 @@ class BillingController extends Controller
                     }
                 } catch (\Throwable $_) { $discountPercent = 0; }
                 $amount = (int) round($baseAmount * (1 - max(0, min(100, $discountPercent)) / 100.0));
+                $recipientId = (int) env('PLATFORM_OWNER_USER_ID', 0) ?: null;
                 $payment = Payment::create([
                     'user_id' => $user->id,
                     'subscription_id' => $activeSub->id,
+                    'recipient_user_id' => $recipientId,
                     'amount_cents' => $amount,
                     'currency' => $plan->currency,
                     'provider' => 'simulated',
                     'provider_charge_id' => null,
                     'status' => 'succeeded',
+                    'type' => 'sale',
                 ]);
 
                 try {
@@ -122,14 +125,17 @@ class BillingController extends Controller
                 }
             } catch (\Throwable $_) { $discountPercent = 0; }
             $amount = (int) round($baseAmount * (1 - max(0, min(100, $discountPercent)) / 100.0));
+            $recipientId = (int) env('PLATFORM_OWNER_USER_ID', 0) ?: null;
             $payment = Payment::create([
                 'user_id' => $user->id,
                 'subscription_id' => $sub->id,
+                'recipient_user_id' => $recipientId,
                 'amount_cents' => $amount,
                 'currency' => $plan->currency,
                 'provider' => 'simulated',
                 'provider_charge_id' => null,
                 'status' => 'succeeded',
+                'type' => 'sale',
             ]);
 
             // Send fake invoice to user + HR emails (best-effort)
@@ -214,14 +220,17 @@ class BillingController extends Controller
             $tx = AppointmentCreditTransaction::createPurchase($user->id, 1, ['source' => 'simulated']);
             // Optionally record a simulated payment
             try {
+                $recipientId = (int) env('PLATFORM_OWNER_USER_ID', 0) ?: null;
                 $payment = Payment::create([
                     'user_id' => $user->id,
                     'subscription_id' => null,
+                    'recipient_user_id' => $recipientId,
                     'amount_cents' => 0,
                     'currency' => 'USD',
                     'provider' => 'simulated',
                     'provider_charge_id' => null,
                     'status' => 'succeeded',
+                    'type' => 'sale',
                 ]);
             } catch (\Throwable $_) { Log::info('purchaseAppointment: failed to create payment record'); }
 

@@ -40,6 +40,7 @@ const pageModuleMap = {
 	,'admin-professional-apps': './pages/admin.profapps.js'
 	,'admin-appointment-settings': './pages/admin.appointment.settings.js'
 	,'admin-appointment-metrics': './pages/admin.appointment.metrics.js'
+	,'admin-payments': './pages/admin.payments.js'
 	,'professional-calendar': './pages/professional.calendar.js'
 	,'user-appointments': './pages/user.appointments.js'
 	,'professionals-search': './pages/professionals.search.js'

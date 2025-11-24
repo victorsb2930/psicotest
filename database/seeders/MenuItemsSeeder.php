@@ -39,6 +39,7 @@ class MenuItemsSeeder extends Seeder
             ['label' => 'Permisos', 'route_name' => 'admin.permissions.index', 'icon_class' => 'bi bi-key', 'section' => 'admin', 'sort_order' => 50, 'permission' => 'adminarea'],
             ['label' => 'Gestion del menú', 'route_name' => 'admin.menuitems.index', 'icon_class' => 'bi bi-list-task', 'section' => 'admin', 'sort_order' => 55, 'permission' => 'adminarea'],
             ['label' => 'Dispositivos', 'route_name' => 'admin.devices', 'icon_class' => 'bi bi-phone', 'section' => 'admin', 'sort_order' => 60, 'permission' => 'adminarea'],
+            ['label' => 'Pagos', 'route_name' => 'admin.payments.index', 'icon_class' => 'bi bi-credit-card', 'section' => 'admin', 'sort_order' => 61, 'permission' => null],
         ];
 
         // Add appointment settings item if route exists
@@ -117,7 +118,7 @@ class MenuItemsSeeder extends Seeder
         };
 
         // Admin items -> role admin
-        foreach (['Dashboard','Usuarios','Solicitudes','Roles','Permisos','Gestion del menú','Dispositivos','Ajustes de Citas','Métricas de Citas'] as $lbl) { $attach($lbl, ['admin']); }
+        foreach (['Dashboard','Usuarios','Solicitudes','Roles','Permisos','Gestion del menú','Dispositivos','Pagos','Ajustes de Citas','Métricas de Citas'] as $lbl) { $attach($lbl, ['admin']); }
         // Professional items -> role professional (Chat y Calendario usuario se anexan aparte)
         foreach (['Mi panel','Calendario Profesional','Disponibilidad','Mis Calificaciones','Pacientes','Servicios','Historial de Citas','Historial de Pagos','Configuración'] as $lbl) { $attach($lbl, ['professional']); }
         // User items -> role user (Chat común más abajo)
