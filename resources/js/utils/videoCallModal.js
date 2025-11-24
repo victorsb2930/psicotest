@@ -1,6 +1,6 @@
 // Video call modal for appointments
 // Provides openAppointmentCall({ id, otherUserId, role }) to start session, show modal, heartbeat, and finalize.
-import ConnectyCube from 'connectycube';
+import createSignalingClient from './webrtcSignaling';
 
 export function openAppointmentCall(opts) {
 	const { id, otherUserId, role, currentUserId, ccSession: incomingCcSession } = opts || {};
@@ -241,7 +241,38 @@ function renderBody(rtc) {
 			// Prevent other global handlers (chat/RTC UI) from reacting to clicks inside this modal
 			try { ev.preventDefault(); ev.stopImmediatePropagation(); ev.stopPropagation(); } catch (_) { }
 			const act = btn.getAttribute('data-call-action');
-			if (act === 'end') { manualEnd = true; await completeSession(); window.modalNotification?.('Sesión', 'Finalizada', { template: 'info' }); window.closeAllModals?.(); return; }
+			if (act === 'end') {
+				// Mark manual end and close the modal via Bootstrap API. If that
+				// fails or the helper is missing, fall back to direct cleanup after
+				// a short timeout.
+				manualEnd = true;
+				try { window.modalNotification?.('Sesión', 'Finalizada', { template: 'info' }); } catch (_) { }
+				try {
+					const el = document.getElementById(modalId);
+					if (el && window.bootstrap && window.bootstrap.Modal) {
+						let m = window.bootstrap.Modal.getInstance(el);
+						if (!m) m = new window.bootstrap.Modal(el);
+						m.hide();
+					} else if (typeof window.closeAllModals === 'function') {
+						window.closeAllModals();
+					} else {
+						// Last resort: remove the 'show' class and hide backdrop so hidden.bs.modal fires
+						if (el) { el.classList.remove('show'); el.style.display = 'none'; }
+					}
+				} catch (_) {
+					try { window.closeAllModals?.(); } catch (_) { }
+				}
+				// Ensure cleanup happens eventually even if modal hide events do not fire
+				setTimeout(() => {
+					try {
+						const still = document.getElementById(modalId);
+						if (still && manualEnd) {
+							try { completeSession(); } catch (_) { }
+						}
+					} catch (_) { }
+				}, 1500);
+				return;
+			}
 			if (act === 'toggle-mic') { btn.classList.toggle('btn-outline-primary'); btn.classList.toggle('btn-primary'); toggleTrack('audio'); }
 			if (act === 'toggle-cam') { btn.classList.toggle('btn-outline-primary'); btn.classList.toggle('btn-primary'); toggleTrack('video'); }
 			if (act === 'join') { try { await joinConference(); } catch(e){ console.error('joinConference error', e); updatePlaceholder('Error al unirse'); } }
@@ -331,6 +362,8 @@ function renderBody(rtc) {
 	// ---- ConnectyCube integration layer ----
 	let ccSession = null; let ccLocalStream = null; let ccOpponentId = null; let ccCallActive = false; let ccCurrentSession = null;
 	let ccConferenceRoomId = null;
+	// P2P signaling (Socket.IO)
+	let pgSignaler = null; let pgSignalingRoom = null;
 	// Ensure completeSession exists early so UI handlers can call it before wrapper is defined.
 	let completeSession = async function () { /* placeholder; will be wrapped later */ };
 
@@ -350,22 +383,14 @@ function renderBody(rtc) {
 
 // Helper: find a conference join function across different ConnectyCube SDK namespaces
 function findConferenceJoin(){
-	try{
-		if(typeof ConnectyCube !== 'undefined'){
-			if(ConnectyCube.videochatconference && typeof ConnectyCube.videochatconference.join === 'function'){
-				return ConnectyCube.videochatconference.join.bind(ConnectyCube.videochatconference);
-			}
-			if(ConnectyCube.conference && typeof ConnectyCube.conference.join === 'function'){
-				return ConnectyCube.conference.join.bind(ConnectyCube.conference);
-			}
-			if(ConnectyCube.videochat && ConnectyCube.videochat.conference && typeof ConnectyCube.videochat.conference.join === 'function'){
-				return ConnectyCube.videochat.conference.join.bind(ConnectyCube.videochat.conference);
-			}
-			if(ConnectyCube.videochatConference && typeof ConnectyCube.videochatConference.join === 'function'){
-				return ConnectyCube.videochatConference.join.bind(ConnectyCube.videochatConference);
-			}
-		}
-	}catch(_){ }
+	// Force use of the Socket.IO-based P2P signaling fallback.
+	// We intentionally avoid invoking ConnectyCube's conference.join even if the
+	// global SDK is present to keep appointment modal self-contained and
+	// prevent ConnectyCube from emitting runtime warnings when the adapter
+	// is not available or when the SDK is being removed.
+	try {
+		console.debug('[VideoCallModal] skipping ConnectyCube conference join (using P2P signaling)');
+	} catch (_) { }
 	return null;
 }
 
@@ -383,42 +408,67 @@ async function ensureRoomFromServer(){
 	// Join conference flow: prefer conference.join (room id), fallback to placeCall for initiator
 	async function joinConference(){
 		try{
-			try { console.debug('[VideoCallModal] joinConference invoked, ccLocalStream present?', !!ccLocalStream, 'ccConferenceRoomId', ccConferenceRoomId); } catch(_){}
+			try { console.debug('[VideoCallModal] joinConference invoked, ccLocalStream present?', !!ccLocalStream, 'ccConferenceRoomId', ccConferenceRoomId); } catch(_){ }
 			// Ensure local preview exists
 			if(!ccLocalStream){ try { await setupLocalPreview(); } catch(_){} }
-			try { updatePlaceholder('Intentando unirse...'); } catch(_){}
-		// Prefer conference room if provided by backend; if missing, ask server to ensure one
-		let roomId = ccConferenceRoomId || (appointmentSessionInfo && appointmentSessionInfo.room_id) || null;
-		if(!roomId){
-			try{ roomId = await ensureRoomFromServer(); } catch(_) { roomId = ccConferenceRoomId || null; }
-		}
-		const conferenceJoin = findConferenceJoin();
-		if(roomId && conferenceJoin){
-			try{
-				await conferenceJoin(roomId, { stream: ccLocalStream });
-				ccCallActive = true;
-				hideJoinButton();
-				updatePlaceholder('Dentro de la conferencia');
-				return;
-			}catch(e){
-				console.warn('conference join failed, attempting server ensure-room and retry', e);
-				try {
-					const resp = await fetch(`/appointments/${encodeURIComponent(id)}/session/ensure-room`, { method: 'POST', headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest', ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {}) } });
-					if (resp && resp.ok) {
-						const j = await resp.json().catch(() => null);
-						if (j && j.room_id) {
-							ccConferenceRoomId = j.room_id;
-							try { await conferenceJoin(ccConferenceRoomId, { stream: ccLocalStream }); ccCallActive = true; hideJoinButton(); updatePlaceholder('Dentro de la conferencia'); return; } catch (e2) { console.warn('retry conference join failed', e2); }
-						}
-					}
-				} catch (eEnsure) { console.warn('ensure-room request failed', eEnsure); }
+			try { updatePlaceholder('Intentando unirse...'); } catch(_){ }
+
+			// Prefer conference room if provided by backend; if missing, ask server to ensure one
+			let roomId = ccConferenceRoomId || (appointmentSessionInfo && appointmentSessionInfo.room_id) || null;
+			if(!roomId){
+				try{ roomId = await ensureRoomFromServer(); } catch(_) { roomId = ccConferenceRoomId || null; }
 			}
-		}
-		else if(roomId && !conferenceJoin){
-			console.warn('ConnectyCube conference API not available; SDK may not support conference.join');
-			updatePlaceholder('Conferencia no soportada por el cliente, intentando fallback...');
-		}
-			// Fallback: if we're the determinist initiator, place a normal call; otherwise show waiting message
+
+			const conferenceJoin = findConferenceJoin();
+
+			// If SDK conference join exists (unlikely now), prefer it — kept for backward compat.
+			if(roomId && conferenceJoin){
+				try{
+					await conferenceJoin(roomId, { stream: ccLocalStream });
+					ccCallActive = true;
+					hideJoinButton();
+					updatePlaceholder('Dentro de la conferencia');
+					return;
+				} catch (e) {
+					console.warn('conference join failed, attempting fallback', e);
+				}
+			}
+
+			// If we have a room id, try P2P signaling fallback
+			if(roomId){
+				updatePlaceholder('Conferencia no soportada por el cliente, intentando fallback...');
+				// UX: disable join button while attempting P2P fallback
+				try { const jb = document.querySelector('#video-call-controls [data-call-action="join"]'); if (jb) { jb.disabled = true; jb.textContent = 'Conectando...'; } } catch(_) {}
+
+				if (!pgSignaler) pgSignaler = createSignalingClient();
+				try {
+					await pgSignaler.connect();
+					console.debug('[VideoCallModal] signaller connected');
+				} catch (eConn) {
+					console.warn('[VideoCallModal] signaller connect failed', eConn);
+					updatePlaceholder('No se pudo conectar al servidor de señalización');
+					try { const jb = document.querySelector('#video-call-controls [data-call-action="join"]'); if (jb) { jb.disabled = false; jb.textContent = 'Unirse'; } } catch(_){}
+					return;
+				}
+
+				pgSignalingRoom = roomId;
+				try {
+					await pgSignaler.joinRoom(roomId, ccLocalStream, {
+						onRemoteStream: (stream) => {
+							try { attachRemoteStream(stream); ccCallActive = true; hideJoinButton(); updatePlaceholder('Dentro de la conferencia (P2P)'); } catch(_){ }
+						},
+						onConnected: () => { try { console.debug('[VideoCallModal] P2P joined room'); } catch(_){} }
+					});
+					return;
+				} catch (eJoin) {
+					console.warn('[VideoCallModal] pgSignaler.joinRoom failed', eJoin);
+					updatePlaceholder('Error al unirse por señalización');
+					try { const jb = document.querySelector('#video-call-controls [data-call-action="join"]'); if (jb) { jb.disabled = false; jb.textContent = 'Unirse'; } } catch(_){ }
+					return;
+				}
+			}
+
+			// No room id: fall back to deterministic initiator placing a call
 			const myInt = parseInt(currentUserId || '0',10); const oppInt = parseInt(otherUserId || '0',10);
 			if(myInt && oppInt && myInt < oppInt){
 				// act as initiator using existing placeCall logic
@@ -426,6 +476,7 @@ async function ensureRoomFromServer(){
 				await placeCall();
 				return;
 			}
+
 			updatePlaceholder('Esperando que el iniciador realice la llamada');
 		}catch(e){ console.error('joinConference error', e); throw e; }
 	}
@@ -435,6 +486,7 @@ async function ensureRoomFromServer(){
 	let qualityPollTimer = null; let lastVideoBytes = null; let lastTimestamp = null; let degradedCount = 0;
 	let manualEnd = false; let retryCount = 0; const maxRetries = 3; let reconnecting = false; let reconnectTimer = null;
 	const reconnectBackoffMs = [2000, 5000, 10000];
+	let joinInProgress = false;
 
 	function updatePlaceholder(text) {
 		try {
@@ -465,117 +517,25 @@ async function ensureRoomFromServer(){
 	}
 
 	async function initConnectyCube(rtcBootstrap) {
-		if (!rtcBootstrap || !rtcBootstrap.ccConfig || !rtcBootstrap.ccUser) { return; }
-		// Patch RTCPeerConnection to buffer addIceCandidate calls until remoteDescription is set.
-		// This prevents "Failed to execute 'addIceCandidate': The remote description was null" errors
-		// by queuing early candidates and draining them once setRemoteDescription resolves.
+		// Initialize lightweight signaling + WebRTC flow (replaces ConnectyCube init)
 		try {
-			if (typeof RTCPeerConnection !== 'undefined' && !RTCPeerConnection.prototype.__pg_ice_buffer_patched) {
-				const _origAddIce = RTCPeerConnection.prototype.addIceCandidate;
-				const _origSetRemote = RTCPeerConnection.prototype.setRemoteDescription;
-				const _pcQueue = new WeakMap();
-
-				RTCPeerConnection.prototype.addIceCandidate = function (candidate) {
-					try {
-						// If remoteDescription is not set yet, queue candidate instead of throwing
-						if (!this.remoteDescription || !this.remoteDescription.type) {
-							let q = _pcQueue.get(this);
-							if (!q) { q = []; _pcQueue.set(this, q); }
-							q.push(candidate);
-							// Resolve immediately so callers don't await a rejection
-							return Promise.resolve();
-						}
-					} catch (_) { }
-					return _origAddIce.apply(this, arguments);
-				};
-
-				RTCPeerConnection.prototype.setRemoteDescription = function (desc) {
-					const result = _origSetRemote.apply(this, arguments);
-					try {
-						if (result && typeof result.then === 'function') {
-							return result.then(r => {
-								try {
-									const q = _pcQueue.get(this) || [];
-									for (const c of q) {
-										try { _origAddIce.apply(this, [c]); } catch (_) { }
-									}
-									_pcQueue.delete(this);
-								} catch (_) { }
-								return r;
-							}).catch(e => { throw e; });
-						}
-					} catch (_) { }
-					return result;
-				};
-
-				RTCPeerConnection.prototype.__pg_ice_buffer_patched = true;
-				try { console.debug('[VideoCallModal] Patched RTCPeerConnection to buffer ICE candidates.'); } catch (_) { }
-			}
-		} catch (_) { }
-		const creds = { appId: rtcBootstrap.ccConfig.appId, authKey: rtcBootstrap.ccConfig.authKey, authSecret: rtcBootstrap.ccConfig.authSecret };
-		// Normalize endpoints to host only (e.g., 'https//api...' -> 'api-eu.connectycube.com')
-		const normalizeEndpoint = (u) => {
-			if (typeof u !== 'string') return '';
-			let s = u.trim();
-			if (!s) return '';
-			// Remove any leading protocols (https/http/ws/wss) including malformed 'https//' variants
-			const protoPattern = /^(?:https?:\/\/|wss?:\/\/|https?\/\/|wss?\/\/)+/i;
-			while (protoPattern.test(s)) { s = s.replace(protoPattern, ''); }
-			// Remove any leading slashes left
-			s = s.replace(/^\/+/, '');
-			// Take host only (strip any path/query)
-			const host = s.split('/')[0].trim();
-			return host.replace("-eu", "");
-		};
-		const rawApi = rtcBootstrap.ccConfig.apiEndpoint;
-		const rawChat = rtcBootstrap.ccConfig.chatEndpoint;
-		const apiEp = normalizeEndpoint(rawApi);
-		const chatEp = normalizeEndpoint(rawChat);
-		try { console.debug('[RTC endpoints] raw:', rawApi, rawChat, 'normalized:', apiEp, chatEp); } catch (_) { }
-		// ConnectyCube expects hostnames here; protocol is configured separately
-		const cfg = { protocol: 'https', endpoints: { api: apiEp, chat: chatEp }, debug: { mode: 0 } };
-		try { ConnectyCube.init(creds, cfg); } catch (e) { console.error('CC init base error', e); }
-		ccSession = await ConnectyCube.createSession({ login: rtcBootstrap.ccUser.login, password: rtcBootstrap.ccUser.password });
-		try { await ConnectyCube.chat.connect({ userId: ccSession.user.id, password: rtcBootstrap.ccUser.password }); } catch (e) { console.error('CC chat connect fail', e); }
-		// Persist discovered CC user id
-		try { fetch('/rtc/sync', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf || '' }, body: JSON.stringify({ cc_user_id: ccSession.user.id, cc_login: rtcBootstrap.ccUser.login }) }); } catch (_) { }
-		// If backend provided appointment session info, capture room id for conference semantics
-		try { ccConferenceRoomId = rtcBootstrap && rtcBootstrap.appointmentSession ? rtcBootstrap.appointmentSession.room_id : null; } catch (_) { ccConferenceRoomId = null; }
-		if (ccConferenceRoomId) { try { console.debug('Using appointment room id:', ccConferenceRoomId); } catch (_) { } }
-		// Map opponent
-		ccOpponentId = (rtcBootstrap.userIdMap && rtcBootstrap.userIdMap[String(otherUserId)]) ? rtcBootstrap.userIdMap[String(otherUserId)] : otherUserId;
-		setupCcListeners();
-		await setupLocalPreview();
-		// If server provided an appointment room id and ConnectyCube supports conference API, try to join it.
-		try {
-			// Ensure we have a canonical room id before attempting to join so both sides enter same meeting
-			if(!ccConferenceRoomId){ try { await ensureRoomFromServer(); } catch(_) {} }
-			const conferenceJoin = findConferenceJoin();
-			if (ccConferenceRoomId && conferenceJoin) {
-				try {
-					await conferenceJoin(ccConferenceRoomId, { stream: ccLocalStream });
-					updatePlaceholder('Uniendo conferencia...');
-				} catch (e) {
-					console.warn('conference join attempt failed, calling ensure-room and retrying', e);
-					try {
-						const resp = await fetch(`/appointments/${encodeURIComponent(id)}/session/ensure-room`, { method: 'POST', headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest', ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {}) } });
-						if (resp && resp.ok) {
-							const j = await resp.json().catch(() => null);
-							if (j && j.room_id) {
-								ccConferenceRoomId = j.room_id;
-								try { await conferenceJoin(ccConferenceRoomId, { stream: ccLocalStream }); updatePlaceholder('Uniendo conferencia...'); }
-								catch (e2) { console.warn('retry conference join failed', e2); }
-							}
-						}
-					} catch (eEnsure) { console.warn('ensure-room request failed', eEnsure); }
-				}
-			} else if (ccConferenceRoomId && !conferenceJoin) {
-				console.warn('ConnectyCube conference API not available; SDK may not support conference.join');
-				updatePlaceholder('Conferencia no soportada por el cliente, intentando fallback...');
-			}
-		} catch (_) { }
-		// After ConnectyCube init and potential conference join, attempt to start the call
-		// only if the backend already reports both participants present.
+			if (!rtcBootstrap) return;
+			if (!pgSignaler) pgSignaler = createSignalingClient();
+			// capture appointment room id if provided
+			try { ccConferenceRoomId = rtcBootstrap && rtcBootstrap.appointmentSession ? rtcBootstrap.appointmentSession.room_id : null; } catch (_) { ccConferenceRoomId = null; }
+			if (ccConferenceRoomId) { try { console.debug('Using appointment room id:', ccConferenceRoomId); } catch (_) { } }
+			// Map opponent
+			ccOpponentId = (rtcBootstrap.userIdMap && rtcBootstrap.userIdMap[String(otherUserId)]) ? rtcBootstrap.userIdMap[String(otherUserId)] : otherUserId;
+			// Connect signaling and attach basic handlers
+			try { await pgSignaler.connect(); } catch (e) { console.warn('Signaler connect failed', e); }
+			try { pgSignaler.on('remoteStream', (s) => { try { attachRemoteStream(s); } catch (_) { } }); } catch (_) { }
+			await setupLocalPreview();
+			// Auto-join disabled: the appointment modal must remain authoritative.
+			// We intentionally DO NOT automatically join the room when a backend
+			// `room_id` is present so the user has to explicitly press the
+			// `Unirse` button. If you want to enable auto-join for another
+			// workflow, call `pgSignaler.joinRoom(ccConferenceRoomId, ccLocalStream, ...)` here.
+		} catch (e) { console.warn('initConnectyCube error', e); }
 		try { maybeStartIfBothJoined(); } catch (_) { }
 	}
 
@@ -596,43 +556,23 @@ async function ensureRoomFromServer(){
 	}
 
 	function setupCcListeners() {
-		ConnectyCube.videochat.onCallListener = (session/*, extension*/) => {
-			ccCurrentSession = session;
-			// Only show prompt if opponent matches expected (avoid stray calls)
-			if (ccOpponentId && session.initiatorID && parseInt(session.initiatorID, 10) !== parseInt(ccOpponentId, 10)) {
-				updatePlaceholder('Llamada desconocida');
-				return;
-			}
-			updatePlaceholder('Llamada entrante...');
-			showIncomingCallPrompt(session);
-		};
-		ConnectyCube.videochat.onAcceptListener = (session, userId/*, extension*/) => {
-			updatePlaceholder('Conectando flujo remoto...');
-		};
-		ConnectyCube.videochat.onRemoteStreamListener = (session, userId, stream) => {
-			attachRemoteStream(stream);
-		};
-		ConnectyCube.videochat.onUserNotAnswerListener = (session, userId) => {
-			updatePlaceholder('El usuario no responde');
-			finalizeCcCall();
-		};
-		ConnectyCube.videochat.onRejectCallListener = () => { updatePlaceholder('Llamada rechazada'); finalizeCcCall(); };
-		ConnectyCube.videochat.onStopCallListener = () => { updatePlaceholder('Llamada finalizada'); finalizeCcCall(); };
-		ConnectyCube.videochat.onSessionConnectionStateChangedListener = (session, userId, state) => {
-			if (state === 'failed') { updatePlaceholder('Conexión fallida'); }
-			if ((state === 'failed' || state === 'disconnected') && !manualEnd && !sessionCompleted) {
-				scheduleReconnect('estado ' + state);
-			}
-		};
-		// Media state signalling
-		ConnectyCube.videochat.onMessageListener = (userId, message) => {
+			// Wire minimal signaling handlers when using Socket.IO-based signaling
 			try {
-				const ext = message?.extension || message || {};
-				if (ext.type === 'media_state') {
-					updateRemoteMediaIndicators(ext);
+				if (pgSignaler) {
+					pgSignaler.on('peerJoined', (peerId) => {
+						// Treat peer join as potential incoming call — show prompt
+						try { updatePlaceholder('Llamada entrante...'); showIncomingCallPrompt({ id: peerId }); } catch (_) { }
+					});
+					pgSignaler.on('remoteStream', (stream, peerId) => {
+						try { attachRemoteStream(stream); } catch (_) { }
+					});
+					pgSignaler.on('peerLeft', (peerId) => {
+						try { updatePlaceholder('El otro usuario se fue'); finalizeCcCall(); } catch (_) { }
+					});
+					// Application-level messages (media_state etc.)
+					try { pgSignaler.onAppMessage((from, payload) => { try { if (payload && payload.type === 'media_state') updateRemoteMediaIndicators(payload); } catch (_) { } }); } catch (_) { }
 				}
 			} catch (_) { }
-		};
 	}
 
 	function decideInitiator() {
@@ -674,52 +614,37 @@ async function ensureRoomFromServer(){
 	async function placeCall() {
 			try {
 				hideJoinButton();
-			const opponents = [ccOpponentId];
-			const type = ConnectyCube.videochat.CallType.VIDEO;
-			ccCurrentSession = ConnectyCube.videochat.createNewSession(opponents, type, {});
-			try {
-				const constraints = { audio: true, video: { width: { ideal: 1280 }, height: { ideal: 720 } } };
-				const stream = await ccCurrentSession.getUserMedia(constraints);
-				// Keep local reference for UI and signalling
-				try { ccLocalStream = stream; } catch (_) { }
-			} catch (_) { /* ignore media access error, session.call may still fail */ }
-			try {
-				// Call via session instance (SDK v4.x pattern)
-				// Attach markers in the signalling so receivers can detect this is an appointment call.
-				// Use both `userInfo` and `extension` to maximize compatibility across SDK variants.
-				const payload = { appointment_id: String(id), module: 'appointment' };
-				const callParams = { userInfo: payload, extension: payload };
-				// Try to proactively send a signalling message with the appointment metadata as an extra layer
+				// Ensure local media
+				try { await setupLocalPreview(); } catch (_) { }
+				// Ensure canonical room
+				let roomId = ccConferenceRoomId || (appointmentSessionInfo && appointmentSessionInfo.room_id) || null;
+				if (!roomId) { try { roomId = await ensureRoomFromServer(); } catch (_) { roomId = ccConferenceRoomId || null; } }
+				if (!roomId) { updatePlaceholder('No hay sala disponible'); return; }
+				// Join via signaling; this will negotiate with other peer(s)
 				try {
-					if (typeof ConnectyCube.videochat !== 'undefined' && typeof ConnectyCube.videochat.sendMessage === 'function') {
-						try { ConnectyCube.videochat.sendMessage(ccCurrentSession, ccOpponentId, { type: 'appointment', appointment_id: String(id), module: 'appointment' }); } catch (_) { }
-					}
-				} catch (_) { }
-				ccCurrentSession.call(callParams, (err) => {
-					if (err) { console.warn('call callback error', err); }
-				});
-			} catch (errCall) { console.error('placeCall call error', errCall); }
-			ccCallActive = true;
-			updatePlaceholder('Llamando...');
-		} catch (e) { console.error('placeCall error', e); updatePlaceholder('Error al iniciar llamada'); }
+					if (!pgSignaler) pgSignaler = createSignalingClient();
+					try { await pgSignaler.connect(); } catch (_) { }
+					await pgSignaler.joinRoom(roomId, ccLocalStream, { onRemoteStream: (s) => { try { attachRemoteStream(s); } catch (_) { } } });
+					ccCallActive = true; updatePlaceholder('Llamando...');
+				} catch (e) { console.error('placeCall signaling error', e); updatePlaceholder('Error al iniciar llamada'); }
+			} catch (e) { console.error('placeCall error', e); updatePlaceholder('Error al iniciar llamada'); }
 	}
 
 	async function tryAccept(session) {
-		try {
+			try {
 				hideJoinButton();
-			try {
-				const constraints = { audio: true, video: { width: { ideal: 1280 }, height: { ideal: 720 } } };
-				const s = await session.getUserMedia(constraints);
-				try { ccLocalStream = s; } catch (_) { }
-			} catch (_) { }
-			try {
-				// Use session.accept per SDK pattern
-				session.accept({}, (err) => { if (err) console.warn('accept cb err', err); });
-			} catch (eAccept) { console.error('accept error', eAccept); }
-			ccCallActive = true;
-			updatePlaceholder('Aceptando llamada...');
-			hideIncomingCallPrompt();
-		} catch (e) { console.error('accept error', e); updatePlaceholder('Error al aceptar'); }
+				try { await setupLocalPreview(); } catch (_) { }
+				// Accept by joining the canonical room
+				let roomId = ccConferenceRoomId || (appointmentSessionInfo && appointmentSessionInfo.room_id) || null;
+				if (!roomId) { try { roomId = await ensureRoomFromServer(); } catch (_) { roomId = ccConferenceRoomId || null; } }
+				if (!roomId) { updatePlaceholder('No hay sala disponible'); return; }
+				try {
+					if (!pgSignaler) pgSignaler = createSignalingClient();
+					try { await pgSignaler.connect(); } catch (_) { }
+					await pgSignaler.joinRoom(roomId, ccLocalStream, { onRemoteStream: (s) => { try { attachRemoteStream(s); } catch (_) { } } });
+					ccCallActive = true; updatePlaceholder('Aceptando llamada...'); hideIncomingCallPrompt();
+				} catch (e) { console.error('accept signaling error', e); updatePlaceholder('Error al aceptar'); }
+			} catch (e) { console.error('accept error', e); updatePlaceholder('Error al aceptar'); }
 	}
 
 	function attachRemoteStream(stream) {
@@ -755,7 +680,7 @@ async function ensureRoomFromServer(){
 		ccCallActive = false;
 		// Stop local tracks
 		try { ccLocalStream && ccLocalStream.getTracks().forEach(t => { try { t.stop(); } catch (_) { } }); } catch (_) { }
-		try { ConnectyCube.videochat.stop(); } catch (_) { }
+		try { if (pgSignaler) pgSignaler.cleanupAll(); } catch (_) { }
 		cleanupUiAfterCall();
 		stopQualityMonitoring();
 		cancelReconnection();
@@ -798,7 +723,12 @@ async function ensureRoomFromServer(){
 			remaining--; const t = overlay.querySelector('#incoming-call-timer'); if (t) { t.textContent = remaining + 's'; }
 			if (remaining <= 0) {
 				clearInterval(incomingPromptTimer); incomingPromptTimer = null;
-				try { ConnectyCube.videochat.reject(session, {}); } catch (_) { }
+				// If ConnectyCube is not available, try to notify peers via signaling
+				try {
+					if (pgSignaler && typeof pgSignaler.sendMessage === 'function') {
+						pgSignaler.sendMessage(null, { type: 'reject', sessionId: session && (session.ID || session.id || session.sessionId) || null });
+					}
+				} catch (_) { }
 				finalizeCcCall(); updatePlaceholder('Tiempo agotado'); hideIncomingCallPrompt();
 			}
 		}, 1000);
@@ -807,7 +737,11 @@ async function ensureRoomFromServer(){
 			const act = btn.getAttribute('data-incoming-action');
 			if (act === 'accept') { tryAccept(session); }
 			if (act === 'reject') {
-				try { ConnectyCube.videochat.reject(session, {}); } catch (_) { }
+				try {
+					if (pgSignaler && typeof pgSignaler.sendMessage === 'function') {
+						pgSignaler.sendMessage(null, { type: 'reject', sessionId: session && (session.ID || session.id || session.sessionId) || null });
+					}
+				} catch (_) { }
 				finalizeCcCall(); updatePlaceholder('Llamada rechazada'); hideIncomingCallPrompt();
 			}
 		}, { once: false });
@@ -949,7 +883,7 @@ async function ensureRoomFromServer(){
 		metrics.total_retries = retryCount;
 		updateReconnectAttemptText();
 		// Tear down existing session state (without marking manual end)
-		try { ConnectyCube.videochat.stop(); } catch (_) { }
+		try { if (pgSignaler) pgSignaler.cleanupAll(); } catch (_) { }
 		ccCallActive = false;
 		// Recreate call: if we were initiator originally (myInt < oppInt) placeCall() else wait small window then fallback to placeCall
 		const myInt = parseInt(currentUserId || '0', 10); const oppInt = parseInt(otherUserId || '0', 10);
@@ -1006,8 +940,8 @@ async function ensureRoomFromServer(){
 			try {
 				const audioEnabled = ccLocalStream ? ccLocalStream.getAudioTracks().some(t => t.enabled) : false;
 				const videoEnabled = ccLocalStream ? ccLocalStream.getVideoTracks().some(t => t.enabled) : false;
-				// Attempt to send message via videochat signalling
-				try { ConnectyCube.videochat.sendMessage(ccCurrentSession, ccOpponentId, { type: 'media_state', audioEnabled, videoEnabled }); } catch (e) { /* fallback ignored */ }
+				// Attempt to send message via signaling server
+				try { if (pgSignaler) pgSignaler.sendMessage(null, { type: 'media_state', audioEnabled, videoEnabled }); } catch (e) { /* fallback ignored */ }
 			} catch (_) { }
 		}, 120);
 	}
