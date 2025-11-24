@@ -103,6 +103,70 @@ export function init(){
 	};
 	root.addEventListener('click', root.__pg_user_area_onRescheduleAction);
 
+	// Load and render recent conversations (similar behaviour to professional.area.js)
+	root.__pg_user_area_loadMessages = async function(){
+		try{
+			const res = await fetch('/conversations/recent');
+			if(!res.ok) return;
+			const j = await res.json().catch(()=>({}));
+			let convs = [];
+			if(Array.isArray(j)) convs = j;
+			else if(j && Array.isArray(j.conversations)) convs = j.conversations;
+			else if(j && Array.isArray(j.data)) convs = j.data;
+			const explicitList = document.getElementById('pg-user-messages-list');
+			const msgCard = Array.from(document.querySelectorAll('.card')).find(c=> c.textContent && c.textContent.includes('Mensajes'));
+			const targetList = explicitList || (msgCard ? msgCard.querySelector('.list-group.list-group-flush') : document.querySelector('.container').querySelector('.list-group.list-group-flush'));
+            if(!targetList) return;
+			targetList.innerHTML = '';
+			if(!convs.length){
+				const li = document.createElement('div'); li.className='list-group-item small text-muted'; li.textContent='No tienes conversaciones recientes'; targetList.appendChild(li); return;
+			}
+			convs.slice(0,3).forEach(c => {
+				const li = document.createElement('div'); li.className='list-group-item';
+				li.setAttribute('data-user-id', String(c.id));
+				const avatar = (c.profile_photo || c.profile_photo || c.profile_photo || c.profile_photo) || c.profile_photo || null;
+				const avatarHtml = avatar ? `<img src="${escapeHtml(avatar)}" class="rounded-circle me-2" style="width:36px;height:36px;object-fit:cover" alt="${escapeHtml(c.name)}">` : `<span class="avatar-placeholder rounded-circle bg-secondary text-white d-inline-flex align-items-center justify-content-center me-2" style="width:36px;height:36px">${escapeHtml((c.name||'U').split(/\s+/).map(n=>n[0]||'').slice(0,2).join('').toUpperCase())}</span>`;
+				const lastBody = c.last_body || c.lastBody || c.preview || '--';
+				const unreadBadge = c.unread ? `<span class="badge text-bg-light text-dark ms-2">${c.unread? '●' : ''}</span>` : '';
+				li.innerHTML = `<div class="d-flex justify-content-between align-items-center"><div class="d-flex align-items-center"><div class="avatar-wrap">${avatarHtml}</div><div><div class="fw-bold">${escapeHtml(c.name)}</div><div class="text-muted small">${escapeHtml(lastBody)}</div></div></div><div><a class="btn btn-sm btn-outline-primary" href="/chat?open=${encodeURIComponent(c.id)}">Abrir</a>${unreadBadge}</div></div>`;
+				targetList.appendChild(li);
+			});
+		} catch(_){}
+	};
+
+	// Handle realtime incoming message events to update the list
+	root.__pg_user_area_onRtMessage = function(ev){
+		try{
+			const d = ev.detail; if(!d) return;
+			const fromId = String(d.from_id || d.fromId || d.from);
+			const name = d.from_name || d.fromName || d.from || 'Usuario';
+			const body = d.body || d.last_body || d.preview || '';
+			const explicitList = document.getElementById('pg-user-messages-list');
+			const msgCard = Array.from(document.querySelectorAll('.card')).find(c=> c.textContent && c.textContent.includes('Mensajes'));
+			const targetList = explicitList || (msgCard ? msgCard.querySelector('.list-group.list-group-flush') : document.querySelector('.container').querySelector('.list-group.list-group-flush'));
+			if(!targetList) return;
+			let existing = targetList.querySelector(`[data-user-id="${fromId}"]`);
+			if(existing){
+				const snippetEl = existing.querySelector('.text-muted.small'); if (snippetEl) snippetEl.textContent = body;
+				const nameEl = existing.querySelector('.fw-bold'); if (nameEl) nameEl.textContent = name;
+				targetList.prepend(existing);
+			} else {
+				const li = document.createElement('div'); li.className='list-group-item'; li.setAttribute('data-user-id', fromId);
+				const avatarHtml = d.avatar ? `<img src="${escapeHtml(d.avatar)}" class="rounded-circle me-2" style="width:36px;height:36px;object-fit:cover" alt="${escapeHtml(name)}">` : `<span class="avatar-placeholder rounded-circle bg-secondary text-white d-inline-flex align-items-center justify-content-center me-2" style="width:36px;height:36px">${escapeHtml((name||'U').split(/\s+/).map(n=>n[0]||'').slice(0,2).join('').toUpperCase())}</span>`;
+				li.innerHTML = `<div class="d-flex justify-content-between align-items-center"><div class="d-flex align-items-center"><div class="avatar-wrap">${avatarHtml}</div><div><div class="fw-bold">${escapeHtml(name)}</div><div class="text-muted small">${escapeHtml(body)}</div></div></div><div><a class="btn btn-sm btn-outline-primary" href="/chat?open=${encodeURIComponent(fromId)}">Abrir</a></div></div>`;
+				targetList.prepend(li);
+			}
+		} catch(_){ }
+	};
+
+	root.__pg_user_area_onCountersUpdate = function(){ try { root.__pg_user_area_loadMessages(); } catch(_){} };
+
+	// Start polling and initial load
+	try { root.__pg_user_area_loadMessages(); } catch(_){ }
+	root.__pg_user_area_pollInterval = setInterval(()=>{ try { root.__pg_user_area_loadMessages(); } catch(_){} }, 15000);
+	window.addEventListener('rt:message', root.__pg_user_area_onRtMessage);
+	window.addEventListener('counters:update', root.__pg_user_area_onCountersUpdate);
+
 	function escapeHtml(s){ if(!s) return ''; return String(s).replace(/[&<>"'`=\/]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;','/':'&#x2F;','`':'&#x60;','=':'&#x3D;'}[c])); }
 	function toLocalInputValue(iso){ if(!iso) return ''; const d = new Date(iso); if(isNaN(d)) return ''; const pad=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; }
 	function toServerDateTime(localVal){ if(!localVal) return localVal; return localVal.replace('T',' '); }
@@ -116,4 +180,10 @@ export function destroy(){
 	try { if(root.__pg_user_area_onRescheduleAction) root.removeEventListener('click', root.__pg_user_area_onRescheduleAction); } catch(_){ }
 	try { delete root.__pg_user_area_onApptAction; } catch(_){ }
     try { delete root.__pg_user_area_onRescheduleAction; } catch(_){ }
+	try { if(window && root.__pg_user_area_onRtMessage) window.removeEventListener('rt:message', root.__pg_user_area_onRtMessage); } catch(_){ }
+	try { if(window && root.__pg_user_area_onCountersUpdate) window.removeEventListener('counters:update', root.__pg_user_area_onCountersUpdate); } catch(_){ }
+	try { if(root.__pg_user_area_pollInterval) { clearInterval(root.__pg_user_area_pollInterval); } } catch(_){ }
+	try { delete root.__pg_user_area_loadMessages; } catch(_){ }
+	try { delete root.__pg_user_area_onRtMessage; } catch(_){ }
+	try { delete root.__pg_user_area_onCountersUpdate; } catch(_){ }
 }

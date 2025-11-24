@@ -10,6 +10,7 @@ const PRESENCE = { labels: { online: 'Online', busy: 'Ocupado', dnd: 'No molesta
 
 // Estado ConnectyCube/WebRTC
 let _cc = { initialized: false, connected: false, currentSession: null, localStream: null };
+let _chatCredits = { total: -1, included_remaining: null, purchased_credits: 0 };
 
 // Resolve a ConnectyCube user id for a given app user id using deterministic login
 async function resolveCcId(appUserId) {
@@ -90,9 +91,71 @@ function applyPresenceToDot(dotEl, status) { if (!dotEl) return; try { const col
 function setPresenceDot(userId, status) { try { const e = document.querySelector('.presence-dot-small[data-user-id="' + userId + '"]'); applyPresenceToDot(e, status); } catch (_) { } }
 function setHeaderPresence(status) { try { applyPresenceToDot(_els.chatPartnerPresence, status); } catch (_) { } }
 
+// Fetch chat credits from server
+async function fetchChatCredits() {
+	try {
+		const res = await fetch('/user/chat-credits', { headers: { 'Accept': 'application/json' } });
+		if (!res.ok) return null;
+		const j = await res.json();
+		if (!j.ok) return null;
+		_chatCredits = { total: j.credits, included_remaining: j.included_remaining ?? null, purchased_credits: j.purchased_credits ?? 0 };
+		return _chatCredits;
+	} catch (_) { return null; }
+}
+
+function applyChatCreditsToUi(cc) {
+	try {
+		const total = cc && typeof cc.credits !== 'undefined' ? cc.credits : (_chatCredits.total ?? -1);
+		// Find or create a small status node below the chat form
+		if (!_els.chatSendForm) return;
+		let status = document.getElementById('chat-send-status');
+		if (!status) {
+			status = document.createElement('div');
+			status.id = 'chat-send-status';
+			status.className = 'small text-muted mt-2';
+			_els.chatSendForm.parentNode.insertBefore(status, _els.chatSendForm.nextSibling);
+		}
+		const setCallButtonsDisabled = (v) => {
+			try { const vb = document.getElementById('chat-video-call'); if (vb) vb.disabled = !!v; } catch(_) {}
+			try { const hb = document.getElementById('chat-voice-call'); if (hb) hb.disabled = !!v; } catch(_) {}
+		};
+		if (total === -1) {
+			status.textContent = '';
+			_els.chatSendForm.querySelectorAll('button, input, textarea').forEach(i => i.disabled = false);
+			setCallButtonsDisabled(false);
+		} else if (total <= 0) {
+			status.textContent = 'Has alcanzado el límite de chats este mes. Actualiza tu plan para seguir chateando.';
+			_els.chatSendForm.querySelectorAll('button, input, textarea').forEach(i => i.disabled = true);
+			setCallButtonsDisabled(true);
+		} else {
+			status.textContent = `Créditos restantes: ${total}`;
+			_els.chatSendForm.querySelectorAll('button, input, textarea').forEach(i => i.disabled = false);
+			setCallButtonsDisabled(false);
+		}
+	} catch (_) { }
+}
+
+// Consume a credit for a call via server endpoint. Returns object { ok, consumed, credits } or throws.
+async function consumeCallCredit(type) {
+	try {
+		const meta = document.querySelector('meta[name="csrf-token"]');
+		const token = meta ? meta.getAttribute('content') : null;
+		const res = await fetch('/rtc/consume', { method: 'POST', headers: Object.assign({ 'Accept': 'application/json', 'Content-Type': 'application/json' }, token ? { 'X-CSRF-TOKEN': token } : {}), body: JSON.stringify({ type }) });
+		const j = await res.json().catch(() => null);
+		if (res.status === 402 || (j && j.error === 'quota_exceeded')) {
+			return { ok: false, error: 'quota_exceeded', message: j && j.message ? j.message : 'Has alcanzado el límite de chats este mes.' };
+		}
+		if (!res.ok) return { ok: false, error: 'server', message: j && j.message ? j.message : 'Error del servidor' };
+		return { ok: true, consumed: !!(j && j.consumed), credits: (j && typeof j.credits !== 'undefined') ? j.credits : null };
+	} catch (e) { return { ok: false, error: 'network', message: 'No se pudo contactar al servidor' }; }
+}
+
 function appendMessageToChat(msg, opts = {}) { if (msg.id && _state.renderedMessageIds.has(msg.id)) return; const AUTH_ID = getAuthId(); const isMine = String(msg.from_id) === String(AUTH_ID); try { _els.chatMessages.classList.remove('is-empty'); } catch (_) { } const wrap = document.createElement('div'); wrap.className = 'msg mb-2 ' + (isMine ? 'text-end msg-me' : 'msg-other'); const bubble = document.createElement('div'); bubble.className = 'msg-bubble d-inline-block p-2 rounded ' + (isMine ? 'bg-primary text-white' : 'bg-light'); bubble.style.maxWidth = '70%'; bubble.style.whiteSpace = 'pre-wrap'; bubble.textContent = msg.body || ''; const meta = document.createElement('div'); meta.className = 'msg-meta small text-muted mt-1'; meta.textContent = msg.created_at ? (new Date(msg.created_at)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''; if (msg.id) { _state.renderedMessageIds.add(msg.id); wrap.dataset.msgId = msg.id; } if (opts.tempId) wrap.dataset.tempId = opts.tempId; wrap.appendChild(bubble); wrap.appendChild(meta); _els.chatMessages.appendChild(wrap); try { const threshold = 120; const atBottom = (_els.chatMessages.scrollHeight - _els.chatMessages.clientHeight - _els.chatMessages.scrollTop) < threshold; if (atBottom) _els.chatMessages.scrollTop = _els.chatMessages.scrollHeight; } catch (_) { _els.chatMessages.scrollTop = _els.chatMessages.scrollHeight; } }
 
 function openChatFor(userId, userName) { _state.currentPartnerId = userId; if (_els.chatPartnerName) _els.chatPartnerName.textContent = userName; if (_els.chatEmpty) _els.chatEmpty.style.display = 'none'; if (_els.chatContainer) _els.chatContainer.style.display = ''; if (_els.chatMessages) { _els.chatMessages.innerHTML = ''; try { _els.chatMessages.classList.add('is-empty'); } catch (_) { } } _state.renderedMessageIds = new Set(); (async () => { try { const res = await fetch(`/messages/thread/${encodeURIComponent(userId)}?ajax=1`, { headers: { 'Accept': 'application/json' } }); if (!res.ok) return; const j = await res.json(); if (!j.ok) return; if (!j.messages || !j.messages.length) { try { _els.chatMessages.classList.add('is-empty'); } catch (_) { } } else { j.messages.forEach(m => { if (!m || (m.id && _state.renderedMessageIds.has(m.id))) return; appendMessageToChat(m); }); }
+
+			// Refresh chat credits when opening a conversation so UI can disable sends if exhausted
+			try { const cc = await fetchChatCredits(); if (cc) applyChatCreditsToUi(cc); } catch (_) { }
 			try {
 				await fetch(`/messages/thread/${encodeURIComponent(userId)}?ajax=1`, { headers: { 'Accept': 'application/json' } });
 				try {
@@ -151,6 +214,25 @@ function openFullscreenViewer(photos, startIndex) { if (!photos || !photos.lengt
 async function makeVideoCall(appUserId) {
 	try {
 		try { if (window.__rtcBootstrapPromise) await window.__rtcBootstrapPromise; } catch (_) { } if (!window.__rtcBootstrapReady) { return modalNotification('Video', 'RTC no está listo. Intenta nuevamente en unos segundos.', { template: 'warning' }); }
+		// Consume a credit for this video call before starting heavy RTC work
+		try {
+			const consume = await consumeCallCredit('video');
+			if (!consume || !consume.ok) {
+				const msg = (consume && consume.message) ? consume.message : 'Has alcanzado el límite de chats este mes.';
+				window.modalNotification?.('Límite de chats', msg, { template: 'warning' });
+				applyChatCreditsToUi({ credits: 0, included_remaining: 0, purchased_credits: 0 });
+				return;
+			}
+			// Update local UI with new credits if provided
+			if (consume && typeof consume.credits !== 'undefined' && consume.credits !== null) {
+				_chatCredits.total = consume.credits;
+				applyChatCreditsToUi(_chatCredits);
+			}
+		} catch (e) {
+			// If consume endpoint fails, show an error and stop
+			window.modalNotification?.('Llamada', 'No se pudo verificar créditos para la llamada. Intenta más tarde.', { template: 'warning' });
+			return;
+		}
 		// Prefer a real mapping; avoid falling back to the numeric app id for calls
 		let opponentCcId = null;
 		try {
@@ -199,6 +281,9 @@ export function init() {
 	_handlers.startPresencePolling = startPresencePolling;
 	_handlers.stopPresencePolling = stopPresencePolling;
 	startPresencePolling();
+
+	// Initial chat credits load (used to disable send UI if exhausted)
+	(async () => { try { const cc = await fetchChatCredits(); if (cc) applyChatCreditsToUi(cc); } catch (_) { } })();
 	// Precalentar mapeo CC para contactos visibles
 	try {
 		const ids = Array.from(new Set(Array.from(document.querySelectorAll('.contact-item')).map(it => it.getAttribute('data-user-id')).filter(Boolean)));
@@ -277,7 +362,54 @@ export function init() {
 
 	_handlers.onContactClick = function (e) { const btn = e.target.closest && e.target.closest('.contact-item'); if (!btn) return; const uid = btn.getAttribute('data-user-id'); const uname = btn.getAttribute('data-user-name') || btn.querySelector('.fw-semibold')?.textContent || 'Usuario'; try { document.querySelectorAll('.contact-item.active').forEach(it => it.classList.remove('active')); btn.classList.add('active'); } catch (_) { } openChatFor(uid, uname); };
 	_els.contactsList.addEventListener('click', _handlers.onContactClick);
-	_handlers.onSend = async function (e) { e.preventDefault(); if (!_els.chatSendForm) return; const fd = new FormData(_els.chatSendForm); const body = (fd.get('body') || '').toString().trim(); if (!body) return; const tempId = 't' + Date.now() + Math.floor(Math.random() * 1000); appendMessageToChat({ from_id: getAuthId(), body: body, created_at: new Date().toISOString() }, { tempId }); try { _els.chatSendForm.querySelector('[name=body]').value = ''; } catch (_) { } try { const res = await fetch(`/messages/thread/${encodeURIComponent(_state.currentPartnerId)}`, { method: 'POST', headers: { 'X-CSRF-TOKEN': fd.get('_token') }, body: fd }); const j = await res.json(); if (j.ok && j.message) { const tempEl = _els.chatMessages.querySelector('[data-temp-id="' + tempId + '"]'); if (tempEl) tempEl.remove(); appendMessageToChat(j.message); try { await fetch('/api/counters').then(r => r.json()).then(d => document.dispatchEvent(new CustomEvent('counters:update', { detail: d }))); } catch (_) { } } else { const tempEl = _els.chatMessages.querySelector('[data-temp-id="' + tempId + '"]'); if (tempEl) tempEl.querySelector('.d-inline-block')?.classList.add('bg-danger', 'text-white'); } } catch (err) { const tempEl = _els.chatMessages.querySelector('[data-temp-id="' + tempId + '"]'); if (tempEl) tempEl.querySelector('.d-inline-block')?.classList.add('bg-danger', 'text-white'); } };
+	_handlers.onSend = async function (e) {
+		e.preventDefault();
+		if (!_els.chatSendForm) return;
+		const fd = new FormData(_els.chatSendForm);
+		const body = (fd.get('body') || '').toString().trim();
+		if (!body) return;
+		const tempId = 't' + Date.now() + Math.floor(Math.random() * 1000);
+		appendMessageToChat({ from_id: getAuthId(), body: body, created_at: new Date().toISOString() }, { tempId });
+		try { _els.chatSendForm.querySelector('[name=body]').value = ''; } catch (_) { }
+		try {
+			const res = await fetch(`/messages/thread/${encodeURIComponent(_state.currentPartnerId)}`, { method: 'POST', headers: { 'X-CSRF-TOKEN': fd.get('_token') }, body: fd });
+			let j = null;
+			try { j = await res.clone().json(); } catch (_) { j = null; }
+			if (res.status === 402 || (j && j.error === 'quota_exceeded')) {
+				// Quota reached: show friendly message and disable send UI
+				const msg = (j && j.message) ? j.message : 'Has alcanzado el límite de chats este mes.';
+				window.modalNotification?.('Límite de chats', msg, { template: 'warning' });
+				applyChatCreditsToUi({ credits: 0, included_remaining: 0, purchased_credits: 0 });
+				const tempEl = _els.chatMessages.querySelector('[data-temp-id="' + tempId + '"]');
+				if (tempEl) tempEl.querySelector('.d-inline-block')?.classList.add('bg-danger', 'text-white');
+				return;
+			}
+			if (j && j.ok && j.message) {
+				const tempEl = _els.chatMessages.querySelector('[data-temp-id="' + tempId + '"]');
+				if (tempEl) tempEl.remove();
+				appendMessageToChat(j.message);
+				// Optimistically decrement local chat credits for snappy UI, then re-sync with server
+				try {
+					if (typeof _chatCredits !== 'undefined' && _chatCredits && typeof _chatCredits.total === 'number' && _chatCredits.total > 0) {
+						_chatCredits.total = Math.max(0, _chatCredits.total - 1);
+						applyChatCreditsToUi(_chatCredits);
+					}
+				} catch (_) { }
+				try {
+					await fetch('/api/counters').then(r => r.json()).then(d => document.dispatchEvent(new CustomEvent('counters:update', { detail: d })));
+				} catch (_) { }
+				// Re-sync authoritative credits from server
+				try { const serverCc = await fetchChatCredits(); if (serverCc) applyChatCreditsToUi(serverCc); } catch (_) { }
+			} else {
+				const tempEl = _els.chatMessages.querySelector('[data-temp-id="' + tempId + '"]');
+				if (tempEl) tempEl.querySelector('.d-inline-block')?.classList.add('bg-danger', 'text-white');
+			}
+		} catch (err) {
+			const tempEl = _els.chatMessages.querySelector('[data-temp-id="' + tempId + '"]');
+			if (tempEl) tempEl.querySelector('.d-inline-block')?.classList.add('bg-danger', 'text-white');
+		}
+	};
+
 	_els.chatSendForm?.addEventListener('submit', _handlers.onSend);
 	// Fast, debounced contacts filter using cached dataset fields, batched to avoid layout thrash
 	_handlers.applyFilter = function () {
@@ -550,6 +682,23 @@ async function makeVoiceCall(appUserId) {
 		try { if (window.__rtcBootstrapPromise) await window.__rtcBootstrapPromise; } catch (_) { }
 		if (!window.__rtcBootstrapReady) {
 			return modalNotification('Llamada', 'RTC no está listo. Intenta nuevamente en unos segundos.', { template: 'warning' });
+		}
+		// Consume a credit for this voice call before starting heavy RTC work
+		try {
+			const consume = await consumeCallCredit('voice');
+			if (!consume || !consume.ok) {
+				const msg = (consume && consume.message) ? consume.message : 'Has alcanzado el límite de chats este mes.';
+				window.modalNotification?.('Límite de chats', msg, { template: 'warning' });
+				applyChatCreditsToUi({ credits: 0, included_remaining: 0, purchased_credits: 0 });
+				return;
+			}
+			if (consume && typeof consume.credits !== 'undefined' && consume.credits !== null) {
+				_chatCredits.total = consume.credits;
+				applyChatCreditsToUi(_chatCredits);
+			}
+		} catch (e) {
+			window.modalNotification?.('Llamada', 'No se pudo verificar créditos para la llamada. Intenta más tarde.', { template: 'warning' });
+			return;
 		}
 		let opponentCcId = null;
 		try {

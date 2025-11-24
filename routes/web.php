@@ -1377,6 +1377,45 @@ Route::middleware('auth')->group(function(){
 		$body = (string) $r->input('body', '');
 		$body = trim($body);
 		if ($body === '') return response()->json(['ok' => false, 'error' => 'empty'], 422);
+		// --- Chat quota enforcement (chats_per_month) ---
+		try {
+			$activeSub = $me->subscriptions()->with('plan')->where(function($q){
+				$q->where('status','active')
+				  ->orWhereNull('ends_at')
+				  ->orWhere('ends_at','>', now());
+			})->orderBy('ends_at','desc')->first();
+
+			$included = null;
+			if ($activeSub && $activeSub->plan && is_array($activeSub->plan->features ?? null)) {
+				$included = $activeSub->plan->features['chats_per_month'] ?? null;
+				if (is_string($included)) $included = (int)$included;
+			}
+
+			$start = \Carbon\Carbon::now()->startOfMonth();
+			$end = \Carbon\Carbon::now()->endOfMonth();
+			$used = 0;
+			try {
+				if (\Illuminate\Support\Facades\Schema::hasTable('messages')) {
+					$used = \App\Models\Message::where('from_id', $me->id)->whereBetween('created_at', [$start, $end])->count();
+				}
+			} catch (\Throwable $_) { $used = 0; }
+
+			// No purchased chat ledger yet; treat purchased as 0 for now
+			$purchased = 0;
+
+			$remainingIncluded = null;
+			if ($included !== null) {
+				$remainingIncluded = max(0, (int)$included - (int)$used);
+			}
+
+			$totalAvailable = ($remainingIncluded === null) ? -1 : ($remainingIncluded + (int)$purchased);
+			if ($totalAvailable !== -1 && $totalAvailable <= 0) {
+				return response()->json(['ok' => false, 'error' => 'quota_exceeded', 'message' => 'Has alcanzado el límite de chats este mes. Actualiza tu plan.'], 402);
+			}
+		} catch (\Throwable $e) {
+			try { \Illuminate\Support\Facades\Log::error('chat.quota.check.failed', ['err' => $e->getMessage(), 'user_id' => $me->id ?? null]); } catch (\Throwable $_) {}
+			return response()->json(['ok' => false, 'error' => 'quota_check_failed', 'message' => 'No se pudo verificar disponibilidad de chat. Intenta más tarde.'], 500);
+		}
 		try {
 			$msg = new \App\Models\Message();
 			$msg->from_id = $me->id;
@@ -1398,6 +1437,44 @@ Route::middleware('auth')->group(function(){
 			return response()->json(['ok' => false, 'error' => 'send_error'], 500);
 		}
 	})->name('messages.thread.send');
+
+	// Expose chat credits for the authenticated user (used by frontend to disable UI)
+	Route::get('/user/chat-credits', function(\Illuminate\Http\Request $r){
+		$user = $r->user();
+		if (!$user) return response()->json(['ok' => false, 'message' => 'Unauthenticated'], 401);
+		try {
+			$activeSub = $user->subscriptions()->with('plan')->where(function($q){
+				$q->where('status','active')
+				  ->orWhereNull('ends_at')
+				  ->orWhere('ends_at','>', now());
+			})->orderBy('ends_at','desc')->first();
+
+			$included = null;
+			if ($activeSub && $activeSub->plan && is_array($activeSub->plan->features ?? null)) {
+				$included = $activeSub->plan->features['chats_per_month'] ?? null;
+				if (is_string($included)) $included = (int)$included;
+			}
+
+			$start = \Carbon\Carbon::now()->startOfMonth();
+			$end = \Carbon\Carbon::now()->endOfMonth();
+			$used = 0;
+			try {
+				if (\Illuminate\Support\Facades\Schema::hasTable('messages')) {
+					$used = \App\Models\Message::where('from_id', $user->id)->whereBetween('created_at', [$start, $end])->count();
+				}
+			} catch (\Throwable $_) { $used = 0; }
+
+			$purchased = 0; // ledger for chat purchases not implemented yet
+
+			$remainingIncluded = null;
+			if ($included !== null) { $remainingIncluded = max(0, (int)$included - (int)$used); }
+			$total = ($remainingIncluded === null) ? -1 : ($remainingIncluded + $purchased);
+			return response()->json(['ok' => true, 'included_remaining' => $remainingIncluded, 'purchased_credits' => $purchased, 'credits' => $total]);
+		} catch (\Throwable $e) {
+			try { \Illuminate\Support\Facades\Log::error('chat.credits.failed', ['err' => $e->getMessage(), 'user_id' => $user->id ?? null]); } catch (\Throwable $_) {}
+			return response()->json(['ok' => false, 'message' => 'error'], 500);
+		}
+	})->name('user.chat_credits');
 
 	// JSON: accepted friends list with last message snippet for sorting/rendering in Chat hub
 	Route::get('/friends/list', function(){
@@ -1445,7 +1522,7 @@ Route::middleware('auth')->group(function(){
 				} catch (\Throwable $_) { $profilePhoto = null; }
 				$items[] = [
 					'id' => (int)$u->id,
-					'name' => $u->name,
+					'name' => $u->name . ' ' . $u->lastname,
 					'email' => $u->email,
 					'profile_photo' => $profilePhoto,
 					'last_body' => $lm ? (string)$lm->body : null,
@@ -1465,6 +1542,112 @@ Route::middleware('auth')->group(function(){
 			return response()->json(['ok'=>false], 500);
 		}
 	})->name('friends.list');
+
+		// Recent conversations (message partners) for user area widgets
+		Route::get('/conversations/recent', function(){
+			$me = auth()->user();
+			try {
+				if (!\Illuminate\Support\Facades\Schema::hasTable('messages')) {
+					return response()->json(['ok'=>true,'conversations'=>[]]);
+				}
+				$messages = \App\Models\Message::query()
+					->where(function($q) use ($me){ $q->where('from_id',$me->id)->orWhere('to_id',$me->id); })
+					->orderByDesc('created_at')
+					->limit(500)
+					->get(['id','from_id','to_id','body','created_at','read_at']);
+
+				$lastBy = [];
+				foreach ($messages as $m) {
+					$pid = (int) ($m->from_id == $me->id ? $m->to_id : $m->from_id);
+					if (!array_key_exists($pid, $lastBy)) { $lastBy[$pid] = $m; }
+				}
+
+				$partnerIds = array_values(array_keys($lastBy));
+				if (empty($partnerIds)) return response()->json(['ok'=>true,'conversations'=>[]]);
+
+				$users = \App\Models\User::whereIn('id', $partnerIds)->get();
+				$items = [];
+				foreach ($users as $u) {
+					$lm = $lastBy[$u->id] ?? null;
+					$profilePhoto = null;
+					try {
+						if (!empty($u->profile_photo_data_url)) { $profilePhoto = $u->profile_photo_data_url; }
+						elseif (!empty($u->photo)) { $profilePhoto = '/storage/' . ltrim($u->photo, '/'); }
+					} catch (\Throwable $_) { $profilePhoto = null; }
+					$items[] = [
+						'id' => (int)$u->id,
+						'name' => $u->name . ' ' . $u->lastname,
+						'email' => $u->email,
+						'profile_photo' => $profilePhoto,
+						'last_body' => $lm ? (string)$lm->body : null,
+						'last_at' => $lm ? optional($lm->created_at)->toDateTimeString() : null,
+						'unread' => $lm ? ((int)$lm->to_id === (int)$me->id && empty($lm->read_at)) : false,
+					];
+				}
+				usort($items, function($a,$b){
+					$aa = $a['last_at']; $bb = $b['last_at'];
+					if ($aa === $bb) { return strcasecmp($a['name'] ?? '', $b['name'] ?? ''); }
+					if ($aa === null) return 1; if ($bb === null) return -1;
+					return strcmp($bb, $aa);
+				});
+				return response()->json(['ok'=>true,'conversations'=>$items]);
+			} catch (\Throwable $e) {
+				return response()->json(['ok'=>false], 500);
+			}
+		})->name('conversations.recent');
+
+			// Backwards-compatible endpoint for legacy front-end: /messages/recent
+			Route::get('/messages/recent', function(){
+				$me = auth()->user();
+				try {
+					if (!\Illuminate\Support\Facades\Schema::hasTable('messages')) {
+						return response()->json(['ok'=>true,'conversations'=>[]]);
+					}
+					$messages = \App\Models\Message::query()
+						->where(function($q) use ($me){ $q->where('from_id',$me->id)->orWhere('to_id',$me->id); })
+						->orderByDesc('created_at')
+						->limit(500)
+						->get(['id','from_id','to_id','body','created_at','read_at']);
+
+					$lastBy = [];
+					foreach ($messages as $m) {
+						$pid = (int) ($m->from_id == $me->id ? $m->to_id : $m->from_id);
+						if (!array_key_exists($pid, $lastBy)) { $lastBy[$pid] = $m; }
+					}
+
+					$partnerIds = array_values(array_keys($lastBy));
+					if (empty($partnerIds)) return response()->json(['ok'=>true,'conversations'=>[]]);
+
+					$users = \App\Models\User::whereIn('id', $partnerIds)->get();
+					$items = [];
+					foreach ($users as $u) {
+						$lm = $lastBy[$u->id] ?? null;
+						$profilePhoto = null;
+						try {
+							if (!empty($u->profile_photo_data_url)) { $profilePhoto = $u->profile_photo_data_url; }
+							elseif (!empty($u->photo)) { $profilePhoto = '/storage/' . ltrim($u->photo, '/'); }
+						} catch (\Throwable $_) { $profilePhoto = null; }
+						$items[] = [
+							'id' => (int)$u->id,
+							'name' => $u->name,
+							'email' => $u->email,
+							'profile_photo' => $profilePhoto,
+							'last_body' => $lm ? (string)$lm->body : null,
+							'last_at' => $lm ? optional($lm->created_at)->toDateTimeString() : null,
+							'unread' => $lm ? ((int)$lm->to_id === (int)$me->id && empty($lm->read_at)) : false,
+						];
+					}
+					usort($items, function($a,$b){
+						$aa = $a['last_at']; $bb = $b['last_at'];
+						if ($aa === $bb) { return strcasecmp($a['name'] ?? '', $b['name'] ?? ''); }
+						if ($aa === null) return 1; if ($bb === null) return -1;
+						return strcmp($bb, $aa);
+					});
+					return response()->json(['ok'=>true,'conversations'=>$items]);
+				} catch (\Throwable $e) {
+					return response()->json(['ok'=>false], 500);
+				}
+			})->name('messages.recent');
 
 	// RTC/ConnectyCube bootstrap endpoints (authenticated)
 	Route::get('/rtc/config', function(){
@@ -1584,6 +1767,68 @@ Route::middleware('auth')->group(function(){
 		}
 		return response()->json(['ok'=>true,'ccConfig'=>$config,'ccUser'=>$ccUser,'userIdMap'=>$map]);
 	})->name('rtc.bootstrap');
+
+		// Consume a chat credit for initiating a call (voice/video).
+		Route::post('/rtc/consume', function(\Illuminate\Http\Request $r){
+			$user = $r->user();
+			if (!$user) return response()->json(['ok' => false, 'message' => 'unauthenticated'], 401);
+			$type = (string) ($r->input('type') ?? 'voice');
+			if (!in_array($type, ['voice','video'], true)) $type = 'voice';
+
+			try {
+				return \Illuminate\Support\Facades\DB::transaction(function() use($user,$type){
+					$activeSub = $user->subscriptions()->with('plan')->where(function($q){
+						$q->where('status','active')->orWhereNull('ends_at')->orWhere('ends_at','>', now());
+					})->orderBy('ends_at','desc')->first();
+
+					$included = null;
+					if ($activeSub && $activeSub->plan && is_array($activeSub->plan->features ?? null)) {
+						$included = $activeSub->plan->features['chats_per_month'] ?? null;
+						if (is_string($included)) $included = (int)$included;
+					}
+
+					$start = \Carbon\Carbon::now()->startOfMonth();
+					$end = \Carbon\Carbon::now()->endOfMonth();
+					$usedMessages = 0;
+					try {
+						if (\Illuminate\Support\Facades\Schema::hasTable('messages')) {
+							$usedMessages = \App\Models\Message::where('from_id', $user->id)->whereBetween('created_at', [$start, $end])->count();
+						}
+					} catch (\Throwable $_) { $usedMessages = 0; }
+
+					$usedCalls = 0;
+					try {
+						if (\Illuminate\Support\Facades\Schema::hasTable('chat_call_logs')) {
+							$usedCalls = \App\Models\ChatCallLog::where('user_id', $user->id)->whereBetween('created_at', [$start, $end])->count();
+						}
+					} catch (\Throwable $_) { $usedCalls = 0; }
+
+					$used = (int)$usedMessages + (int)$usedCalls;
+					$purchased = 0; // purchased chat ledger not implemented yet
+
+					$remainingIncluded = null;
+					if ($included !== null) { $remainingIncluded = max(0, (int)$included - (int)$used); }
+					$totalAvailable = ($remainingIncluded === null) ? -1 : ($remainingIncluded + (int)$purchased);
+					if ($totalAvailable !== -1 && $totalAvailable <= 0) {
+						return response()->json(['ok' => false, 'error' => 'quota_exceeded', 'message' => 'Has alcanzado el límite de chats este mes. Actualiza tu plan.'], 402);
+					}
+
+					// Record the call consumption
+					try {
+						$log = \App\Models\ChatCallLog::create(['user_id' => $user->id, 'type' => $type]);
+					} catch (\Throwable $e) {
+						\Illuminate\Support\Facades\Log::error('rtc.consume.log_failed', ['err' => $e->getMessage(), 'user_id' => $user->id]);
+					}
+
+					// Return remaining credits after this consumption
+					$remaining = ($remainingIncluded === null) ? -1 : max(0, $remainingIncluded - 1 + (int)$purchased);
+					return response()->json(['ok' => true, 'consumed' => true, 'credits' => $remaining]);
+				});
+			} catch (\Throwable $e) {
+				try { \Illuminate\Support\Facades\Log::error('rtc.consume.failed', ['err' => $e->getMessage(), 'user_id' => $user->id ?? null]); } catch (\Throwable $_) {}
+				return response()->json(['ok' => false, 'message' => 'error'], 500);
+			}
+		})->name('rtc.consume');
 
 	// Sync CC identifiers back to DB when the client discovers them (no new migrations; use columns if they exist)
 	Route::post('/rtc/sync', function(\Illuminate\Http\Request $r){
