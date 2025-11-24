@@ -80,13 +80,27 @@ window.__currentUserTz = @json(optional(auth()->user())->timezone ?? null);
 
         // Observe DOM mutations so if the join button is re-rendered we disable it immediately
         try {
-            const mo = new MutationObserver(function(){
+            const mo = new MutationObserver(function(mutations){
                 try {
-                    const jb = container.querySelector('[data-appt-action="join"]');
-                    if (jb) {
-                        joinBtn = jb;
-                        disableBtn();
-                        try { if (statusNode && statusNode.parentNode) {} else { if (joinBtn && joinBtn.parentNode) joinBtn.parentNode.insertBefore(statusNode, joinBtn); } } catch(_){ }
+                    // Only react when nodes are added that contain the join button.
+                    for (const m of mutations) {
+                        if (m.type === 'childList' && m.addedNodes && m.addedNodes.length) {
+                            let found = false;
+                            for (const n of m.addedNodes) {
+                                try {
+                                    if (n && n.querySelector && n.querySelector('[data-appt-action="join"]')) { found = true; break; }
+                                    if (n && n.matches && n.matches('[data-appt-action="join"]')) { found = true; break; }
+                                } catch(_){}
+                            }
+                            if (found) {
+                                const jb = container.querySelector('[data-appt-action="join"]');
+                                if (jb) {
+                                    joinBtn = jb;
+                                    disableBtn();
+                                    try { if (statusNode && statusNode.parentNode) {} else { if (joinBtn && joinBtn.parentNode) joinBtn.parentNode.insertBefore(statusNode, joinBtn); } } catch(_){ }
+                                }
+                            }
+                        }
                     }
                 } catch(_){ }
             });
