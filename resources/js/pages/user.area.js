@@ -5,7 +5,14 @@ import { autoOpenOngoingAppointmentCall } from '../utils/videoCallModal.js';
 export function init(){
 	// Initialize ratings so star buttons become clickable
 	try { initRatings(); } catch(_){}
-	try { autoOpenOngoingAppointmentCall(); } catch(_){}
+	// Auto-open appointment call only when explicitly enabled on the page.
+	// Add `data-auto-open-call="1"` to the `#pg-next-appt` container to opt-in.
+	try {
+		const next = document.getElementById('pg-next-appt');
+		if (next && next.getAttribute && next.getAttribute('data-auto-open-call') === '1') {
+			try { autoOpenOngoingAppointmentCall(); } catch(_){}
+		}
+	} catch(_){}
 	const root = document.querySelector('[data-page="user-area"]') || document.body;
 
 	root.__pg_user_area_onApptAction = async function(ev){

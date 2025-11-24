@@ -4,7 +4,14 @@ import { autoOpenOngoingAppointmentCall } from '../utils/videoCallModal.js';
 // Adjusted "Abrir" buttons to route to unified chat hub /chat?open={id}
 export function init(){
 	const root = document.querySelector('[data-page="professional-area"]') || document.body;
-	try { autoOpenOngoingAppointmentCall(); } catch(_){}
+	// Only auto-open appointment call when explicitly allowed by page markup.
+	// To opt-in add `data-auto-open-call="1"` to the `#pg-next-appt` element.
+	try {
+		const next = document.getElementById('pg-next-appt');
+		if (next && next.getAttribute && next.getAttribute('data-auto-open-call') === '1') {
+			try { autoOpenOngoingAppointmentCall(); } catch(_){}
+		}
+	} catch(_){}
 
 	root.__pg_prof_area_click = function(ev){
 		const btn = ev.target.closest && ev.target.closest('button');

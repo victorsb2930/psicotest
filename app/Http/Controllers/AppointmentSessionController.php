@@ -51,6 +51,17 @@ class AppointmentSessionController extends Controller
         ]);
     }
 
+    /**
+     * Ensure an appointment session has a room id and return it.
+     * Clients can call this when attempting to join a conference and the room_id is missing.
+     */
+    public function ensureRoom(Request $request, Appointment $appointment)
+    {
+        $this->authorize('view', $appointment);
+        $session = $this->service->ensureSession($appointment);
+        return response()->json(['ok' => true, 'room_id' => $session->room_id]);
+    }
+
     public function metrics(Request $request, Appointment $appointment)
     {
         // Only participants can submit metrics (view policy covers both roles)

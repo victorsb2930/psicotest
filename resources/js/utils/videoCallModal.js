@@ -229,11 +229,17 @@ function renderBody(rtc) {
 	}
 
 	function attachHandlers() {
-		const wrap = document.getElementById('video-call-wrapper');
-		if (!wrap) return;
-		wrap.__onClick = async ev => {
-			const btn = ev.target.closest && ev.target.closest('[data-call-action]');
+		let wrap = document.getElementById('video-call-wrapper');
+		const modalEl = document.getElementById(modalId);
+		// If the specific wrapper isn't present, fall back to document-level delegation
+		const delegateRoot = wrap || modalEl || document;
+		delegateRoot.__onClick = async ev => {
+			const btn = ev.target && ev.target.closest ? ev.target.closest('[data-call-action]') : null;
 			if (!btn) return;
+			// Ensure the clicked button is inside our modal
+			if (modalEl && !modalEl.contains(btn)) return;
+			// Prevent other global handlers (chat/RTC UI) from reacting to clicks inside this modal
+			try { ev.preventDefault(); ev.stopImmediatePropagation(); ev.stopPropagation(); } catch (_) { }
 			const act = btn.getAttribute('data-call-action');
 			if (act === 'end') { manualEnd = true; await completeSession(); window.modalNotification?.('Sesión', 'Finalizada', { template: 'info' }); window.closeAllModals?.(); return; }
 			if (act === 'toggle-mic') { btn.classList.toggle('btn-outline-primary'); btn.classList.toggle('btn-primary'); toggleTrack('audio'); }
@@ -243,15 +249,15 @@ function renderBody(rtc) {
 			if (act === 'show-quality-panel') { toggleQualityPanel(); }
 			if (act === 'cancel-reconnect') { cancelReconnection(); }
 		};
-		wrap.addEventListener('click', wrap.__onClick);
+		delegateRoot.addEventListener('click', delegateRoot.__onClick);
+		try { console.debug('[VideoCallModal] attached click handler to', delegateRoot === document ? 'document' : (wrap ? '#video-call-wrapper' : ('#' + modalId))); } catch (_) {}
 		setupPresenceListeners();
 		// Clean up when modal hidden
-		const modalEl = document.getElementById(modalId);
 		if (modalEl) {
 			modalEl.addEventListener('hidden.bs.modal', async () => {
 				stopHeartbeat();
 				if (!sessionCompleted) { await completeSession(); }
-				if (wrap.__onClick) try { wrap.removeEventListener('click', wrap.__onClick); } catch (_) { }
+				try { delegateRoot.removeEventListener('click', delegateRoot.__onClick); } catch (_) { }
 				try { localStorage.removeItem('pg_active_call_appt_id'); } catch (_) { }
 				releaseHeartbeatLock();
 			}, { once: true });
@@ -325,6 +331,8 @@ function renderBody(rtc) {
 	// ---- ConnectyCube integration layer ----
 	let ccSession = null; let ccLocalStream = null; let ccOpponentId = null; let ccCallActive = false; let ccCurrentSession = null;
 	let ccConferenceRoomId = null;
+	// Ensure completeSession exists early so UI handlers can call it before wrapper is defined.
+	let completeSession = async function () { /* placeholder; will be wrapped later */ };
 
 	// Show/hide the Join button in the controls
 	function showJoinButton(){
@@ -340,22 +348,76 @@ function renderBody(rtc) {
 		}catch(_){ }
 	}
 
+// Helper: find a conference join function across different ConnectyCube SDK namespaces
+function findConferenceJoin(){
+	try{
+		if(typeof ConnectyCube !== 'undefined'){
+			if(ConnectyCube.videochatconference && typeof ConnectyCube.videochatconference.join === 'function'){
+				return ConnectyCube.videochatconference.join.bind(ConnectyCube.videochatconference);
+			}
+			if(ConnectyCube.conference && typeof ConnectyCube.conference.join === 'function'){
+				return ConnectyCube.conference.join.bind(ConnectyCube.conference);
+			}
+			if(ConnectyCube.videochat && ConnectyCube.videochat.conference && typeof ConnectyCube.videochat.conference.join === 'function'){
+				return ConnectyCube.videochat.conference.join.bind(ConnectyCube.videochat.conference);
+			}
+			if(ConnectyCube.videochatConference && typeof ConnectyCube.videochatConference.join === 'function'){
+				return ConnectyCube.videochatConference.join.bind(ConnectyCube.videochatConference);
+			}
+		}
+	}catch(_){ }
+	return null;
+}
+
+// Ask server to ensure a canonical room exists for this appointment session
+async function ensureRoomFromServer(){
+	try{
+		const resp = await fetch(`/appointments/${encodeURIComponent(id)}/session/ensure-room`, { method: 'POST', headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest', ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {}) } });
+		if(!resp || !resp.ok) return null;
+		const j = await resp.json().catch(()=>null);
+		if(j && j.room_id){ ccConferenceRoomId = j.room_id; try{ console.debug('[VideoCallModal] ensured room id from server', ccConferenceRoomId); }catch(_){ } return ccConferenceRoomId; }
+	}catch(e){ try{ console.warn('ensureRoomFromServer error', e); }catch(_){ } }
+	return null;
+}
+
 	// Join conference flow: prefer conference.join (room id), fallback to placeCall for initiator
 	async function joinConference(){
 		try{
+			try { console.debug('[VideoCallModal] joinConference invoked, ccLocalStream present?', !!ccLocalStream, 'ccConferenceRoomId', ccConferenceRoomId); } catch(_){}
 			// Ensure local preview exists
 			if(!ccLocalStream){ try { await setupLocalPreview(); } catch(_){} }
-			// Prefer conference room if provided by backend
-			const roomId = ccConferenceRoomId || (appointmentSessionInfo && appointmentSessionInfo.room_id);
-			if(roomId && ConnectyCube.videochatconference && typeof ConnectyCube.videochatconference.join === 'function'){
-				try{
-					await ConnectyCube.videochatconference.join(roomId, { stream: ccLocalStream });
-					ccCallActive = true;
-					hideJoinButton();
-					updatePlaceholder('Dentro de la conferencia');
-					return;
-				}catch(e){ console.warn('conference join failed, falling back', e); }
+			try { updatePlaceholder('Intentando unirse...'); } catch(_){}
+		// Prefer conference room if provided by backend; if missing, ask server to ensure one
+		let roomId = ccConferenceRoomId || (appointmentSessionInfo && appointmentSessionInfo.room_id) || null;
+		if(!roomId){
+			try{ roomId = await ensureRoomFromServer(); } catch(_) { roomId = ccConferenceRoomId || null; }
+		}
+		const conferenceJoin = findConferenceJoin();
+		if(roomId && conferenceJoin){
+			try{
+				await conferenceJoin(roomId, { stream: ccLocalStream });
+				ccCallActive = true;
+				hideJoinButton();
+				updatePlaceholder('Dentro de la conferencia');
+				return;
+			}catch(e){
+				console.warn('conference join failed, attempting server ensure-room and retry', e);
+				try {
+					const resp = await fetch(`/appointments/${encodeURIComponent(id)}/session/ensure-room`, { method: 'POST', headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest', ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {}) } });
+					if (resp && resp.ok) {
+						const j = await resp.json().catch(() => null);
+						if (j && j.room_id) {
+							ccConferenceRoomId = j.room_id;
+							try { await conferenceJoin(ccConferenceRoomId, { stream: ccLocalStream }); ccCallActive = true; hideJoinButton(); updatePlaceholder('Dentro de la conferencia'); return; } catch (e2) { console.warn('retry conference join failed', e2); }
+						}
+					}
+				} catch (eEnsure) { console.warn('ensure-room request failed', eEnsure); }
 			}
+		}
+		else if(roomId && !conferenceJoin){
+			console.warn('ConnectyCube conference API not available; SDK may not support conference.join');
+			updatePlaceholder('Conferencia no soportada por el cliente, intentando fallback...');
+		}
 			// Fallback: if we're the determinist initiator, place a normal call; otherwise show waiting message
 			const myInt = parseInt(currentUserId || '0',10); const oppInt = parseInt(otherUserId || '0',10);
 			if(myInt && oppInt && myInt < oppInt){
@@ -486,9 +548,30 @@ function renderBody(rtc) {
 		await setupLocalPreview();
 		// If server provided an appointment room id and ConnectyCube supports conference API, try to join it.
 		try {
-			if (ccConferenceRoomId && ConnectyCube.videochatconference && typeof ConnectyCube.videochatconference.join === 'function') {
-				try { await ConnectyCube.videochatconference.join(ccConferenceRoomId, { stream: ccLocalStream }); updatePlaceholder('Uniendo conferencia...'); }
-				catch (e) { console.warn('conference join attempt failed', e); }
+			// Ensure we have a canonical room id before attempting to join so both sides enter same meeting
+			if(!ccConferenceRoomId){ try { await ensureRoomFromServer(); } catch(_) {} }
+			const conferenceJoin = findConferenceJoin();
+			if (ccConferenceRoomId && conferenceJoin) {
+				try {
+					await conferenceJoin(ccConferenceRoomId, { stream: ccLocalStream });
+					updatePlaceholder('Uniendo conferencia...');
+				} catch (e) {
+					console.warn('conference join attempt failed, calling ensure-room and retrying', e);
+					try {
+						const resp = await fetch(`/appointments/${encodeURIComponent(id)}/session/ensure-room`, { method: 'POST', headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest', ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {}) } });
+						if (resp && resp.ok) {
+							const j = await resp.json().catch(() => null);
+							if (j && j.room_id) {
+								ccConferenceRoomId = j.room_id;
+								try { await conferenceJoin(ccConferenceRoomId, { stream: ccLocalStream }); updatePlaceholder('Uniendo conferencia...'); }
+								catch (e2) { console.warn('retry conference join failed', e2); }
+							}
+						}
+					} catch (eEnsure) { console.warn('ensure-room request failed', eEnsure); }
+				}
+			} else if (ccConferenceRoomId && !conferenceJoin) {
+				console.warn('ConnectyCube conference API not available; SDK may not support conference.join');
+				updatePlaceholder('Conferencia no soportada por el cliente, intentando fallback...');
 			}
 		} catch (_) { }
 		// After ConnectyCube init and potential conference join, attempt to start the call
@@ -938,8 +1021,8 @@ function renderBody(rtc) {
 		} catch (_) { }
 	}
 
-	// Wrap completeSession to ensure call teardown
-	const _origComplete = completeSession;
+	// Wrap completeSession to ensure call teardown. Guard if completeSession wasn't defined.
+	const _origComplete = (typeof completeSession === 'function') ? completeSession : async function () {};
 	completeSession = async function () {
 		// Compute and submit metrics summary once before completion
 		if (!metricsSubmitted) {
@@ -1008,3 +1091,23 @@ export function autoOpenOngoingAppointmentCall() {
 }
 // Optional global assignment for legacy callers
 try { window.openAppointmentCall = openAppointmentCall; } catch (_) { }
+
+// Listen for global RTC appointment events emitted by `rtc.js` and open the modal when requested.
+try {
+	window.addEventListener('rtc:incoming_appointment_call', (ev) => {
+		try {
+			const d = ev && ev.detail ? ev.detail : null;
+			if (!d) return;
+			// Normalise fields expected by openAppointmentCall
+			const opts = {
+				id: d.id || d.appointment_id || null,
+				otherUserId: d.otherUserId || d.other_user_id || d.caller || null,
+				role: d.role || undefined,
+				currentUserId: d.currentUserId || window.__authUserId || null,
+				ccSession: d.ccSession || null
+			};
+			if (!opts.id) return;
+			try { openAppointmentCall(opts); } catch (_) { }
+		} catch (_) { }
+	});
+} catch (_) { }

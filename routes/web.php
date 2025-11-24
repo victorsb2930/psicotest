@@ -1316,6 +1316,7 @@ Route::middleware('auth')->group(function(){
 
 	// Appointment session lifecycle endpoints
 	Route::post('/appointments/{appointment}/session/start', [\App\Http\Controllers\AppointmentSessionController::class, 'start'])->name('appointments.session.start');
+	Route::post('/appointments/{appointment}/session/ensure-room', [\App\Http\Controllers\AppointmentSessionController::class, 'ensureRoom'])->name('appointments.session.ensure_room');
 	Route::post('/appointments/{appointment}/session/heartbeat', [\App\Http\Controllers\AppointmentSessionController::class, 'heartbeat'])->middleware('appointment.session.rate')->name('appointments.session.heartbeat');
 	Route::post('/appointments/{appointment}/session/complete', [\App\Http\Controllers\AppointmentSessionController::class, 'complete'])->name('appointments.session.complete');
 	Route::get('/appointments/{appointment}/session/status', [\App\Http\Controllers\AppointmentSessionController::class, 'status'])->name('appointments.session.status');

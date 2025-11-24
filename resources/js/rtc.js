@@ -204,14 +204,13 @@ import RtcUI from './rtc-ui';
 			try {
 				const ext = session && (session.userInfo || session.extension || session.extraParams || session.params || (session.signal && session.signal.extension) || {});
 				const apptId = ext && (ext.appointment_id || ext.appt || ext.appointmentId || ext.appointment);
-				if (apptId && typeof window.openAppointmentCall === 'function') {
-					// Determine probable caller app user id from available fields (may be a CC id)
-					const callerCcId = (session && (session.callerID || session.initiatorID || session.initiator || session.userId || session.senderId)) || '';
+				if (apptId) {
+					// Emit an event for appointment incoming calls so the UI layer (if present)
+					// can decide how to handle the incoming appointment call.
 					try {
-						// Pass the SDK session object to the appointment modal so it can reuse
-						// the incoming ConnectyCube session instead of creating a new one.
-						window.openAppointmentCall({ id: String(apptId), otherUserId: String(callerCcId || ''), role: undefined, currentUserId: window.__authUserId, ccSession: session });
-					} catch(_){ }
+						const callerCcId = (session && (session.callerID || session.initiatorID || session.initiator || session.userId || session.senderId)) || '';
+						window.dispatchEvent(new CustomEvent('rtc:incoming_appointment_call', { detail: { id: String(apptId), otherUserId: String(callerCcId || ''), role: undefined, currentUserId: window.__authUserId, ccSession: session } }));
+					} catch(_) { }
 					return; // skip generic RtcUI handling
 				}
 
@@ -232,10 +231,9 @@ import RtcUI from './rtc-ui';
 					} catch(_) { callerAppId = null; }
 					// If callerAppId matches either side of the appointment, route to appointment modal
 					if (apptDomId && (callerAppId === patientAppId || callerAppId === professionalAppId)) {
-						// Determine otherUserId (app id) to pass to openAppointmentCall
+						// Determine otherUserId (app id) to include in event
 						let otherUserId = (callerAppId === patientAppId) ? professionalAppId : patientAppId;
-						// If mapping produced CC ids only, pass through detected values
-						try { window.openAppointmentCall({ id: String(apptDomId), otherUserId: String(otherUserId || ''), role: undefined, currentUserId: window.__authUserId }); } catch(_){}
+						try { window.dispatchEvent(new CustomEvent('rtc:incoming_appointment_call', { detail: { id: String(apptDomId), otherUserId: String(otherUserId || ''), role: undefined, currentUserId: window.__authUserId } })); } catch(_){ }
 						return; // appointment handled
 					}
 				}
@@ -279,8 +277,8 @@ import RtcUI from './rtc-ui';
 					}
 					if (payload && (payload.type === 'appointment' || payload.module === 'appointment' || payload.appointment_id)) {
 						const apptId = payload.appointment_id || payload.appt || payload.appointmentId || payload.appointment;
-						if (apptId && typeof window.openAppointmentCall === 'function') {
-							// Map sender CC id back to app user id if possible
+						if (apptId) {
+							// Emit event so UI layer may open appointment call modal
 							let otherUserId = '';
 							try {
 								const map = window.__ccUserIdMap || {};
@@ -288,7 +286,7 @@ import RtcUI from './rtc-ui';
 									if (String(ccId) === String(userId)) { otherUserId = String(appId); break; }
 								}
 							} catch(_) {}
-							try { window.openAppointmentCall({ id: String(apptId), otherUserId: String(otherUserId || userId), role: undefined, currentUserId: window.__authUserId }); } catch(_){}
+							try { window.dispatchEvent(new CustomEvent('rtc:incoming_appointment_call', { detail: { id: String(apptId), otherUserId: String(otherUserId || userId), role: undefined, currentUserId: window.__authUserId } })); } catch(_){ }
 							return;
 						}
 					}
