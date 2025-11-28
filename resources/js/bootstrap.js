@@ -19,6 +19,25 @@ if (csrf) {
 }
 //#endregion
 
+// Provide a small global helper to get an authoritative "now" using server time
+// if the server injected a `meta[name="server-time-ms"]` tag (epoch ms).
+try {
+	const serverMsRaw = document.querySelector('meta[name="server-time-ms"]')?.getAttribute('content');
+ 	const serverMs = serverMsRaw ? parseInt(serverMsRaw, 10) : NaN;
+ 	let serverTimeOffsetMs = 0;
+ 	if (!Number.isNaN(serverMs)) {
+ 		serverTimeOffsetMs = serverMs - Date.now();
+ 	}
+ 	window.serverTimeOffsetMs = serverTimeOffsetMs;
+ 	window.getServerNow = function() {
+ 		return new Date(Date.now() + (window.serverTimeOffsetMs || 0));
+ 	};
+} catch (e) {
+ 	window.serverTimeOffsetMs = 0;
+ 	window.getServerNow = function() { return new Date(); };
+}
+//#endregion
+
 //#region Tom Select
 import TomSelect from 'tom-select';
 window.TomSelect = TomSelect;

@@ -103,22 +103,17 @@ export function init() {
 				buttons.push({
 					label: 'Cancelar solicitud', cls: 'btn-danger', action: () => {
 						const bodyReason = `<div class="mb-2"><label>Motivo de la cancelación</label><textarea id="cancelReasonUser" class="form-control" rows="3" placeholder="Explica por qué cancelas"></textarea></div>`;
-						if (typeof window.modalConfirm === 'function') {
-							window.modalConfirm({
-								title: 'Confirmar cancelación', body: bodyReason, closeClick: false, buttons: [
-									{ text: 'Cerrar', className: 'btn-outline-secondary', onClick: () => { }, closeOnClick: true },
-									{
-										text: 'Cancelar solicitud', className: 'btn-danger', onClick: () => {
-											const reason = document.getElementById('cancelReasonUser')?.value || null;
-											axios.post(cancelUrl, { reason }).then(() => { window.modalNotification?.('Cancelada', 'Has cancelado la solicitud', { template: 'info' }); calendar.refetchEvents(); try { closeAllModals(); } catch (_) { } }).catch(() => { window.modalNotification?.('Error', 'No se pudo cancelar la solicitud', { template: 'danger' }); });
-										}, closeOnClick: false
-									}
-								]
-							});
-						} else {
-							const reason = prompt('Motivo de la cancelación') || null;
-							axios.post(cancelUrl, { reason }).then(() => { window.modalNotification?.('Cancelada', 'Has cancelado la solicitud', { template: 'info' }); calendar.refetchEvents(); }).catch(() => { window.modalNotification?.('Error', 'No se pudo cancelar la solicitud', { template: 'danger' }); });
-						}
+						modalConfirm({
+							title: 'Confirmar cancelación', body: bodyReason, closeClick: false, buttons: [
+								{ text: 'Cerrar', className: 'btn-outline-secondary', onClick: () => { }, closeOnClick: true },
+								{
+									text: 'Cancelar solicitud', className: 'btn-danger', onClick: () => {
+										const reason = document.getElementById('cancelReasonUser')?.value || null;
+										axios.post(cancelUrl, { reason }).then(() => { window.modalNotification?.('Cancelada', 'Has cancelado la solicitud', { template: 'info' }); calendar.refetchEvents(); try { closeAllModals(); } catch (_) { } }).catch(() => { window.modalNotification?.('Error', 'No se pudo cancelar la solicitud', { template: 'danger' }); });
+									}, closeOnClick: false
+								}
+							]
+						});
 					}
 				});
 			}
@@ -127,19 +122,13 @@ export function init() {
 
 			// use modalNotification helper to show a modal-like dialog (we have modalConfirm util elsewhere but keep simple)
 			const html = `<div>${body}</div>`;
-			// Create a lightweight modal using bootstrap's modalConfirm utility if exists
-			if (typeof window.modalConfirm === 'function') {
-				const modalButtons = buttons.map(b => ({ text: b.label, className: b.cls, onClick: b.action, closeOnClick: b.closeOnClick }));
-				window.modalConfirm({
-					title: 'Detalle de cita',
-					body: html,
-					closeClick: false,
-					buttons: modalButtons
-				});
-			} else {
-				// fallback to notification and prompt
-				window.modalNotification?.('Detalle de cita', html, { template: 'info', delayAutoClose: 8000 });
-			}
+			const modalButtons = buttons.map(b => ({ text: b.label, className: b.cls, onClick: b.action, closeOnClick: b.closeOnClick }));
+			modalConfirm({
+				title: 'Detalle de cita',
+				body: html,
+				closeClick: false,
+				buttons: modalButtons
+			});
 		}
 	});
 
@@ -159,12 +148,6 @@ export function init() {
 		jumpBtn.addEventListener('click', () => {
 			const v = jumpInput.value; if (!v) return; try { calendar.gotoDate(v); } catch (e) { window.modalNotification?.('Fecha inválida', 'Revisa la fecha indicada', { template: 'warning' }); }
 		});
-	}
-
-	// New appointment button: show unified modal to create request (patient mode)
-	const newBtn = document.getElementById('newAppointmentBtn');
-	if (newBtn && storeUrl) {
-		newBtn.addEventListener('click', () => openAppointmentModal({ mode: 'patient', defaults: {}, urls: { storeUrl }, calendar }));
 	}
 
 	// Auto-lanzar modal si venimos con parámetros de profesional (desde búsqueda)

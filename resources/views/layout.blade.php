@@ -14,6 +14,8 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<meta http-equiv="X-UA-Compatible" content="ie=edge">
 	<meta name="csrf-token" content="{{ csrf_token() }}">
+	{{-- Server time in epoch milliseconds to allow clients to align clocks for scheduling UI --}}
+	<meta name="server-time-ms" content="{{ \Carbon\Carbon::now()->getTimestamp() * 1000 }}">
 	<meta name="current-user-role" content="{{ $__role }}">
 	<meta name="broadcast-driver" content="{{ config('broadcasting.default') }}">
 	<meta name="default-avatar" content="{{ Vite::asset('resources/images/default-avatar.png') }}">

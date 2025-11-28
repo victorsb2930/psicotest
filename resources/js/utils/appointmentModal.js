@@ -31,8 +31,9 @@ function formatForInput(dt) {
  *  urls: { storeUrl, professionalCreateUrl, professionalPatientsUrl } // fallback to meta tags if missing
  *  calendar: FullCalendar instance (optional) - used to refetchEvents after success
  * }
- */
-export async function openAppointmentModal(options = {}) {
+	*/
+
+	export async function openAppointmentModal(options = {}) {
 	// Resolver modo priorizando SIEMPRE el rol real del usuario (meta/attr),
 	// luego caer a options.mode y finalmente 'patient'.
 	let mode = 'patient';
@@ -124,13 +125,23 @@ export async function openAppointmentModal(options = {}) {
 	// Button label depends on mode
 	const confirmLabel = mode === 'professional' ? 'Crear' : 'Solicitar';
 
+	// Prevent opening multiple appointment modals at the same time
+	try {
+		if (window.__openAppointmentModalActive) {
+			try { console.warn('[openAppointmentModal] modal already open, skipping'); } catch (_) {}
+			return;
+		}
+	} catch (_) {}
+
 	// Show modal
 	if (typeof window.modalConfirm !== 'function') {
 		alert('modalConfirm no disponible');
 		return;
 	}
 
-	window.modalConfirm({
+	try {
+		window.__openAppointmentModalActive = true;
+		window.modalConfirm({
 		modalId, title: (mode === 'professional' ? 'Crear cita' : 'Solicitar cita'), body: formHtml, closeClick: false, buttons: [
 			{ text: 'Cancelar', className: 'btn-outline-secondary', onClick: ($modal) => { }, closeOnClick: true },
 			{
@@ -164,6 +175,13 @@ export async function openAppointmentModal(options = {}) {
 						if (startVal) {
 							try {
 								const sDate = new Date(startVal);
+								const nowCheck = getNow();
+								// Prevent creating appointments in the past
+								if (sDate.getTime() <= nowCheck.getTime()) {
+									window.modalNotification?.('Inicio inválido', 'La fecha/hora de inicio no puede ser anterior o igual al momento actual', { template: 'warning' });
+									$modal.find('#am_start').trigger('focus');
+									return;
+								}
 								if (endVal) {
 									const eDate = new Date(endVal);
 									if (eDate <= sDate) {
@@ -172,7 +190,10 @@ export async function openAppointmentModal(options = {}) {
 										return;
 									}
 								}
-							} catch(_){}
+							} catch(_){
+								window.modalNotification?.('Fecha inválida', 'Comprueba la fecha y hora de inicio/fin', { template: 'warning' });
+								return;
+							}
 						}
 						// disponibilidad
 						if (lastAvailability === false) { window.modalNotification?.('No disponible', 'El horario seleccionado no está disponible', { template: 'warning' }); return; }
@@ -237,7 +258,12 @@ export async function openAppointmentModal(options = {}) {
 				}, closeOnClick: false
 			}
 		]
-	});
+		});
+	} catch (err) {
+		// If showing the modal failed, clear the active flag so future attempts can proceed
+		try { window.__openAppointmentModalActive = false; } catch (_) {}
+		throw err;
+	}
 
 	const $m = $(`#${modalId}`);
 
@@ -362,10 +388,27 @@ export async function openAppointmentModal(options = {}) {
 	// Se elimina lógica de selector de modalidad; aseguramos hidden tenga el valor fijo
 	try { const $typeHidden = $m.find('#am_appointment_type_hidden'); if ($typeHidden && !$typeHidden.val()) $typeHidden.val(fixedTypeValue); } catch(_){}
 
+	// Use the global helper set in `resources/js/bootstrap.js`.
+	// We prefer a single, explicit guard rather than many nested fallbacks.
+	let getNow;
+	if (typeof window !== 'undefined' && typeof window.getServerNow === 'function') {
+		getNow = window.getServerNow;
+	} else {
+		// If the helper isn't present something is wrong with app bootstrap.
+		// Warn once and fall back to local clock to avoid breaking the UI.
+		console.warn('[appointmentModal] window.getServerNow() not found — falling back to local clock. Ensure `resources/js/bootstrap.js` runs before this module.');
+		getNow = () => new Date();
+	}
 	// Prefill start/end: use defaults.start or round to next 15
-	const now = new Date();
-	const startDefault = defaults.start ? new Date(defaults.start) : roundToNext15(now);
-	const endDefault = defaults.end ? new Date(defaults.end) : new Date(startDefault.getTime() + 30 * 60000);
+	const now = getNow();
+	let _sd = defaults.start ? new Date(defaults.start) : roundToNext15(now);
+	if (isNaN(_sd.getTime())) _sd = roundToNext15(now);
+	// Prevent defaults in the past: clamp to next available slot
+	if (_sd.getTime() < now.getTime()) { _sd = roundToNext15(now); }
+	const startDefault = _sd;
+	let _ed = defaults.end ? new Date(defaults.end) : new Date(startDefault.getTime() + 30 * 60000);
+	if (isNaN(_ed.getTime()) || _ed.getTime() <= startDefault.getTime()) { _ed = new Date(startDefault.getTime() + 30 * 60000); }
+	const endDefault = _ed;
 
 	// set values BEFORE initializing flatpickr to avoid empty-first-open issues
 	const sEl = $m.find('#am_start')[0];
@@ -378,8 +421,8 @@ export async function openAppointmentModal(options = {}) {
 	let eFp = null;
 	try {
 		if (sEl && typeof flatpickr === 'function') {
-			const appendTarget = document.getElementById(modalId) || document.body;
-			sFp = flatpickr(sEl, {
+				const appendTarget = document.getElementById(modalId) || document.body;
+				sFp = flatpickr(sEl, {
 				enableTime: true,
 				dateFormat: 'Y-m-d\\TH:i',
 				altInput: true,
@@ -388,7 +431,26 @@ export async function openAppointmentModal(options = {}) {
 				defaultDate: sEl.value || undefined,
 				allowInput: true,
 				clickOpens: true,
-				appendTo: appendTarget,
+					appendTo: appendTarget,
+					// Prevent selecting a start time in the past (use server time if available)
+					minDate: getNow(),
+					onChange: function(selectedDates) {
+						try {
+							// ensure end picker minDate follows start
+							if (selectedDates && selectedDates.length && eFp && typeof eFp.set === 'function') {
+								const sd = selectedDates[0];
+								const minEnd = new Date(Math.max(sd.getTime() + 15*60000, sd.getTime()));
+								try { eFp.set('minDate', minEnd); } catch (_) {}
+								// if current end is before min, bump it
+								try {
+									const cur = eFp.selectedDates && eFp.selectedDates[0];
+									if (!cur || cur.getTime() <= sd.getTime()) {
+										eFp.setDate(new Date(sd.getTime() + 30*60000), true);
+									}
+								} catch (_) {}
+							}
+						} catch (_) {}
+					},
 				onReady: function (selectedDates, dateStr, instance) {
 					// attempt to remove readonly attribute from altInput reliably
 					try {
@@ -425,6 +487,8 @@ export async function openAppointmentModal(options = {}) {
 				allowInput: true,
 				clickOpens: true,
 				appendTo: appendTargetE,
+				// End must be at or after startDefault (and not in the past)
+				minDate: startDefault,
 				onReady: function (selectedDates, dateStr, instance) {
 					try {
 						if (instance && instance.altInput) {
@@ -599,6 +663,7 @@ export async function openAppointmentModal(options = {}) {
 	// Clean up modal DOM when hidden to avoid stale states and ensure flatpickr popups close
 	$m.one('hidden.bs.modal', function () {
 		try {
+			try { window.__openAppointmentModalActive = false; } catch (_) {}
 			// close and destroy flatpickr instances if present so their calendars don't remain visible after modal closes (Esc key)
 			try { if (sFp && typeof sFp.close === 'function') sFp.close(); } catch (_) { }
 			try { if (eFp && typeof eFp.close === 'function') eFp.close(); } catch (_) { }

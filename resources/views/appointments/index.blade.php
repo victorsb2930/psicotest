@@ -8,7 +8,6 @@
 	<div class="d-flex align-items-center justify-content-between mb-3">
 		<div class="d-flex align-items-center">
 			<h1 class="me-3">Mis citas</h1>
-			<button id="newAppointmentBtn" class="btn btn-sm btn-primary">Solicitar una cita</button>
 		</div>
 		<div class="d-flex align-items-center">
 			<div class="input-group input-group-sm" style="width:260px;">

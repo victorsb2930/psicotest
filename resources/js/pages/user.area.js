@@ -76,7 +76,6 @@ export function init(){
 				return false;
 			};
 			window.modalConfirm?.({ title:'Reprogramar cita', body, buttons:[ { text:'Cancelar', className:'btn-outline-secondary', closeOnClick:true }, { text:'Enviar', className:'btn-primary', onClick:onConfirm, closeOnClick:true } ] });
-			return;
 		}
 	};
 	root.addEventListener('click', root.__pg_user_area_onApptAction);
