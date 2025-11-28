@@ -40,6 +40,14 @@ io.on('connection', (socket) => {
     } catch (_) { }
   });
 
+  // Lightweight presence join: join the room but do not notify peers (used for app-level broadcasts)
+  socket.on('presence-join', (roomId) => {
+    try {
+      socket.join(roomId);
+      console.log(`[signaling] ${socket.id} presence-joined ${roomId}`);
+    } catch (e) { console.warn('[signaling] presence-join error', e); }
+  });
+
   socket.on('offer', ({ to, sdp, from }) => {
     io.to(to).emit('offer', { from, sdp });
   });
@@ -49,15 +57,24 @@ io.on('connection', (socket) => {
   socket.on('ice-candidate', ({ to, candidate, from }) => {
     io.to(to).emit('ice-candidate', { from, candidate });
   });
+  // Forward message-ack events to the intended recipient (lightweight ACK flow)
+  socket.on('message-ack', ({ to, messageId }) => {
+    try {
+      if (!to) return;
+      io.to(to).emit('message-ack', { from: socket.id, messageId });
+    } catch (e) { console.warn('[signaling] message-ack forward error', e); }
+  });
   // Generic application-level message relay
   socket.on('message', ({ to, payload, from }) => {
     try {
+      console.log('[signaling] received message from', socket.id, 'to', to, 'payload:', payload, 'rooms:', Array.from(socket.rooms || []));
       if (to) {
         io.to(to).emit('message', { from: socket.id, payload });
       } else {
         // broadcast to rooms the sender is in
         const rooms = Array.from(socket.rooms || []).filter(r => r !== socket.id);
         for (const r of rooms) {
+          console.log('[signaling] broadcasting message to room', r, 'from', socket.id);
           socket.to(r).emit('message', { from: socket.id, payload });
         }
       }

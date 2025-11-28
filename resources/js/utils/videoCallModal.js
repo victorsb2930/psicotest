@@ -30,7 +30,7 @@ export function openAppointmentCall(opts) {
 
 	const escapeHtml = s => !s ? '' : String(s).replace(/[&<>"'`=\/]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', '\'': '&#39;', '/': '&#x2F;', '`': '&#x60;', '=': '&#x3D;' }[c]));
 
-function renderBody(rtc) {
+	function renderBody(rtc) {
 		const rtcInfo = (rtc && rtc.appointmentSession && rtc.appointmentSession.room_id) ? `<div class="small text-muted">Sala: ${escapeHtml(String(rtc.appointmentSession.room_id))}</div>` : '';
 		return `
 				<div class="mb-2">
@@ -46,22 +46,7 @@ function renderBody(rtc) {
 					</div>
 					<div id="video-quality-indicator" class="position-absolute top-0 start-0 m-2 d-none" title="Calidad" style="width:16px;height:16px;border-radius:50%;background:#6c757d;box-shadow:0 0 0 2px #fff"></div>
 					<div id="video-quality-warning" class="position-absolute bottom-0 start-0 m-2 d-none px-2 py-1 small bg-warning text-dark rounded shadow">Conexión degradada</div>
-					<div id="video-quality-panel" class="position-absolute top-50 start-50 translate-middle bg-white border rounded shadow p-3 d-none" style="z-index:25;min-width:260px">
-						<div class="d-flex justify-content-between align-items-center mb-2">
-							<span class="fw-semibold">Diagnóstico de calidad</span>
-							<button type="button" class="btn btn-sm btn-outline-secondary" data-quality-panel="close">×</button>
-						</div>
-						<table class="table table-sm mb-2" style="font-size:.75rem">
-							<tbody>
-								<tr><th>Bitrate</th><td data-q="bitrate">-</td></tr>
-								<tr><th>Pérdida</th><td data-q="loss">-</td></tr>
-								<tr><th>RTT</th><td data-q="rtt">-</td></tr>
-								<tr><th>Resolución</th><td data-q="resolution">-</td></tr>
-								<tr><th>FPS</th><td data-q="fps">-</td></tr>
-							</tbody>
-						</table>
-						<div class="small text-muted">Se actualiza cada ~2.5s</div>
-					</div>
+					<!-- Quality details are shown in a modal via modalConfirm (Detalles button) -->
 				</div>
 			<div class="mt-3 d-flex flex-wrap gap-2" id="video-call-controls">
 				<button type="button" class="btn btn-sm btn-outline-primary" data-call-action="toggle-mic">Mic</button>
@@ -73,7 +58,7 @@ function renderBody(rtc) {
 			</div>
 		</div>
 	`;
-}
+	}
 
 	// Obtain RTC bootstrap/config information.
 	// Prefer the global bootstrap promise started by `resources/js/rtc.js` when present,
@@ -108,88 +93,88 @@ function renderBody(rtc) {
 		} catch (_) { /* ignore */ }
 	}
 	async function sendHeartbeat() {
-					// Only owner sends heartbeat; attempt takeover if stale
-					if (!isHeartbeatOwner()) { if (canTakeoverHeartbeat()) { acquireHeartbeatLock(); } }
-					if (!isHeartbeatOwner()) return;
-					try {
-							const resp = await fetch(`/appointments/${encodeURIComponent(id)}/session/heartbeat`, { method: 'POST', headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest', ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {}) } });
-							if (resp.status === 429) {
-									// Rate limited: pause heartbeats and retry with backoff (min 8s or Retry-After header)
-									const ra = parseInt(resp.headers.get('Retry-After') || '0', 10);
-									const backoffMs = ra > 0 ? ra * 1000 : 8000;
-									if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
-									setTimeout(() => { beginHeartbeat(); }, backoffMs);
-									return; // do not count this attempt
-							}
-							// Count successful heartbeat
-							try { metrics.presence_heartbeats_sent = (metrics.presence_heartbeats_sent || 0) + 1; } catch (_) { }
-					} catch (_) { /* ignore */ }
+		// Only owner sends heartbeat; attempt takeover if stale
+		if (!isHeartbeatOwner()) { if (canTakeoverHeartbeat()) { acquireHeartbeatLock(); } }
+		if (!isHeartbeatOwner()) return;
+		try {
+			const resp = await fetch(`/appointments/${encodeURIComponent(id)}/session/heartbeat`, { method: 'POST', headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest', ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {}) } });
+			if (resp.status === 429) {
+				// Rate limited: pause heartbeats and retry with backoff (min 8s or Retry-After header)
+				const ra = parseInt(resp.headers.get('Retry-After') || '0', 10);
+				const backoffMs = ra > 0 ? ra * 1000 : 8000;
+				if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
+				setTimeout(() => { beginHeartbeat(); }, backoffMs);
+				return; // do not count this attempt
 			}
+			// Count successful heartbeat
+			try { metrics.presence_heartbeats_sent = (metrics.presence_heartbeats_sent || 0) + 1; } catch (_) { }
+		} catch (_) { /* ignore */ }
+	}
 
-			// Heartbeat control: start/stop and cross-tab ownership using localStorage lock
-			function isHeartbeatOwner() {
-				try {
-					const raw = localStorage.getItem(HEARTBEAT_LOCK_KEY);
-					if (!raw) return false;
-					const obj = JSON.parse(raw);
-					if (!obj || !obj.tabId || !obj.ts) return false;
-					const age = Date.now() - (obj.ts || 0);
-					return String(obj.tabId) === String(tabId) && age < HEARTBEAT_LOCK_TTL_MS;
-				} catch (_) { return false; }
-			}
+	// Heartbeat control: start/stop and cross-tab ownership using localStorage lock
+	function isHeartbeatOwner() {
+		try {
+			const raw = localStorage.getItem(HEARTBEAT_LOCK_KEY);
+			if (!raw) return false;
+			const obj = JSON.parse(raw);
+			if (!obj || !obj.tabId || !obj.ts) return false;
+			const age = Date.now() - (obj.ts || 0);
+			return String(obj.tabId) === String(tabId) && age < HEARTBEAT_LOCK_TTL_MS;
+		} catch (_) { return false; }
+	}
 
-			function canTakeoverHeartbeat() {
-				try {
-					const raw = localStorage.getItem(HEARTBEAT_LOCK_KEY);
-					if (!raw) return true;
-					const obj = JSON.parse(raw);
-					if (!obj || !obj.ts) return true;
-					const age = Date.now() - (obj.ts || 0);
-					return age > HEARTBEAT_LOCK_TTL_MS;
-				} catch (_) { return true; }
-			}
+	function canTakeoverHeartbeat() {
+		try {
+			const raw = localStorage.getItem(HEARTBEAT_LOCK_KEY);
+			if (!raw) return true;
+			const obj = JSON.parse(raw);
+			if (!obj || !obj.ts) return true;
+			const age = Date.now() - (obj.ts || 0);
+			return age > HEARTBEAT_LOCK_TTL_MS;
+		} catch (_) { return true; }
+	}
 
-			function acquireHeartbeatLock() {
-				try {
-					const payload = { tabId: tabId, ts: Date.now() };
-					localStorage.setItem(HEARTBEAT_LOCK_KEY, JSON.stringify(payload));
-					return true;
-				} catch (_) { return false; }
-			}
+	function acquireHeartbeatLock() {
+		try {
+			const payload = { tabId: tabId, ts: Date.now() };
+			localStorage.setItem(HEARTBEAT_LOCK_KEY, JSON.stringify(payload));
+			return true;
+		} catch (_) { return false; }
+	}
 
-			function releaseHeartbeatLock() {
-				try {
-					const raw = localStorage.getItem(HEARTBEAT_LOCK_KEY);
-					if (!raw) return false;
-					const obj = JSON.parse(raw);
-					if (obj && String(obj.tabId) === String(tabId)) {
-						localStorage.removeItem(HEARTBEAT_LOCK_KEY);
-						return true;
-					}
-				} catch (_) { }
-				return false;
+	function releaseHeartbeatLock() {
+		try {
+			const raw = localStorage.getItem(HEARTBEAT_LOCK_KEY);
+			if (!raw) return false;
+			const obj = JSON.parse(raw);
+			if (obj && String(obj.tabId) === String(tabId)) {
+				localStorage.removeItem(HEARTBEAT_LOCK_KEY);
+				return true;
 			}
+		} catch (_) { }
+		return false;
+	}
 
-			function beginHeartbeat() {
-				try {
-					if (heartbeatTimer) return;
-					// Try to become owner if nobody or lock stale
-					if (!isHeartbeatOwner()) {
-						if (canTakeoverHeartbeat()) { acquireHeartbeatLock(); }
-					}
-					// Start periodic timer; sendHeartbeat will no-op if not owner
-					const intervalSec = parseInt(window.APPOINTMENT_PING_INTERVAL_SECONDS || '45', 10) || 45;
-					// Immediate attempt
-					try { sendHeartbeat(); } catch (_) { }
-					heartbeatTimer = setInterval(sendHeartbeat, intervalSec * 1000);
-				} catch (_) { }
+	function beginHeartbeat() {
+		try {
+			if (heartbeatTimer) return;
+			// Try to become owner if nobody or lock stale
+			if (!isHeartbeatOwner()) {
+				if (canTakeoverHeartbeat()) { acquireHeartbeatLock(); }
 			}
+			// Start periodic timer; sendHeartbeat will no-op if not owner
+			const intervalSec = parseInt(window.APPOINTMENT_PING_INTERVAL_SECONDS || '45', 10) || 45;
+			// Immediate attempt
+			try { sendHeartbeat(); } catch (_) { }
+			heartbeatTimer = setInterval(sendHeartbeat, intervalSec * 1000);
+		} catch (_) { }
+	}
 
-			function stopHeartbeat() {
-				try {
-					if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
-				} catch (_) { }
-			}
+	function stopHeartbeat() {
+		try {
+			if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
+		} catch (_) { }
+	}
 
 	async function init() {
 		await startSession();
@@ -242,46 +227,70 @@ function renderBody(rtc) {
 			try { ev.preventDefault(); ev.stopImmediatePropagation(); ev.stopPropagation(); } catch (_) { }
 			const act = btn.getAttribute('data-call-action');
 			if (act === 'end') {
-				// Mark manual end and close the modal via Bootstrap API. If that
-				// fails or the helper is missing, fall back to direct cleanup after
-				// a short timeout.
-				manualEnd = true;
-				try { window.modalNotification?.('Sesión', 'Finalizada', { template: 'info' }); } catch (_) { }
+				// Request remote confirmation before ending the session.
 				try {
-					const el = document.getElementById(modalId);
-					if (el && window.bootstrap && window.bootstrap.Modal) {
-						let m = window.bootstrap.Modal.getInstance(el);
-						if (!m) m = new window.bootstrap.Modal(el);
-						m.hide();
-					} else if (typeof window.closeAllModals === 'function') {
-						window.closeAllModals();
-					} else {
-						// Last resort: remove the 'show' class and hide backdrop so hidden.bs.modal fires
-						if (el) { el.classList.remove('show'); el.style.display = 'none'; }
-					}
-				} catch (_) {
-					try { window.closeAllModals?.(); } catch (_) { }
-				}
-				// Ensure cleanup happens eventually even if modal hide events do not fire
-				setTimeout(() => {
-					try {
-						const still = document.getElementById(modalId);
-						if (still && manualEnd) {
-							try { completeSession(); } catch (_) { }
+					// mark that user requested an end; do not immediately teardown
+					manualEnd = true;
+					// If we have signaling, ensure connection and room membership, then send a request to peers
+					if (pgSignaler && typeof pgSignaler.sendMessage === 'function') {
+						try {
+							// Ensure the signaller is connected
+							try { await pgSignaler.connect(); } catch (_) { }
+							// Ensure presence in the appointment room so broadcast reaches peers
+							const roomToJoin = pgSignalingRoom || ccConferenceRoomId || (appointmentSessionInfo && appointmentSessionInfo.room_id) || null;
+							if (roomToJoin && typeof pgSignaler.presenceJoin === 'function') {
+								try { pgSignaler.presenceJoin(roomToJoin); } catch (_) { }
+							}
+										// Attempt to send the request via signaling first; if it fails, fall back to server POST
+										try {
+											console.debug('[VideoCallModal] attempting to send request_end_session via signaling (awaiting ACK)');
+											let ackResp = { ok: false };
+											try {
+												if (pgSignaler && typeof pgSignaler.sendMessage === 'function') {
+													ackResp = await pgSignaler.sendMessage(null, { type: 'request_end_session', appointmentId: id, from: currentUserId || null }, { expectAck: true, timeoutMs: 4000 });
+												}
+											} catch (e) {
+												console.warn('request_end_session signaling send/ack failed', e);
+											}
+											// If ACKed via signaling, we can rely on it. Otherwise fall back to server POST.
+											if (ackResp && ackResp.ok) {
+												window.modalNotification?.('Solicitud enviada', 'Se ha solicitado finalizar la sesión. Esperando respuesta del otro participante.', { template: 'info', timeout: 5000 });
+												showEndRequestWaitingModal();
+											} else {
+												// No ACK received — use server broadcast fallback
+												window.modalNotification?.('Solicitud enviada', 'Se ha solicitado finalizar la sesión. Intentando entrega vía servidor.', { template: 'info', timeout: 5000 });
+												showEndRequestWaitingModal();
+												try {
+													console.debug('[VideoCallModal] falling back to server POST /session/request-end');
+													await fetch(`/appointments/${encodeURIComponent(id)}/session/request-end`, { method: 'POST', headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest', ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {}) } });
+												} catch (e) { console.warn('request-end POST failed', e); }
+											}
+										} catch (e) {
+											console.warn('request_end_session flow failed', e);
+											window.modalNotification?.('Error', 'Fallo al preparar la solicitud de fin de sesión.', { template: 'danger' });
+										}
+						} catch (e) {
+							console.warn('request_end_session flow failed', e);
+							window.modalNotification?.('Error', 'Fallo al preparar la señalización.', { template: 'danger' });
 						}
-					} catch (_) { }
-				}, 1500);
+					} else {
+						// Fallback: ask locally (no signaling available)
+						window.modalConfirm?.({ title: 'Finalizar sesión', body: 'No se ha detectado servidor de señalización. ¿Deseas finalizar la sesión ahora?', buttons: [{ text: 'Cancelar', className: 'btn-outline-secondary', dismiss: true }, { text: 'Finalizar', className: 'btn-danger', onClick: async () => { await fetchCompleteAndClose(); } }] }, 'normal');
+					}
+				} catch (e) {
+					console.error('end action error', e);
+				}
 				return;
 			}
 			if (act === 'toggle-mic') { btn.classList.toggle('btn-outline-primary'); btn.classList.toggle('btn-primary'); toggleTrack('audio'); }
-			if (act === 'toggle-cam') { btn.classList.toggle('btn-outline-primary'); btn.classList.toggle('btn-primary'); toggleTrack('video'); }
-			if (act === 'join') { try { await joinConference(); } catch(e){ console.error('joinConference error', e); updatePlaceholder('Error al unirse'); } }
+			if (act === 'toggle-cam') { btn.classList.toggle('btn-outline-primary'); btn.classList.toggle('btn-primary'); await toggleTrack('video'); }
+			if (act === 'join') { try { await joinConference(); } catch (e) { console.error('joinConference error', e); updatePlaceholder('Error al unirse'); } }
 			if (act === 'toggle-quality') { toggleQualityPreference(btn); }
 			if (act === 'show-quality-panel') { toggleQualityPanel(); }
 			if (act === 'cancel-reconnect') { cancelReconnection(); }
 		};
 		delegateRoot.addEventListener('click', delegateRoot.__onClick);
-		try { console.debug('[VideoCallModal] attached click handler to', delegateRoot === document ? 'document' : (wrap ? '#video-call-wrapper' : ('#' + modalId))); } catch (_) {}
+		try { console.debug('[VideoCallModal] attached click handler to', delegateRoot === document ? 'document' : (wrap ? '#video-call-wrapper' : ('#' + modalId))); } catch (_) { }
 		setupPresenceListeners();
 		// Clean up when modal hidden
 		if (modalEl) {
@@ -306,14 +315,14 @@ function renderBody(rtc) {
 					const r = await fetch(`/appointments/${encodeURIComponent(id)}/session/status`, { headers: { 'Accept': 'application/json' } });
 					if (!r.ok) return; const j = await r.json().catch(() => null); if (!j || !j.session) return;
 					const pj = j.session.professional_joined_at; const pt = j.session.patient_joined_at;
-							if (pj && pt) {
-								// Notify UI and show join control now that both participants are present
-								placeholder.innerHTML = '<div class="fw-semibold">Conectados</div><div class="small text-muted mt-2">Ambos participantes presentes.</div>';
-								try { maybeStartIfBothJoined(); } catch (_) { }
-								clearInterval(pollTimer);
-							} else if (pj || pt) {
-								placeholder.innerHTML = '<div class="fw-semibold">Esperando al otro participante...</div><div class="small text-muted mt-2">Conexión parcial detectada.</div>';
-							}
+					if (pj && pt) {
+						// Notify UI and show join control now that both participants are present
+						placeholder.innerHTML = '<div class="fw-semibold">Conectados</div><div class="small text-muted mt-2">Ambos participantes presentes.</div>';
+						try { maybeStartIfBothJoined(); } catch (_) { }
+						clearInterval(pollTimer);
+					} else if (pj || pt) {
+						placeholder.innerHTML = '<div class="fw-semibold">Esperando al otro participante...</div><div class="small text-muted mt-2">Conexión parcial detectada.</div>';
+					}
 				} catch (_) { /* ignore */ }
 			}, 8000);
 		} catch (_) { }
@@ -326,6 +335,26 @@ function renderBody(rtc) {
 						const placeholder = document.getElementById('video-call-placeholder');
 						if (placeholder) { placeholder.innerHTML = '<div class="fw-semibold">Conectados</div><div class="small text-muted mt-2">La sesión ha iniciado.</div>'; }
 					});
+
+					// Listen for server-side end-request broadcasts as a fallback
+					window.Echo.private(`appointments.${selfId}`).listen('AppointmentEndRequested', (e) => {
+						try {
+							// Normalize payload shape similar to signaling payload
+							const payload = e || {};
+							if (payload && (payload.type === 'request_end_session' || payload.appointment_id)) {
+								const askId = `${modalId}-end-ask`;
+								window.modalConfirm?.({
+									modalId: askId,
+									title: 'Solicitan finalizar la sesión',
+									body: '<div>El otro participante solicita finalizar la sesión. ¿Aceptas finalizar y cerrar la sesión?</div>',
+									buttons: [
+										{ text: 'Rechazar', className: 'btn-outline-secondary', onClick: () => { try { if (pgSignaler && typeof pgSignaler.sendMessage === 'function') pgSignaler.sendMessage(null, { type: 'decline_end_session', appointmentId: id, by: currentUserId || null }); } catch (_) { } }, dismiss: true },
+										{ text: 'Aceptar', className: 'btn-danger', onClick: async () => { try { await fetchCompleteAndClose(); } catch (_) { } }, dismiss: true }
+									]
+								}, 'normal');
+							}
+						} catch (_) { }
+					});
 				}
 				window.Echo.channel('presence').listen('UserPresenceChanged', (e) => {
 					if (!e || !e.user_id) return; if (String(e.user_id) === String(otherUserId) && e.status === 'online') {
@@ -333,6 +362,32 @@ function renderBody(rtc) {
 						if (placeholder) { placeholder.innerHTML = '<div class="fw-semibold">El otro usuario está en línea...</div><div class="small text-muted mt-2">Esperando unión a la sala.</div>'; }
 					}
 				});
+
+					// Listen for appointment completion broadcasts and close UI accordingly
+					window.Echo.private(`appointments.${selfId}`).listen('AppointmentCompleted', (e) => {
+						try {
+							if (!e || !e.id) return;
+							if (String(e.id) !== String(id)) return;
+							// Close any waiting modals and the main call modal, then cleanup UI
+							try { closeEndRequestWaitingModal(); } catch (_) { }
+							try {
+								const el = document.getElementById(modalId);
+								if (el) {
+									try { const inst = bootstrap.Modal.getInstance(el); inst?.hide(); } catch (_) { try { $(el).modal('hide'); } catch (_) { } }
+								}
+							} catch (_) { }
+							// Ensure local teardown
+							try { if (typeof completeSession === 'function') completeSession(); } catch (_) { }
+							// Remove the upcoming appointment card if it matches
+							try {
+								const next = document.getElementById('pg-next-appt');
+								if (next) {
+									const apptId = next.getAttribute('data-appt-id') || next.getAttribute('data-apptid') || next.getAttribute('data-appointment-id');
+									if (String(apptId) === String(id)) { next.remove(); }
+								}
+							} catch (_) { }
+						} catch (_) { }
+					});
 			}
 		} catch (_) { }
 	}
@@ -364,66 +419,67 @@ function renderBody(rtc) {
 	let ccConferenceRoomId = null;
 	// P2P signaling (Socket.IO)
 	let pgSignaler = null; let pgSignalingRoom = null;
+	let _lastRemoteStream = null;
 	// Ensure completeSession exists early so UI handlers can call it before wrapper is defined.
 	let completeSession = async function () { /* placeholder; will be wrapped later */ };
 
 	// Show/hide the Join button in the controls
-	function showJoinButton(){
-		try{
+	function showJoinButton() {
+		try {
 			const btn = document.querySelector('#video-call-controls [data-call-action="join"]');
-			if(btn){ btn.classList.remove('d-none'); }
-		}catch(_){ }
+			if (btn) { btn.classList.remove('d-none'); }
+		} catch (_) { }
 	}
-	function hideJoinButton(){
-		try{
+	function hideJoinButton() {
+		try {
 			const btn = document.querySelector('#video-call-controls [data-call-action="join"]');
-			if(btn){ btn.classList.add('d-none'); }
-		}catch(_){ }
+			if (btn) { btn.classList.add('d-none'); }
+		} catch (_) { }
 	}
 
-// Helper: find a conference join function across different ConnectyCube SDK namespaces
-function findConferenceJoin(){
-	// Force use of the Socket.IO-based P2P signaling fallback.
-	// We intentionally avoid invoking ConnectyCube's conference.join even if the
-	// global SDK is present to keep appointment modal self-contained and
-	// prevent ConnectyCube from emitting runtime warnings when the adapter
-	// is not available or when the SDK is being removed.
-	try {
-		console.debug('[VideoCallModal] skipping ConnectyCube conference join (using P2P signaling)');
-	} catch (_) { }
-	return null;
-}
+	// Helper: find a conference join function across different ConnectyCube SDK namespaces
+	function findConferenceJoin() {
+		// Force use of the Socket.IO-based P2P signaling fallback.
+		// We intentionally avoid invoking ConnectyCube's conference.join even if the
+		// global SDK is present to keep appointment modal self-contained and
+		// prevent ConnectyCube from emitting runtime warnings when the adapter
+		// is not available or when the SDK is being removed.
+		try {
+			console.debug('[VideoCallModal] skipping ConnectyCube conference join (using P2P signaling)');
+		} catch (_) { }
+		return null;
+	}
 
-// Ask server to ensure a canonical room exists for this appointment session
-async function ensureRoomFromServer(){
-	try{
-		const resp = await fetch(`/appointments/${encodeURIComponent(id)}/session/ensure-room`, { method: 'POST', headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest', ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {}) } });
-		if(!resp || !resp.ok) return null;
-		const j = await resp.json().catch(()=>null);
-		if(j && j.room_id){ ccConferenceRoomId = j.room_id; try{ console.debug('[VideoCallModal] ensured room id from server', ccConferenceRoomId); }catch(_){ } return ccConferenceRoomId; }
-	}catch(e){ try{ console.warn('ensureRoomFromServer error', e); }catch(_){ } }
-	return null;
-}
+	// Ask server to ensure a canonical room exists for this appointment session
+	async function ensureRoomFromServer() {
+		try {
+			const resp = await fetch(`/appointments/${encodeURIComponent(id)}/session/ensure-room`, { method: 'POST', headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest', ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {}) } });
+			if (!resp || !resp.ok) return null;
+			const j = await resp.json().catch(() => null);
+			if (j && j.room_id) { ccConferenceRoomId = j.room_id; try { console.debug('[VideoCallModal] ensured room id from server', ccConferenceRoomId); } catch (_) { } return ccConferenceRoomId; }
+		} catch (e) { try { console.warn('ensureRoomFromServer error', e); } catch (_) { } }
+		return null;
+	}
 
 	// Join conference flow: prefer conference.join (room id), fallback to placeCall for initiator
-	async function joinConference(){
-		try{
-			try { console.debug('[VideoCallModal] joinConference invoked, ccLocalStream present?', !!ccLocalStream, 'ccConferenceRoomId', ccConferenceRoomId); } catch(_){ }
+	async function joinConference() {
+		try {
+			try { console.debug('[VideoCallModal] joinConference invoked, ccLocalStream present?', !!ccLocalStream, 'ccConferenceRoomId', ccConferenceRoomId); } catch (_) { }
 			// Ensure local preview exists
-			if(!ccLocalStream){ try { await setupLocalPreview(); } catch(_){} }
-			try { updatePlaceholder('Intentando unirse...'); } catch(_){ }
+			if (!ccLocalStream) { try { await setupLocalPreview(); } catch (_) { } }
+			try { updatePlaceholder('Intentando unirse...'); } catch (_) { }
 
 			// Prefer conference room if provided by backend; if missing, ask server to ensure one
 			let roomId = ccConferenceRoomId || (appointmentSessionInfo && appointmentSessionInfo.room_id) || null;
-			if(!roomId){
-				try{ roomId = await ensureRoomFromServer(); } catch(_) { roomId = ccConferenceRoomId || null; }
+			if (!roomId) {
+				try { roomId = await ensureRoomFromServer(); } catch (_) { roomId = ccConferenceRoomId || null; }
 			}
 
 			const conferenceJoin = findConferenceJoin();
 
 			// If SDK conference join exists (unlikely now), prefer it — kept for backward compat.
-			if(roomId && conferenceJoin){
-				try{
+			if (roomId && conferenceJoin) {
+				try {
 					await conferenceJoin(roomId, { stream: ccLocalStream });
 					ccCallActive = true;
 					hideJoinButton();
@@ -435,10 +491,10 @@ async function ensureRoomFromServer(){
 			}
 
 			// If we have a room id, try P2P signaling fallback
-			if(roomId){
+			if (roomId) {
 				updatePlaceholder('Conferencia no soportada por el cliente, intentando fallback...');
 				// UX: disable join button while attempting P2P fallback
-				try { const jb = document.querySelector('#video-call-controls [data-call-action="join"]'); if (jb) { jb.disabled = true; jb.textContent = 'Conectando...'; } } catch(_) {}
+				try { const jb = document.querySelector('#video-call-controls [data-call-action="join"]'); if (jb) { jb.disabled = true; jb.textContent = 'Conectando...'; } } catch (_) { }
 
 				if (!pgSignaler) pgSignaler = createSignalingClient();
 				try {
@@ -447,7 +503,7 @@ async function ensureRoomFromServer(){
 				} catch (eConn) {
 					console.warn('[VideoCallModal] signaller connect failed', eConn);
 					updatePlaceholder('No se pudo conectar al servidor de señalización');
-					try { const jb = document.querySelector('#video-call-controls [data-call-action="join"]'); if (jb) { jb.disabled = false; jb.textContent = 'Unirse'; } } catch(_){}
+					try { const jb = document.querySelector('#video-call-controls [data-call-action="join"]'); if (jb) { jb.disabled = false; jb.textContent = 'Unirse'; } } catch (_) { }
 					return;
 				}
 
@@ -455,22 +511,22 @@ async function ensureRoomFromServer(){
 				try {
 					await pgSignaler.joinRoom(roomId, ccLocalStream, {
 						onRemoteStream: (stream) => {
-							try { attachRemoteStream(stream); ccCallActive = true; hideJoinButton(); updatePlaceholder('Dentro de la conferencia (P2P)'); } catch(_){ }
+							try { attachRemoteStream(stream); ccCallActive = true; hideJoinButton(); updatePlaceholder('Dentro de la conferencia (P2P)'); } catch (_) { }
 						},
-						onConnected: () => { try { console.debug('[VideoCallModal] P2P joined room'); } catch(_){} }
+						onConnected: () => { try { console.debug('[VideoCallModal] P2P joined room'); } catch (_) { } }
 					});
 					return;
 				} catch (eJoin) {
 					console.warn('[VideoCallModal] pgSignaler.joinRoom failed', eJoin);
 					updatePlaceholder('Error al unirse por señalización');
-					try { const jb = document.querySelector('#video-call-controls [data-call-action="join"]'); if (jb) { jb.disabled = false; jb.textContent = 'Unirse'; } } catch(_){ }
+					try { const jb = document.querySelector('#video-call-controls [data-call-action="join"]'); if (jb) { jb.disabled = false; jb.textContent = 'Unirse'; } } catch (_) { }
 					return;
 				}
 			}
 
 			// No room id: fall back to deterministic initiator placing a call
-			const myInt = parseInt(currentUserId || '0',10); const oppInt = parseInt(otherUserId || '0',10);
-			if(myInt && oppInt && myInt < oppInt){
+			const myInt = parseInt(currentUserId || '0', 10); const oppInt = parseInt(otherUserId || '0', 10);
+			if (myInt && oppInt && myInt < oppInt) {
 				// act as initiator using existing placeCall logic
 				hideJoinButton();
 				await placeCall();
@@ -478,7 +534,7 @@ async function ensureRoomFromServer(){
 			}
 
 			updatePlaceholder('Esperando que el iniciador realice la llamada');
-		}catch(e){ console.error('joinConference error', e); throw e; }
+		} catch (e) { console.error('joinConference error', e); throw e; }
 	}
 
 	let incomingPromptTimer = null;
@@ -495,17 +551,8 @@ async function ensureRoomFromServer(){
 			let ph = stage.querySelector('#video-call-placeholder');
 			// If remote video present, show status as toast badge top-center
 			const remote = document.getElementById('cc-remote-video');
-			if (remote) {
-				let badge = stage.querySelector('#video-status-badge');
-				if (!badge) {
-					badge = document.createElement('div');
-					badge.id = 'video-status-badge';
-					badge.className = 'position-absolute top-0 start-50 translate-middle-x mt-2 px-3 py-1 rounded bg-dark text-white small shadow';
-					stage.appendChild(badge);
-				}
-				badge.textContent = text;
-				return;
-			}
+			// If remote video present, we no longer show a floating badge; leave UI to video element
+			if (remote) { return; }
 			if (!ph) {
 				ph = document.createElement('div');
 				ph.id = 'video-call-placeholder';
@@ -528,7 +575,11 @@ async function ensureRoomFromServer(){
 			ccOpponentId = (rtcBootstrap.userIdMap && rtcBootstrap.userIdMap[String(otherUserId)]) ? rtcBootstrap.userIdMap[String(otherUserId)] : otherUserId;
 			// Connect signaling and attach basic handlers
 			try { await pgSignaler.connect(); } catch (e) { console.warn('Signaler connect failed', e); }
+			// Join presence silently so we can receive app-level messages (end-session requests, media_state, etc.)
+			try { if (ccConferenceRoomId && pgSignaler && typeof pgSignaler.presenceJoin === 'function') { pgSignaler.presenceJoin(ccConferenceRoomId); } } catch (_) { }
 			try { pgSignaler.on('remoteStream', (s) => { try { attachRemoteStream(s); } catch (_) { } }); } catch (_) { }
+			// Ensure application-level signaling handlers are wired (message handlers, peer events)
+			try { setupCcListeners(); } catch (_) { }
 			await setupLocalPreview();
 			// Auto-join disabled: the appointment modal must remain authoritative.
 			// We intentionally DO NOT automatically join the room when a backend
@@ -548,6 +599,8 @@ async function ensureRoomFromServer(){
 				camBox.innerHTML = '<video id="cc-local-video" autoplay playsinline muted style="width:100%;height:100%;object-fit:cover;border-radius:4px;background:#000"></video>';
 				const v = document.getElementById('cc-local-video'); if (v) { v.srcObject = ccLocalStream; }
 			}
+			// Inform the signaling client about the local stream so it can update senders
+			try { if (pgSignaler && typeof pgSignaler.setLocalStream === 'function') pgSignaler.setLocalStream(ccLocalStream); } catch (_) { }
 		} catch (e) {
 			const camBox = document.querySelector('#video-call-stage .position-absolute');
 			if (camBox) { camBox.innerHTML = '<div class="text-danger small">Permiso cámara/mic denegado</div>'; }
@@ -556,23 +609,135 @@ async function ensureRoomFromServer(){
 	}
 
 	function setupCcListeners() {
-			// Wire minimal signaling handlers when using Socket.IO-based signaling
-			try {
-				if (pgSignaler) {
-					pgSignaler.on('peerJoined', (peerId) => {
-						// Treat peer join as potential incoming call — show prompt
+		// Wire minimal signaling handlers when using Socket.IO-based signaling
+		try {
+			if (pgSignaler) {
+				pgSignaler.on('peerJoined', (peerId) => {
+					// If we're using a canonical conference room (room-based flow), do not show
+					// the legacy incoming-call overlay; treat peer-join as normal presence.
+					try {
+						if (pgSignalingRoom || ccConferenceRoomId) {
+							try { updatePlaceholder('Llamada entrante...'); } catch (_) { }
+							return;
+						}
+						// Legacy place-call flow (no room): show incoming prompt
 						try { updatePlaceholder('Llamada entrante...'); showIncomingCallPrompt({ id: peerId }); } catch (_) { }
+					} catch (_) { }
+				});
+				pgSignaler.on('remoteStream', (stream, peerId) => {
+					try { attachRemoteStream(stream); } catch (_) { }
+				});
+				pgSignaler.on('peerLeft', (peerId) => {
+					try { updatePlaceholder('El otro usuario se fue'); finalizeCcCall(); } catch (_) { }
+				});
+				// Application-level messages (media_state, end-session requests, etc.)
+				try {
+					pgSignaler.onAppMessage((from, payload) => {
+						try {
+							if (!payload || !payload.type) return;
+							if (payload.type === 'media_state') {
+								updateRemoteMediaIndicators(payload);
+								return;
+							}
+							if (payload.type === 'request_end_session') {
+								// Show confirmation modal to the receiving participant
+								try {
+									const askId = `${modalId}-end-ask`;
+									window.modalConfirm?.({
+										modalId: askId,
+										title: 'Solicitan finalizar la sesión',
+										body: '<div>El otro participante solicita finalizar la sesión. ¿Aceptas finalizar y cerrar la sesión?</div>',
+										buttons: [
+											{ text: 'Rechazar', className: 'btn-outline-secondary', onClick: () => { try { if (pgSignaler && typeof pgSignaler.sendMessage === 'function') pgSignaler.sendMessage(from || null, { type: 'decline_end_session', appointmentId: id, by: currentUserId || null }); } catch (_) { } }, dismiss: true },
+											{ text: 'Aceptar', className: 'btn-danger', onClick: async () => { try { await fetchCompleteAndClose(); } catch (_) { } }, dismiss: true }
+										]
+									}, 'normal');
+								} catch (_) { }
+								return;
+							}
+							if (payload.type === 'cancel_end_request') {
+								// The requester cancelled before recipient answered — close any ask modal
+								try {
+									const askId = `${modalId}-end-ask`;
+									const el = document.getElementById(askId);
+									if (el) {
+										try { const inst = bootstrap.Modal.getInstance(el); inst?.hide(); } catch (_) { try { $(el).modal('hide'); } catch (_) { } }
+									}
+									try { window.modalNotification?.('Solicitud cancelada', 'El otro participante canceló la solicitud.', { template: 'info' }); } catch (_) { }
+								} catch (_) { }
+								return;
+							}
+							if (payload.type === 'confirm_end_session') {
+								// Remote accepted - finalize locally
+								try { window.modalNotification?.('Sesión finalizada', 'La sesión ha sido finalizada por mutuo acuerdo.', { template: 'info' }); } catch (_) { }
+								try { closeEndRequestWaitingModal(); } catch (_) { }
+								try { completeSession(); } catch (_) { }
+								return;
+							}
+							if (payload.type === 'decline_end_session') {
+								try { window.modalNotification?.('Solicitud rechazada', 'El otro participante no aceptó finalizar la sesión.', { template: 'warning' }); } catch (_) { }
+								// revert manualEnd flag so user can attempt again
+								try { closeEndRequestWaitingModal(); } catch (_) { }
+								manualEnd = false;
+								return;
+							}
+						} catch (_) { }
 					});
-					pgSignaler.on('remoteStream', (stream, peerId) => {
-						try { attachRemoteStream(stream); } catch (_) { }
-					});
-					pgSignaler.on('peerLeft', (peerId) => {
-						try { updatePlaceholder('El otro usuario se fue'); finalizeCcCall(); } catch (_) { }
-					});
-					// Application-level messages (media_state etc.)
-					try { pgSignaler.onAppMessage((from, payload) => { try { if (payload && payload.type === 'media_state') updateRemoteMediaIndicators(payload); } catch (_) { } }); } catch (_) { }
-				}
-			} catch (_) { }
+				} catch (_) { }
+			}
+		} catch (_) { }
+	}
+
+	// Helper: call server to mark session complete and then cleanup locally and notify peers
+	async function fetchCompleteAndClose() {
+		try {
+			const url = `/appointments/${encodeURIComponent(id)}/session/complete`;
+			const resp = await fetch(url, { method: 'POST', headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest', ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {}) } });
+			if (resp && resp.ok) {
+				// notify peers via signaling
+				try { if (pgSignaler && typeof pgSignaler.sendMessage === 'function') { pgSignaler.sendMessage(null, { type: 'confirm_end_session', appointmentId: id, by: currentUserId || null }); } } catch (_) { }
+				try { window.modalNotification?.('Sesión completada', 'La sesión se ha marcado como finalizada.', { template: 'info' }); } catch (_) { }
+				try { completeSession(); } catch (_) { }
+			} else {
+				try { window.modalNotification?.('Error', 'No se pudo finalizar la sesión en servidor.', { template: 'danger' }); } catch (_) { }
+			}
+		} catch (e) {
+			console.error('fetchCompleteAndClose error', e);
+			try { window.modalNotification?.('Error', 'Fallo al conectar con servidor.', { template: 'danger' }); } catch (_) { }
+		}
+	}
+
+	// Waiting modal for end-session request (shown to the requester)
+	let _endRequestTimer = null;
+	function showEndRequestWaitingModal() {
+		const waitId = `${modalId}-end-wait`;
+		try {
+			window.modalConfirm?.({
+				modalId: waitId,
+				title: 'Solicitud enviada',
+				body: '<div>Esperando respuesta del otro participante...</div>',
+				buttons: [
+					{ text: 'Cancelar', className: 'btn-outline-secondary', onClick: () => {
+						// Cancel the pending request and allow retries
+						try { if (pgSignaler && typeof pgSignaler.sendMessage === 'function') pgSignaler.sendMessage(null, { type: 'cancel_end_request', appointmentId: id, by: currentUserId || null }); } catch (_) { }
+						manualEnd = false;
+					}, dismiss: true }
+				]
+			}, 'normal');
+			// Auto-timeout after 60s: close modal and reset manualEnd
+			try { if (_endRequestTimer) clearTimeout(_endRequestTimer); _endRequestTimer = setTimeout(() => { const el = document.getElementById(waitId); if (el) { try { const inst = bootstrap.Modal.getInstance(el); inst?.hide(); } catch (_) { } } manualEnd = false; }, 60000); } catch (_) { }
+		} catch (_) { }
+	}
+
+	function closeEndRequestWaitingModal() {
+		const waitId = `${modalId}-end-wait`;
+		try {
+			if (_endRequestTimer) { clearTimeout(_endRequestTimer); _endRequestTimer = null; }
+			const el = document.getElementById(waitId);
+			if (el) {
+				try { const inst = bootstrap.Modal.getInstance(el); inst?.hide(); } catch (_) { try { $(el).modal('hide'); } catch (_) { } }
+			}
+		} catch (_) { }
 	}
 
 	function decideInitiator() {
@@ -606,73 +771,144 @@ async function ensureRoomFromServer(){
 			const myInt = parseInt(currentUserId || '0', 10); const oppInt = parseInt(otherUserId || '0', 10);
 			if (myInt === 0 || oppInt === 0) return;
 			// Instead of auto-placing a call, show a Join button so either participant can opt-in.
-			try { showJoinButton(); } catch(_){}
+			try { showJoinButton(); } catch (_) { }
 			updatePlaceholder('Ambos presentes — pulsa "Unirse" para entrar a la sala');
 		} catch (_) { }
 	}
 
 	async function placeCall() {
+		try {
+			hideJoinButton();
+			// Ensure local media
+			try { await setupLocalPreview(); } catch (_) { }
+			// Ensure canonical room
+			let roomId = ccConferenceRoomId || (appointmentSessionInfo && appointmentSessionInfo.room_id) || null;
+			if (!roomId) { try { roomId = await ensureRoomFromServer(); } catch (_) { roomId = ccConferenceRoomId || null; } }
+			if (!roomId) { updatePlaceholder('No hay sala disponible'); return; }
+			// Join via signaling; this will negotiate with other peer(s)
 			try {
-				hideJoinButton();
-				// Ensure local media
-				try { await setupLocalPreview(); } catch (_) { }
-				// Ensure canonical room
-				let roomId = ccConferenceRoomId || (appointmentSessionInfo && appointmentSessionInfo.room_id) || null;
-				if (!roomId) { try { roomId = await ensureRoomFromServer(); } catch (_) { roomId = ccConferenceRoomId || null; } }
-				if (!roomId) { updatePlaceholder('No hay sala disponible'); return; }
-				// Join via signaling; this will negotiate with other peer(s)
-				try {
-					if (!pgSignaler) pgSignaler = createSignalingClient();
-					try { await pgSignaler.connect(); } catch (_) { }
-					await pgSignaler.joinRoom(roomId, ccLocalStream, { onRemoteStream: (s) => { try { attachRemoteStream(s); } catch (_) { } } });
-					ccCallActive = true; updatePlaceholder('Llamando...');
-				} catch (e) { console.error('placeCall signaling error', e); updatePlaceholder('Error al iniciar llamada'); }
-			} catch (e) { console.error('placeCall error', e); updatePlaceholder('Error al iniciar llamada'); }
+				if (!pgSignaler) pgSignaler = createSignalingClient();
+				try { await pgSignaler.connect(); } catch (_) { }
+				await pgSignaler.joinRoom(roomId, ccLocalStream, { onRemoteStream: (s) => { try { attachRemoteStream(s); } catch (_) { } } });
+				ccCallActive = true; updatePlaceholder('Llamando...');
+			} catch (e) { console.error('placeCall signaling error', e); updatePlaceholder('Error al iniciar llamada'); }
+		} catch (e) { console.error('placeCall error', e); updatePlaceholder('Error al iniciar llamada'); }
 	}
 
 	async function tryAccept(session) {
+		try {
+			hideJoinButton();
+			try { await setupLocalPreview(); } catch (_) { }
+			// Accept by joining the canonical room
+			let roomId = ccConferenceRoomId || (appointmentSessionInfo && appointmentSessionInfo.room_id) || null;
+			if (!roomId) { try { roomId = await ensureRoomFromServer(); } catch (_) { roomId = ccConferenceRoomId || null; } }
+			if (!roomId) { updatePlaceholder('No hay sala disponible'); return; }
 			try {
-				hideJoinButton();
-				try { await setupLocalPreview(); } catch (_) { }
-				// Accept by joining the canonical room
-				let roomId = ccConferenceRoomId || (appointmentSessionInfo && appointmentSessionInfo.room_id) || null;
-				if (!roomId) { try { roomId = await ensureRoomFromServer(); } catch (_) { roomId = ccConferenceRoomId || null; } }
-				if (!roomId) { updatePlaceholder('No hay sala disponible'); return; }
-				try {
-					if (!pgSignaler) pgSignaler = createSignalingClient();
-					try { await pgSignaler.connect(); } catch (_) { }
-					await pgSignaler.joinRoom(roomId, ccLocalStream, { onRemoteStream: (s) => { try { attachRemoteStream(s); } catch (_) { } } });
-					ccCallActive = true; updatePlaceholder('Aceptando llamada...'); hideIncomingCallPrompt();
-				} catch (e) { console.error('accept signaling error', e); updatePlaceholder('Error al aceptar'); }
-			} catch (e) { console.error('accept error', e); updatePlaceholder('Error al aceptar'); }
+				if (!pgSignaler) pgSignaler = createSignalingClient();
+				try { await pgSignaler.connect(); } catch (_) { }
+				await pgSignaler.joinRoom(roomId, ccLocalStream, { onRemoteStream: (s) => { try { attachRemoteStream(s); } catch (_) { } } });
+				ccCallActive = true; updatePlaceholder('Aceptando llamada...'); hideIncomingCallPrompt();
+			} catch (e) { console.error('accept signaling error', e); updatePlaceholder('Error al aceptar'); }
+		} catch (e) { console.error('accept error', e); updatePlaceholder('Error al aceptar'); }
 	}
 
 	function attachRemoteStream(stream) {
 		let remoteEl = document.getElementById('cc-remote-video');
 		const stage = document.getElementById('video-call-stage');
+		// Ensure placeholder removed when attaching a stream so video area is available
+		try { const ph = stage && stage.querySelector('#video-call-placeholder'); if (ph) { ph.remove(); } } catch (_) { }
 		if (!remoteEl && stage) {
 			stage.querySelector('#video-call-placeholder')?.remove();
 			remoteEl = document.createElement('video');
 			remoteEl.id = 'cc-remote-video'; remoteEl.autoplay = true; remoteEl.playsInline = true;
 			remoteEl.style.cssText = 'width:100%;height:100%;object-fit:cover;background:#000;border-radius:6px;';
 			stage.appendChild(remoteEl);
-			// Add remote media indicators container
-			let indicators = document.getElementById('remote-media-indicators');
-			if (!indicators) {
-				indicators = document.createElement('div');
-				indicators.id = 'remote-media-indicators';
-				indicators.className = 'position-absolute bottom-0 end-0 m-2 p-1 rounded bg-dark bg-opacity-75 text-white small';
-				indicators.innerHTML = '<span data-remote-mic>Mic ?</span> | <span data-remote-cam>Cam ?</span>';
-				stage.appendChild(indicators);
-			}
 		}
-		if (remoteEl) { remoteEl.srcObject = stream; updatePlaceholder('Conectados'); hideJoinButton(); }
+		_lastRemoteStream = stream;
+		if (remoteEl) {
+			// ensure the element has the latest stream object
+			try { remoteEl.srcObject = stream; } catch (_) { remoteEl.srcObject = null; }
+			// Track video presence so UI reflects remote camera on/off
+			try {
+				const applyVisibility = () => {
+					try {
+						const hasVideo = stream && stream.getVideoTracks && stream.getVideoTracks().some(t => t && t.enabled && !t.muted);
+						if (hasVideo) { remoteEl.style.display = ''; remoteEl.dataset.videoEnabled = '1'; }
+						else { remoteEl.style.display = 'none'; remoteEl.dataset.videoEnabled = '0'; }
+					} catch (_) { }
+				};
+				// Initial visibility
+				applyVisibility();
+				// React to track ended/removed events
+				try { stream.addEventListener('removetrack', applyVisibility); } catch (_) { }
+				try { stream.getVideoTracks().forEach(t => { try { t.addEventListener('ended', applyVisibility); t.addEventListener('mute', applyVisibility); t.addEventListener('unmute', applyVisibility); } catch (_) { } }); } catch (_) { }
+			} catch (_) { }
+			// remove any placeholder and show connected state
+			try { const ph = stage && stage.querySelector('#video-call-placeholder'); if (ph) { ph.remove(); } } catch (_) { }
+			updatePlaceholder('Conectados'); hideJoinButton();
+		}
 		// Successful reattachment resets reconnection state
 		if (reconnecting) { reconnecting = false; retryCount = 0; hideReconnectUi(); }
 	}
 
-	function toggleTrack(kind) {
-		try { if (!ccLocalStream) return; ccLocalStream.getTracks().filter(t => t.kind === kind).forEach(t => { t.enabled = !t.enabled; }); } catch (_) { }
+	async function toggleTrack(kind) {
+		try {
+			// Determine existing enabled state by peeking at first available track
+			let stream = ccLocalStream || (typeof window !== 'undefined' ? window.__earlyCallStream : null);
+			let tracks = stream ? (kind === 'audio' ? stream.getAudioTracks() : stream.getVideoTracks()) : [];
+			let currentEnabled = null;
+			if (tracks && tracks.length) currentEnabled = !!tracks[0].enabled;
+
+			// If no stream/tracks for audio, attempt to acquire audio track so we can mute it
+			if ((!tracks || tracks.length === 0) && kind === 'audio') {
+				try {
+					const aStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+					// merge or set as local stream
+					if (ccLocalStream) {
+						// add audio tracks to ccLocalStream
+						for (const t of aStream.getAudioTracks()) {
+							try { ccLocalStream.addTrack(t); } catch (_) { }
+						}
+					} else {
+						ccLocalStream = aStream;
+						const v = document.getElementById('cc-local-video'); if (v) v.srcObject = ccLocalStream;
+					}
+					stream = ccLocalStream;
+					tracks = stream.getAudioTracks();
+					if (tracks && tracks.length) currentEnabled = !!tracks[0].enabled;
+				} catch (e) {
+					// permission denied or error
+					return;
+				}
+			}
+
+			// If no video tracks, try to create a local preview (to obtain camera) and re-evaluate
+			if ((!tracks || tracks.length === 0) && kind === 'video') {
+				try {
+					await setupLocalPreview();
+					stream = ccLocalStream || (typeof window !== 'undefined' ? window.__earlyCallStream : null);
+					tracks = stream ? stream.getVideoTracks() : [];
+					if (tracks && tracks.length) currentEnabled = !!tracks[0].enabled;
+				} catch (_) { }
+			}
+
+			// If we still have no tracks, nothing to do
+			if (!tracks || tracks.length === 0) return;
+
+			const newEnabled = !(currentEnabled === null ? true : currentEnabled);
+
+			// Update local tracks first
+			try {
+				tracks.forEach(t => { try { t.enabled = !!newEnabled; } catch (_) { } });
+			} catch (_) { }
+
+			// If signaller provides API to update sender tracks, use it so remote peers stop receiving
+			try {
+				if (pgSignaler && typeof pgSignaler.setLocalTrackEnabled === 'function') {
+					try { await pgSignaler.setLocalTrackEnabled(kind, !!newEnabled); } catch (_) { }
+				}
+			} catch (_) { }
+		} catch (_) { }
 		sendMediaState();
 	}
 
@@ -692,7 +928,14 @@ async function ensureRoomFromServer(){
 		const stage = document.getElementById('video-call-stage');
 		if (stage) {
 			const remote = document.getElementById('cc-remote-video');
-			if (remote) { try { remote.srcObject = null; } catch (_) { } remote.remove(); }
+			if (remote) {
+				try {
+					const active = document.activeElement;
+					if (active && remote.contains(active)) { try { active.blur(); document.body.focus(); } catch (_) { } }
+				} catch (_) { }
+				try { remote.srcObject = null; } catch (_) { }
+				remote.remove();
+			}
 			const indicators = document.getElementById('remote-media-indicators');
 			if (indicators) { indicators.remove(); }
 			updatePlaceholder('Sesión finalizada');
@@ -849,21 +1092,92 @@ async function ensureRoomFromServer(){
 	}
 
 	function toggleQualityPanel() {
-		const panel = document.getElementById('video-quality-panel'); if (!panel) return;
-		panel.classList.toggle('d-none');
+		// Open a modalConfirm showing stored metrics and attempt to populate
+		// with live RTCPeerConnection getStats() results when available.
+		(async () => {
+			const qModalId = `${modalId}-quality`;
+			// Build initial summary from collected metrics
+			let avgBit = metrics.avg_bitrate_kbps || 0;
+			let avgLoss = metrics.avg_loss_pct || 0;
+			let avgRtt = metrics.avg_rtt_ms || 0;
+			if (!avgBit && Array.isArray(metrics.samples) && metrics.samples.length) {
+				const s = metrics.samples; let sb = 0, sl = 0, sr = 0;
+				for (const it of s) { sb += (it.bitrateKbps || 0); sl += (it.lossPct || 0); sr += (it.rttMs || 0); }
+				avgBit = +(sb / s.length).toFixed(1); avgLoss = +(sl / s.length).toFixed(2); avgRtt = +(sr / s.length).toFixed(1);
+			}
+			const recent = (Array.isArray(metrics.samples) ? metrics.samples.slice(-20) : []).reverse();
+			let body = `<div class="mb-2"><strong>Resumen</strong>`;
+			body += `<div class="small text-muted">Muestras almacenadas: ${metrics.samples.length || 0}</div>`;
+			body += `<ul class="list-unstyled mb-2"><li><strong>Bitrate (avg):</strong> ${avgBit} kbps</li><li><strong>Pérdida (avg):</strong> ${avgLoss}%</li><li><strong>RTT (avg):</strong> ${avgRtt} ms</li></ul></div>`;
+			body += `<div><strong>Muestras recientes</strong><div class="table-responsive"><table class="table table-sm"><thead><tr><th>#</th><th>Bitrate (kbps)</th><th>Pérdida (%)</th><th>RTT (ms)</th></tr></thead><tbody>`;
+			if (recent.length === 0) { body += `<tr><td colspan="4" class="text-muted">No hay muestras disponibles todavía.</td></tr>`; }
+			else {
+				for (let i = 0; i < recent.length; i++) {
+					const it = recent[i]; body += `<tr><td>${i + 1}</td><td>${(it.bitrateKbps || 0).toFixed ? (it.bitrateKbps||0).toFixed(0) : (it.bitrateKbps||0)}</td><td>${(it.lossPct||0).toFixed(2)}</td><td>${(it.rttMs||0).toFixed(0)}</td></tr>`;
+				}
+			}
+			body += `</tbody></table></div></div>`;
+			// Show modal immediately with collected data
+			try {
+				window.modalConfirm?.({ modalId: qModalId, title: `Calidad — Cita #${id}`, body, buttons: [{ text: 'Cerrar', className: 'btn-secondary', dismiss: true }] }, 'normal', { size: 'lg' });
+			} catch (_) { }
+			// Try to augment with live stats from peer connections (if signaling client exposes them)
+			try {
+				if (pgSignaler && typeof pgSignaler.getPeerConnections === 'function') {
+					const pcs = pgSignaler.getPeerConnections() || {};
+					const pcList = Object.values(pcs).filter(x => x);
+					if (pcList.length) {
+						const liveRows = [];
+						for (const pc of pcList) {
+							try {
+								const stats = await pc.getStats();
+								let videoInbound = null; let candidatePair = null; let trackInfo = null;
+								stats.forEach(r => {
+									if (r.type === 'inbound-rtp' && r.kind === 'video' && !r.isRemote) { videoInbound = r; }
+									if (r.type === 'candidate-pair' && r.state === 'succeeded') { candidatePair = r; }
+									if (r.type === 'track' && r.kind === 'video') { trackInfo = r; }
+								});
+								const br = videoInbound ? (videoInbound.bytesReceived || 0) : 0;
+								const pkLost = videoInbound ? (videoInbound.packetsLost || 0) : 0;
+								const pkRecv = videoInbound ? (videoInbound.packetsReceived || 0) : 0;
+								const loss = (pkLost + pkRecv) > 0 ? (pkLost / (pkLost + pkRecv)) * 100 : 0;
+								const rtt = candidatePair ? (candidatePair.currentRoundTripTime || 0) * 1000 : 0;
+								const fps = trackInfo ? (trackInfo.framesPerSecond || null) : null;
+								liveRows.push({ bitrateBytes: br, lossPct: +loss.toFixed(2), rttMs: Math.round(rtt), fps });
+							} catch (e) { /* ignore pc stats errors */ }
+						}
+						// Build live stats HTML and replace modal body
+						if (liveRows.length) {
+							let liveHtml = `<div class="mt-3"><strong>Estadísticas en vivo</strong><div class="table-responsive"><table class="table table-sm"><thead><tr><th>#</th><th>Bitrate (est.)</th><th>Pérdida (%)</th><th>RTT (ms)</th><th>FPS</th></tr></thead><tbody>`;
+							for (let i = 0; i < liveRows.length; i++) {
+								const r = liveRows[i];
+								// bitrate estimate from bytes is not straightforward without prior timestamp; show bytes as hint
+								liveHtml += `<tr><td>${i + 1}</td><td>${r.bitrateBytes} bytes</td><td>${r.lossPct}</td><td>${r.rttMs}</td><td>${r.fps || '-'}</td></tr>`;
+							}
+							liveHtml += `</tbody></table></div></div>`;
+							const modalEl = document.getElementById(qModalId);
+							if (modalEl) {
+								const mb = modalEl.querySelector('.modal-body');
+								if (mb) {
+									mb.insertAdjacentHTML('beforeend', liveHtml);
+								}
+							}
+						}
+					}
+				}
+			} catch (_) { }
+		})();
 	}
 	function hideQualityPanel() {
-		const panel = document.getElementById('video-quality-panel'); if (panel) { panel.classList.add('d-none'); }
+		return;
 	}
 
 	function updateQualityPanel(m) {
-		const panel = document.getElementById('video-quality-panel'); if (!panel || panel.classList.contains('d-none')) return;
-		const set = (k, v) => { const el = panel.querySelector(`[data-q="${k}"]`); if (el) { el.textContent = v; } };
-		set('bitrate', m.bitrateKbps.toFixed(0) + ' kbps');
-		set('loss', (m.lossRatio * 100).toFixed(1) + '%');
-		set('rtt', (m.rtt * 1000).toFixed(0) + ' ms');
-		set('resolution', (m.width || '?') + 'x' + (m.height || '?'));
-		set('fps', m.fps != null ? m.fps : '-');
+		// We no longer update an inline panel. Details are shown via modalConfirm.
+		try {
+			// keep panel data in metrics for modal view
+			// metrics.samples already updated in collectQualityStats
+		} catch (_) { }
 	}
 
 	// ---- Reconnection logic ----
@@ -948,15 +1262,45 @@ async function ensureRoomFromServer(){
 
 	function updateRemoteMediaIndicators(state) {
 		try {
-			const micEl = document.querySelector('#remote-media-indicators [data-remote-mic]');
-			const camEl = document.querySelector('#remote-media-indicators [data-remote-cam]');
-			if (micEl) { micEl.textContent = state.audioEnabled ? 'Mic On' : 'Mic Off'; }
-			if (camEl) { camEl.textContent = state.videoEnabled ? 'Cam On' : 'Cam Off'; }
+			// Force UI visibility update for remote video based on reported state.
+			try {
+				const remoteEl = document.getElementById('cc-remote-video');
+				const stage = document.getElementById('video-call-stage');
+				if (remoteEl) {
+					if (state.videoEnabled) {
+						// show remote video; if no srcObject attach yet, show placeholder
+						remoteEl.style.display = '';
+						remoteEl.dataset.videoEnabled = '1';
+						// If we don't have an attached stream or it lacks video, show placeholder and wait for ontrack
+						try {
+							const hasAttachedVideo = remoteEl.srcObject && remoteEl.srcObject.getVideoTracks && remoteEl.srcObject.getVideoTracks().some(t => t && t.enabled);
+							if (!hasAttachedVideo) {
+								// create/ensure placeholder content while waiting for the new remote track
+								let ph = stage.querySelector('#video-call-placeholder');
+								if (!ph) {
+									ph = document.createElement('div'); ph.id = 'video-call-placeholder'; ph.className = 'text-center'; stage.appendChild(ph);
+								}
+								ph.innerHTML = '<div class="fw-semibold">Esperando video...</div><div class="small text-muted mt-2">El otro usuario ha activado la cámara, esperando stream.</div>';
+							}
+						} catch (_) { }
+					} else {
+						// hide remote video to avoid frozen frame
+						remoteEl.style.display = 'none';
+						remoteEl.dataset.videoEnabled = '0';
+						// update placeholder to indicate camera off
+						try {
+							let ph = stage.querySelector('#video-call-placeholder');
+							if (!ph) { ph = document.createElement('div'); ph.id = 'video-call-placeholder'; ph.className = 'text-center'; stage.appendChild(ph); }
+							ph.innerHTML = '<div class="fw-semibold">Cámara desactivada</div><div class="small text-muted mt-2">El otro usuario ha apagado la cámara.</div>';
+						} catch (_) { }
+					}
+				}
+			} catch (_) { }
 		} catch (_) { }
 	}
 
 	// Wrap completeSession to ensure call teardown. Guard if completeSession wasn't defined.
-	const _origComplete = (typeof completeSession === 'function') ? completeSession : async function () {};
+	const _origComplete = (typeof completeSession === 'function') ? completeSession : async function () { };
 	completeSession = async function () {
 		// Compute and submit metrics summary once before completion
 		if (!metricsSubmitted) {

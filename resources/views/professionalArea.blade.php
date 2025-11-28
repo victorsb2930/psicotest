@@ -20,7 +20,7 @@
 				<div class="col-lg-4">
 					<x-card title="PRÓXIMA CITA" :hover="false" :center="false" class="card-compact" height="auto" width="100%">
 						@php
-							$hasAppt = isset($nextAppt) && $nextAppt;
+							$hasAppt = isset($nextAppt) && $nextAppt && (($nextAppt->status ?? '') !== 'completed');
 						@endphp
 						@if($hasAppt)
 							@php

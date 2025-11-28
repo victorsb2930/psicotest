@@ -21,8 +21,8 @@ export function init() {
 }
 
 export function destroy() {
-	try { $(window).off('hashchange.loginreg'); } catch (_) {}
-	try { $('#register_form').off('submit'); $('#register_form').off('input change'); } catch(_){}
+	try { $(window).off('hashchange.loginreg'); } catch (_) { }
+	try { $('#register_form').off('submit'); $('#register_form').off('input change'); } catch (_) { }
 }
 //#endregion
 
@@ -76,7 +76,7 @@ function resetRegisterForm() {
 		fieldsToClear.forEach(fldId => {
 			$(`#${fldId}`).val('');
 		});
-	} catch (_) {}
+	} catch (_) { }
 }
 //#endregion
 
@@ -97,13 +97,13 @@ function showServerMessages() {
 			const html = '<ul class="mb-0 ps-3">' + flash.errors.map(e => `<li>${window.escapeHtml(e)}</li>`).join('') + '</ul>';
 			modalNotification('Corrige el formulario', html, { template: 'warning' }, false);
 		}
-	} catch (_) {}
+	} catch (_) { }
 }
 //#endregion
 
 //#region setElements
 // Inicializa elementos de la página (Tom Select, etc.)
-function setElements(){
+function setElements() {
 	// DropDown con Tom Select (sin búsqueda, desde DB)
 	const fromDb = Array.isArray(window.__signupRoles) ? window.__signupRoles : [];
 	const userTypeOptions = fromDb.length ? fromDb : [
@@ -126,7 +126,7 @@ function setElements(){
 		searchField: [], // sin búsqueda (son 2 opciones)
 		persist: false,
 		maxOptions: 50,
-		onInitialize: function() {
+		onInitialize: function () {
 			// Evita escritura en el control (solo dropdown)
 			this.control_input.setAttribute('readonly', 'readonly');
 		}
@@ -144,13 +144,13 @@ function setElements(){
 
 //#region setEvents
 // Asigna eventos a elementos de la página
-function setEvents(){
+function setEvents() {
 	// Toggle entre login y register
 	const $container = $('.login-container');
-	const setActive = (isActive, updateHash = true) => { 
+	const setActive = (isActive, updateHash = true) => {
 		$container.toggleClass('active', !!isActive);
 		// Guardar preferencia (active=true => registro, active=false => login)
-		try { localStorage.setItem('pg_auth_tab', isActive ? 'registro' : 'login'); } catch(_){}
+		try { localStorage.setItem('pg_auth_tab', isActive ? 'registro' : 'login'); } catch (_) { }
 		if (!updateHash) return;
 		try {
 			if (isActive) { // REGISTRO
@@ -162,13 +162,13 @@ function setEvents(){
 					history.replaceState(null, '', window.location.pathname + window.location.search);
 				}
 			}
-		} catch(_){}
+		} catch (_) { }
 	};
 	$(".btnSign-in").off('click').on('click', function (e) { e.preventDefault(); setActive(true); });
 	$(".btnSign-up").off('click').on('click', function (e) { e.preventDefault(); setActive(false); });
 
 	// Cambia según hash
-	$(window).off('hashchange.loginreg').on('hashchange.loginreg', function(){
+	$(window).off('hashchange.loginreg').on('hashchange.loginreg', function () {
 		applyHash(window.location.hash);
 	});
 
@@ -179,7 +179,7 @@ function setEvents(){
 			if (!btn) return;
 			btn.disabled = !!disabled;
 			if (typeof label === 'string') btn.innerText = label;
-		} catch(_){}
+		} catch (_) { }
 	};
 	$('#login_form').off('submit').on('submit', async function (e) {
 		e.preventDefault();
@@ -193,7 +193,7 @@ function setEvents(){
 		try {
 			const fd = new FormData(this);
 			// CSRF token already included via hidden input; add headers for JSON response
-			const csrf = (document.querySelector('meta[name="csrf-token"]')||{}).content || '';
+			const csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
 			const res = await window.axios.post(this.action || '/login', fd, {
 				withCredentials: true,
 				headers: { 'X-CSRF-TOKEN': csrf, 'X-Requested-With': 'XMLHttpRequest' }
@@ -209,9 +209,9 @@ function setEvents(){
 					cancelLabel: 'Cerrar',
 					onClickYes: async () => {
 						try {
-							await window.axios.post('/email/verification-notification', { email }, { headers:{'X-CSRF-TOKEN': csrf,'X-Requested-With':'XMLHttpRequest'} });
+							await window.axios.post('/email/verification-notification', { email }, { headers: { 'X-CSRF-TOKEN': csrf, 'X-Requested-With': 'XMLHttpRequest' } });
 							modalNotification('Enviado', 'Si el email existe, se ha reenviado el enlace.', { template: 'info' });
-						} catch(_) {
+						} catch (_) {
 							modalNotification('Error', 'No se pudo reenviar el enlace.', { template: 'danger' });
 						}
 					}
@@ -250,7 +250,7 @@ function setEvents(){
 	$('#register_form').off('submit').on('submit', async function (e) {
 		e.preventDefault();
 		// disable register button immediately to avoid duplicate posts
-		try { const rbtn = document.getElementById('register_submit_btn'); if (rbtn) { rbtn.disabled = true; rbtn.innerText = 'Registrando...'; } } catch(_){}
+		try { const rbtn = document.getElementById('register_submit_btn'); if (rbtn) { rbtn.disabled = true; rbtn.innerText = 'Registrando...'; } } catch (_) { }
 		const $form = $(this);
 		const type = $('#reg_type').val();
 		const name = $('#reg_name').val().toString().trim();
@@ -270,7 +270,7 @@ function setEvents(){
 				// Fallback a la misma heurística usada en setElements()
 				isProSelected = (type === '2');
 			}
-		} catch(_) {}
+		} catch (_) { }
 
 		$('#register_form .type').removeClass('is-valid is-invalid');
 
@@ -299,7 +299,7 @@ function setEvents(){
 
 		if (!isValid) {
 			// Rehabilitar botón si validación local falla para evitar bloqueo permanente
-			try { const rbtn = document.getElementById('register_submit_btn'); if (rbtn) { rbtn.disabled = false; rbtn.innerText = 'Registrarte'; } } catch(_){ }
+			try { const rbtn = document.getElementById('register_submit_btn'); if (rbtn) { rbtn.disabled = false; rbtn.innerText = 'Registrarte'; } } catch (_) { }
 			modalNotification('Formulario incompleto', 'Corrige los campos marcados en rojo.');
 			return;
 		}
@@ -312,8 +312,8 @@ function setEvents(){
 			const pubJson = await pubResp.json();
 			const pub = pubJson.public_key;
 			if (pub) {
-				const b64 = pub.replace(/-----BEGIN PUBLIC KEY-----/g,'').replace(/-----END PUBLIC KEY-----/g,'').replace(/\s+/g,'');
-				const raw = Uint8Array.from(atob(b64), c=>c.charCodeAt(0));
+				const b64 = pub.replace(/-----BEGIN PUBLIC KEY-----/g, '').replace(/-----END PUBLIC KEY-----/g, '').replace(/\s+/g, '');
+				const raw = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
 				// Use SHA-1 for OAEP to match server-side OpenSSL default
 				const key = await crypto.subtle.importKey('spki', raw.buffer, { name: 'RSA-OAEP', hash: 'SHA-1' }, false, ['encrypt']);
 				const encBuf = await crypto.subtle.encrypt({ name: 'RSA-OAEP' }, key, new TextEncoder().encode(pass));
@@ -323,13 +323,13 @@ function setEvents(){
 				fd.delete('reg_password'); fd.delete('reg_password_confirmation');
 			}
 		} catch (_) { /* ignore: will send plaintext */ }
-	// Let the browser set the multipart Content-Type (including boundary)
-	// forcing the header manually removes the boundary and breaks Laravel CSRF/form parsing
-	const restoreRegisterBtn = () => {
-		try { const rbtn = document.getElementById('register_submit_btn'); if (rbtn) { rbtn.disabled = false; rbtn.innerText = 'Registrarte'; } } catch(_){ }
-	};
+		// Let the browser set the multipart Content-Type (including boundary)
+		// forcing the header manually removes the boundary and breaks Laravel CSRF/form parsing
+		const restoreRegisterBtn = () => {
+			try { const rbtn = document.getElementById('register_submit_btn'); if (rbtn) { rbtn.disabled = false; rbtn.innerText = 'Registrarte'; } } catch (_) { }
+		};
 
-	window.axios.post(action, fd)
+		window.axios.post(action, fd)
 			.then((resp) => {
 				const data = resp?.data || {};
 				if (data.ok) {
@@ -346,7 +346,7 @@ function setEvents(){
 			.catch((err) => {
 				const res = err?.response;
 				// re-enable register button on error so user can retry
-				try { const rbtn = document.getElementById('register_submit_btn'); if (rbtn) { rbtn.disabled = false; rbtn.innerText = 'Registrarte'; } } catch(_){ }
+				try { const rbtn = document.getElementById('register_submit_btn'); if (rbtn) { rbtn.disabled = false; rbtn.innerText = 'Registrarte'; } } catch (_) { }
 				if (res?.status === 422 && res?.data?.errors) {
 					const list = Object.values(res.data.errors).flat();
 					const html = '<ul class="mb-0 ps-3">' + list.map(e => `<li>${window.escapeHtml(e)}</li>`).join('') + '</ul>';
@@ -365,7 +365,7 @@ function setEvents(){
 //#endregion Funciones auxiliares
 
 // Lee el hash y aplica la pestaña adecuada
-function applyHash(hash){
+function applyHash(hash) {
 	try {
 		const h = (hash || '').toLowerCase();
 		const $container = $('.login-container');
@@ -376,18 +376,18 @@ function applyHash(hash){
 		if (goRegister) {
 			$container.toggleClass('active', true);
 			if (window.location.hash !== '#registro') history.replaceState(null, '', '#registro');
-			try { localStorage.setItem('pg_auth_tab', 'registro'); } catch(_){}
+			try { localStorage.setItem('pg_auth_tab', 'registro'); } catch (_) { }
 		}
 		else if (goLogin) {
 			$container.toggleClass('active', false);
 			if (window.location.hash) history.replaceState(null, '', window.location.pathname + window.location.search);
-			try { localStorage.setItem('pg_auth_tab', 'login'); } catch(_){}
+			try { localStorage.setItem('pg_auth_tab', 'login'); } catch (_) { }
 		}
 		// Si no hay hash o no coincide, no cambiamos el estado actual
-	} catch(_){}
+	} catch (_) { }
 }
 
-function initFromHash(){
+function initFromHash() {
 	const hash = window.location.hash;
 	if (hash) {
 		applyHash(hash);
@@ -400,5 +400,5 @@ function initFromHash(){
 		if (!$container.length || !pref) return;
 		if (pref === 'registro') $container.toggleClass('active', true);
 		else if (pref === 'login') $container.toggleClass('active', false);
-	} catch(_){}
+	} catch (_) { }
 }

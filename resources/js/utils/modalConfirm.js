@@ -224,7 +224,19 @@ export function modalConfirm(bodyHtml, modalType = 'normal', options = {}) {
 					// Decide whether to close modals after click
 					const shouldClose = ('closeOnClick' in b) ? !!b.closeOnClick : (b.dismiss || b.dismissOnClick || false);
 					if (shouldClose) {
-						closeAllModals();
+						// If the caller explicitly requested closing all modals, do so.
+						if (b.closeAll === true) {
+							closeAllModals();
+						} else {
+							// Otherwise, hide only this modal instance safely.
+							try {
+								const inst = bootstrap.Modal.getInstance($modal[0]);
+								inst?.hide();
+							} catch (_) {
+								// Fallback: last resort close all if individual hide fails
+								closeAllModals();
+							}
+						}
 					}
 				});
 			}

@@ -21,6 +21,7 @@ export default function createSignalingClient(opts = {}) {
   const urlCandidates = Array.from(new Set(defaultCandidates));
   let socket = null;
   const pcs = new Map(); // remoteId -> RTCPeerConnection
+  let lastLocalStream = null;
 
   function _attachCommonHandlers(s) {
     s.on('connect', () => { console.debug('[Signaler] connected', s.id); });
@@ -34,14 +35,72 @@ export default function createSignalingClient(opts = {}) {
 
   // Generic application-level message relay (for media_state, appointment markers, etc.)
   function sendMessage(to, payload) {
-    try { if (socket && socket.connected) socket.emit('message', { to, payload, from: socket.id }); } catch (_) { }
+    try {
+      if (socket && socket.connected) {
+        console.debug('[Signaler] sendMessage', { to, payload });
+        socket.emit('message', { to, payload, from: socket.id });
+      } else {
+        console.debug('[Signaler] sendMessage called but socket not connected', { to, payload });
+      }
+    } catch (e) { console.warn('[Signaler] sendMessage error', e); }
   }
 
   // Listen for generic messages
   function _attachMessageHandler(s) {
     s.on('message', ({ from, payload }) => {
+      try { console.debug('[Signaler] received message', { from, payload }); } catch (_) { }
       try { if (payload && payload.type === 'appointment') { /* could dispatch */ } } catch (_) { }
-      try { if (typeof onAppMessage === 'function') onAppMessage(from, payload); } catch (_) { }
+      try {
+        if (typeof onAppMessage === 'function') onAppMessage(from, payload);
+      } catch (_) { }
+      // Automatic lightweight ACK: if the payload requests an ACK, reply back to sender
+      try {
+        if (payload && payload._expectAck && payload._messageId) {
+          try { s.emit('message-ack', { to: from, messageId: payload._messageId }); } catch (_) { }
+        }
+      } catch (_) { }
+    });
+    // Listen for ACKs from peers relayed by server
+    s.on('message-ack', ({ from, messageId }) => {
+      try { console.debug('[Signaler] received message-ack', { from, messageId }); } catch (_) { }
+      try {
+        const entry = pendingAcks.get(messageId);
+        if (entry) {
+          clearTimeout(entry.timer);
+          pendingAcks.delete(messageId);
+          try { entry.resolve({ ok: true, from }); } catch (_) { }
+        }
+      } catch (_) { }
+    });
+  }
+
+  const pendingAcks = new Map();
+
+  // Enhanced sendMessage that supports waiting for a lightweight ACK.
+  // Usage: sendMessage(to, payload, { expectAck: true, timeoutMs: 4000 })
+  async function sendMessageWithAck(to, payload, opts = {}) {
+    const expectAck = !!opts.expectAck;
+    const timeoutMs = typeof opts.timeoutMs === 'number' ? opts.timeoutMs : 4000;
+    if (!expectAck) {
+      sendMessage(to, payload);
+      return { ok: true };
+    }
+    // Ensure payload has a message id and marker so recipients will ACK.
+    const msgId = (payload && payload._messageId) ? payload._messageId : ('m_' + Math.random().toString(36).slice(2) + Date.now());
+    const wrapped = Object.assign({}, payload, { _expectAck: true, _messageId: msgId });
+    return await new Promise((resolve, reject) => {
+      try {
+        // store pending ack
+        const timer = setTimeout(() => {
+          pendingAcks.delete(msgId);
+          resolve({ ok: false, reason: 'timeout' });
+        }, timeoutMs);
+        pendingAcks.set(msgId, { resolve, reject, timer });
+        // emit
+        sendMessage(to, wrapped);
+      } catch (e) {
+        resolve({ ok: false, reason: 'error' });
+      }
     });
   }
 
@@ -59,6 +118,7 @@ export default function createSignalingClient(opts = {}) {
           s.once('connect_error', (err) => { clearTimeout(to); reject(err || new Error('connect_error')); });
         });
         // success
+        _attachMessageHandler(s);
         socket = s;
         return;
       } catch (e) {
@@ -74,10 +134,12 @@ export default function createSignalingClient(opts = {}) {
     return tryConnectCandidates(urlCandidates);
   }
 
-  let onRemoteStream = null; let onConnected = null; let onPeerJoined = null; let onPeerLeft = null;
+  let onRemoteStream = null; let onConnected = null; let onPeerJoined = null; let onPeerLeft = null; let onAppMessage = null;
 
   async function joinRoom(roomId, localStream, handlers = {}) {
     if (!socket) await connect();
+    // remember last local stream so we can manipulate senders later
+    lastLocalStream = localStream || null;
     onRemoteStream = handlers.onRemoteStream || null;
     onConnected = handlers.onConnected || null;
     onPeerJoined = async (remoteId) => {
@@ -103,6 +165,15 @@ export default function createSignalingClient(opts = {}) {
         });
       } catch (e) { reject(e); }
     });
+  }
+
+  function presenceJoin(roomId) {
+    if (!socket) connect();
+    try { if (socket && socket.connected) socket.emit('presence-join', roomId); } catch (_) { }
+  }
+
+  function setLocalStream(stream) {
+    try { lastLocalStream = stream || null; } catch (_) { }
   }
 
   async function leaveRoom(roomId) {
@@ -169,12 +240,81 @@ export default function createSignalingClient(opts = {}) {
     try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch (_) { }
   }
 
+  // Allow toggling local track enabled state across all peer connections.
+  // This function is async because it may perform renegotiation when tracks need to be re-added.
+  async function setLocalTrackEnabled(kind, enabled) {
+    try {
+      // Update known lastLocalStream tracks
+      if (lastLocalStream && lastLocalStream.getTracks) {
+        const tracks = kind === 'audio' ? lastLocalStream.getAudioTracks() : lastLocalStream.getVideoTracks();
+        tracks.forEach(t => { try { t.enabled = !!enabled; } catch (_) { } });
+      }
+
+      // Iterate peer connections and update senders. If enabling and replaceTrack isn't sufficient,
+      // try to add the track and trigger renegotiation.
+      for (const pc of Array.from(pcs.values())) {
+        try {
+          const senders = pc.getSenders ? pc.getSenders() : [];
+          for (const s of senders) {
+            try {
+              if (!s || !s.track) continue;
+              if (s.track.kind !== (kind === 'audio' ? 'audio' : 'video')) continue;
+
+              if (!enabled) {
+                // Prefer simply disabling the existing track for easier re-enable.
+                try { s.track.enabled = false; } catch (_) { }
+                // As a more aggressive fallback, replace with null if supported.
+                try { if (typeof s.replaceTrack === 'function') s.replaceTrack(null); } catch (_) { }
+              } else {
+                // Enabling: prefer replacing with available local track
+                const replacement = lastLocalStream ? (kind === 'audio' ? lastLocalStream.getAudioTracks()[0] : lastLocalStream.getVideoTracks()[0]) : null;
+                if (replacement) {
+                  if (typeof s.replaceTrack === 'function') {
+                    try { await s.replaceTrack(replacement); continue; } catch (e) { /* fallthrough */ }
+                  }
+                  // If no replaceTrack or it failed, try toggling enabled
+                  try { s.track.enabled = true; } catch (_) { }
+                } else {
+                  // No replacement available: try to add track and renegotiate
+                  try {
+                    const toAdd = lastLocalStream ? (kind === 'audio' ? lastLocalStream.getAudioTracks()[0] : lastLocalStream.getVideoTracks()[0]) : null;
+                    if (toAdd) {
+                      try { pc.addTrack(toAdd, lastLocalStream); } catch (_) { }
+                      try {
+                        const offer = await pc.createOffer();
+                        await pc.setLocalDescription(offer);
+                        // send offer to peer(s)
+                        if (socket && socket.connected) {
+                          // find remote id by matching pc in pcs map
+                          for (const [remoteId, remotePc] of pcs.entries()) {
+                            if (remotePc === pc) {
+                              try { socket.emit('offer', { to: remoteId, sdp: pc.localDescription, from: socket.id }); } catch (_) { }
+                              break;
+                            }
+                          }
+                        }
+                      } catch (_) { }
+                    }
+                  } catch (_) { }
+                }
+              }
+            } catch (_) { }
+          }
+        } catch (_) { }
+      }
+    } catch (_) { }
+  }
+
   return {
     connect,
     joinRoom,
+    presenceJoin,
+    setLocalStream,
+    setLocalTrackEnabled,
+    getPeerConnections: () => Array.from(pcs.values()),
     leaveRoom,
     cleanupAll,
-    sendMessage,
+    sendMessage: sendMessageWithAck,
     onAppMessage: (fn) => { onAppMessage = fn; },
     // allow registering hooks (optional)
     on: (ev, fn) => {

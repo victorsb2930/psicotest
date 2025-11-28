@@ -878,7 +878,7 @@ Route::middleware('auth')->group(function(){
 		}
 		// Delegate to controller for session end bookkeeping
 		return app(\App\Http\Controllers\LoginRegisterController::class)->endSession($request);
-	})->name('sessions.end');
+	})->withoutMiddleware('auth')->name('sessions.end');
 
 	// User photos management
 	Route::get('/profile/photos', [\App\Http\Controllers\UserPhotoController::class, 'index'])->name('profile.photos.index');
@@ -1317,6 +1317,9 @@ Route::middleware('auth')->group(function(){
 	// Appointment session lifecycle endpoints
 	Route::post('/appointments/{appointment}/session/start', [\App\Http\Controllers\AppointmentSessionController::class, 'start'])->name('appointments.session.start');
 	Route::post('/appointments/{appointment}/session/ensure-room', [\App\Http\Controllers\AppointmentSessionController::class, 'ensureRoom'])->name('appointments.session.ensure_room');
+	Route::post('/appointments/{appointment}/session/request-end', [\App\Http\Controllers\AppointmentSessionController::class, 'requestEnd'])->name('appointments.session.request_end');
+	Route::get('/appointments/{appointment}/session/end-request', [\App\Http\Controllers\AppointmentSessionController::class, 'endRequestStatus'])->name('appointments.session.end_request.status');
+	Route::post('/appointments/{appointment}/session/cancel-end', [\App\Http\Controllers\AppointmentSessionController::class, 'cancelEnd'])->name('appointments.session.cancel_end');
 	Route::post('/appointments/{appointment}/session/heartbeat', [\App\Http\Controllers\AppointmentSessionController::class, 'heartbeat'])->middleware('appointment.session.rate')->name('appointments.session.heartbeat');
 	Route::post('/appointments/{appointment}/session/complete', [\App\Http\Controllers\AppointmentSessionController::class, 'complete'])->name('appointments.session.complete');
 	Route::get('/appointments/{appointment}/session/status', [\App\Http\Controllers\AppointmentSessionController::class, 'status'])->name('appointments.session.status');
@@ -1973,52 +1976,54 @@ Route::middleware('auth')->group(function(){
 });
 
 	// Simple JSON endpoints for AJAX notifications polling and marking
-	Route::get('/api/notifications/unread', function(){
-		$user = auth()->user();
-		if (!\Illuminate\Support\Facades\Schema::hasTable('notifications')) {
-			return response()->json(['count' => 0, 'items' => []]);
-		}
-		$items = $user->unreadNotifications()->latest()->limit(10)->get()->map(function($n){
-			$data = is_array($n->data) ? $n->data : (array)$n->data;
-			return [
-				'id' => $n->id,
-				'data' => $data,
-				'time' => $n->created_at->diffForHumans(),
-				// flatten common fields for ease on client
-				'title' => $data['title'] ?? null,
-				'body' => $data['body'] ?? ($data['message'] ?? null),
-				'icon' => $data['icon'] ?? 'bell',
-				'link' => $data['link'] ?? ($data['url'] ?? '#'),
-			];
+	Route::middleware('auth')->group(function(){
+		Route::get('/api/notifications/unread', function(){
+			$user = auth()->user();
+			if (!\Illuminate\Support\Facades\Schema::hasTable('notifications')) {
+				return response()->json(['count' => 0, 'items' => []]);
+			}
+			$items = $user->unreadNotifications()->latest()->limit(10)->get()->map(function($n){
+				$data = is_array($n->data) ? $n->data : (array)$n->data;
+				return [
+					'id' => $n->id,
+					'data' => $data,
+					'time' => $n->created_at->diffForHumans(),
+					// flatten common fields for ease on client
+					'title' => $data['title'] ?? null,
+					'body' => $data['body'] ?? ($data['message'] ?? null),
+					'icon' => $data['icon'] ?? 'bell',
+					'link' => $data['link'] ?? ($data['url'] ?? '#'),
+				];
+			});
+			return response()->json(['count' => $user->unreadNotifications()->count(), 'items' => $items]);
 		});
-		return response()->json(['count' => $user->unreadNotifications()->count(), 'items' => $items]);
-	});
 
-	Route::post('/api/notifications/mark-read', function(\Illuminate\Http\Request $r){
-		$user = auth()->user();
-		$id = $r->input('id');
-		if ($id) {
-			$notif = $user->unreadNotifications()->where('id', $id)->first();
-			if ($notif) { $notif->markAsRead(); }
-		}
-		return response()->json(['ok' => true]);
-	});
+		Route::post('/api/notifications/mark-read', function(\Illuminate\Http\Request $r){
+			$user = auth()->user();
+			$id = $r->input('id');
+			if ($id) {
+				$notif = $user->unreadNotifications()->where('id', $id)->first();
+				if ($notif) { $notif->markAsRead(); }
+			}
+			return response()->json(['ok' => true]);
+		});
 
-	Route::post('/api/notifications/mark-read-all', function(){
-		$user = auth()->user();
-		$user->unreadNotifications->markAsRead();
-		return response()->json(['ok' => true]);
-	});
+		Route::post('/api/notifications/mark-read-all', function(){
+			$user = auth()->user();
+			$user->unreadNotifications->markAsRead();
+			return response()->json(['ok' => true]);
+		});
 
-	// Delete a notification
-	Route::post('/api/notifications/delete', function(\Illuminate\Http\Request $r){
-		$user = auth()->user();
-		$id = $r->input('id');
-		if ($id) {
-			$notif = $user->notifications()->where('id', $id)->first();
-			if ($notif) { $notif->delete(); }
-		}
-		return response()->json(['ok' => true]);
+		// Delete a notification
+		Route::post('/api/notifications/delete', function(\Illuminate\Http\Request $r){
+			$user = auth()->user();
+			$id = $r->input('id');
+			if ($id) {
+				$notif = $user->notifications()->where('id', $id)->first();
+				if ($notif) { $notif->delete(); }
+			}
+			return response()->json(['ok' => true]);
+		});
 	});
 
 	// Global counters (messages unread, pending friend requests)

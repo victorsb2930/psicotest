@@ -49,7 +49,7 @@
 					</div>
 					@endif
 				<div class="card card-compact p-3 mb-3">
-					@php $hasAppt = isset($nextAppt) && $nextAppt; @endphp
+					@php $hasAppt = isset($nextAppt) && $nextAppt && (($nextAppt->status ?? '') !== 'completed'); @endphp
 					@if($hasAppt)
 						@php
 							$apptTitle = $nextAppt->title ?: ($nextAppt->professional?->name ? 'Cita con '.$nextAppt->professional->name : 'Cita');

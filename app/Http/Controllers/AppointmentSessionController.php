@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Appointment;
 use App\Services\AppointmentSessionService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 
 class AppointmentSessionController extends Controller
 {
@@ -146,6 +147,58 @@ class AppointmentSessionController extends Controller
         }
         $this->service->logMetrics($appointment, $out);
         return response()->json(['ok'=>true]);
+    }
+
+    /**
+     * Request the other participant to confirm ending the session.
+     * This broadcasts an application-level event so frontends listening
+     * via Echo can show a confirm/decline modal.
+     */
+    public function requestEnd(Request $request, Appointment $appointment)
+    {
+        $this->authorize('view', $appointment);
+        $userId = (int) auth()->id();
+        // Store a short-lived pending end-request in cache so recipients can poll if broadcasting fails
+        try {
+            $key = "appointment:{$appointment->id}:end_request";
+            Cache::put($key, ['requester_id' => $userId, 'ts' => now()->toDateTimeString()], 70); // 70s TTL
+        } catch (\Throwable $_) { }
+        try {
+            event(new \App\Events\AppointmentEndRequested($appointment, $userId));
+        } catch (\Throwable $e) {
+            try { \Log::error('appointment.request_end.broadcast_failed', ['appointment_id'=>$appointment->id,'user_id'=>$userId,'err'=>$e->getMessage()]); } catch (\Throwable $_) {}
+        }
+        return response()->json(['ok' => true]);
+    }
+
+    /**
+     * Return any pending end-request for this appointment (used by clients polling as a fallback).
+     */
+    public function endRequestStatus(Request $request, Appointment $appointment)
+    {
+        $this->authorize('view', $appointment);
+        try {
+            $key = "appointment:{$appointment->id}:end_request";
+            $data = Cache::get($key, null);
+            return response()->json(['ok' => true, 'pending' => $data]);
+        } catch (\Throwable $_) {
+            return response()->json(['ok' => true, 'pending' => null]);
+        }
+    }
+
+    /**
+     * Cancel a pending end-request (called by requester cancel action).
+     */
+    public function cancelEnd(Request $request, Appointment $appointment)
+    {
+        $this->authorize('view', $appointment);
+        $userId = (int) auth()->id();
+        try {
+            $key = "appointment:{$appointment->id}:end_request";
+            Cache::forget($key);
+        } catch (\Throwable $_) { }
+        try { event(new \App\Events\AppointmentEndCancelled($appointment, $userId)); } catch (\Throwable $_) { }
+        return response()->json(['ok' => true]);
     }
 
     // Legacy method removed; policies now handle authorization.

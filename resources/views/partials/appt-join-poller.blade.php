@@ -144,6 +144,16 @@ window.__currentUserTz = @json(optional(auth()->user())->timezone ?? null);
             disableBtn();
             if (!meta || !meta.ok) return;
             const status = (meta.status || '').toLowerCase();
+            // If appointment has been completed, remove the next-appt UI and stop polling
+            if (status === 'completed') {
+                try {
+                    // Emit a global event so other parts of the app can react
+                    window.dispatchEvent(new CustomEvent('appointment:completed', { detail: { appointmentId: apptId } }));
+                } catch (e) {}
+                try { container.remove(); } catch (e) {}
+                stopPolling();
+                return;
+            }
             const start = meta.start ? new Date(meta.start) : null;
             if (!start) return;
             const now = new Date();
@@ -174,6 +184,14 @@ window.__currentUserTz = @json(optional(auth()->user())->timezone ?? null);
     (async function scheduleChecks(){
         const meta = await fetchMeta();
         if (!meta || !meta.ok || !meta.start) return;
+        // If appointment already completed, remove UI early
+        try {
+            if ((meta.status||'').toLowerCase() === 'completed') {
+                window.dispatchEvent(new CustomEvent('appointment:completed', { detail: { appointmentId: apptId } }));
+                try { container.remove(); } catch(e){}
+                return;
+            }
+        } catch(e){}
         const start = new Date(meta.start);
         const now = new Date();
         if (!isSameLocalDay(now, start)) {
