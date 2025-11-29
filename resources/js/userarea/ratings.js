@@ -43,7 +43,8 @@ function setupItem(item, wrapper){
     submitBtn.disabled = true;
     const apptId = item.dataset.apptId;
     const payload = { rating: current, comment: commentEl.value.trim() };
-    const url = apptId ? `/appointments/${encodeURIComponent(apptId)}/ratings` : '/ratings';
+    // Backend defines singular '/appointments/{appointment}/rating' route
+    const url = apptId ? `/appointments/${encodeURIComponent(apptId)}/rating` : '/ratings';
     postJSON(url, payload)
       .then((resp)=>{
         if(!resp || resp.ok !== true){ throw new Error(resp && resp.message ? resp.message : 'error'); }

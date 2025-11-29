@@ -77,7 +77,18 @@
                     @php
                         $start = $a->start ? $a->start->format('d/m/Y H:i') : null;
                         $end = $a->end ? $a->end->format('H:i') : null;
-                        $dur = ($a->start && $a->end) ? $a->end->diffInMinutes($a->start).' min' : '—';
+                        if ($a->start && $a->end) {
+                            // Compute signed minutes and clamp to zero to avoid negative durations
+                            try {
+                                $mins = (int) round(($a->end->getTimestamp() - $a->start->getTimestamp()) / 60);
+                                if ($mins < 0) $mins = 0;
+                                $dur = $mins . ' min';
+                            } catch (\Throwable $_) {
+                                $dur = $a->end->diffInMinutes($a->start) . ' min';
+                            }
+                        } else {
+                            $dur = '—';
+                        }
                         $ratingScore = $a->rating?->score;
                         $statusLabel = strtoupper($a->status);
                         $badgeClass = match($a->status){
