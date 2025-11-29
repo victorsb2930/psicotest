@@ -364,6 +364,10 @@ Route::middleware(['auth'])->group(function(){
 			// Appointment history (past & finalized appointments)
 			Route::get('/appointments/history', [\App\Http\Controllers\ProfessionalAppointmentHistoryController::class, 'index'])->name('professional.appointments.history');
 			Route::get('/appointments/history/export', [\App\Http\Controllers\ProfessionalAppointmentHistoryController::class, 'export'])->name('professional.appointments.history.export');
+
+			// Payments history for professionals
+			Route::get('/payments', [\App\Http\Controllers\ProfessionalPaymentsController::class, 'index'])->name('professional.payments.history');
+			Route::get('/payments/export', [\App\Http\Controllers\ProfessionalPaymentsController::class, 'export'])->name('professional.payments.history.export');
 	});
 
 });

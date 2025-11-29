@@ -62,7 +62,7 @@ class MenuItemsSeeder extends Seeder
             ['label' => 'Pacientes', 'route_name' => 'professional.patients', 'icon_class' => 'bi bi-people', 'section' => 'professional', 'sort_order' => 40, 'permission' => 'professionalarea'],
             ['label' => 'Servicios', 'route_name' => 'professional.services', 'icon_class' => 'bi bi-briefcase', 'section' => 'professional', 'sort_order' => 50, 'permission' => 'professionalarea'],
             ['label' => 'Historial de Citas', 'route_name' => 'professional.appointments.history', 'icon_class' => 'bi bi-journal-text', 'section' => 'professional', 'sort_order' => 55, 'permission' => 'professionalarea'],
-            ['label' => 'Historial de Pagos', 'route_name' => 'professional.payments', 'icon_class' => 'bi bi-credit-card', 'section' => 'professional', 'sort_order' => 60, 'permission' => 'professionalarea'],
+            ['label' => 'Historial de Pagos', 'route_name' => 'professional.payments.history', 'icon_class' => 'bi bi-credit-card', 'section' => 'professional', 'sort_order' => 60, 'permission' => 'professionalarea'],
             ['label' => 'Configuración', 'route_name' => 'professional.settings', 'icon_class' => 'bi bi-gear', 'section' => 'professional', 'sort_order' => 70, 'permission' => 'professionalarea'],
         ]);
 
