@@ -21,7 +21,7 @@ class ProfessionalAppointmentHistoryController extends Controller
         $to = $request->query('to');
         $sort = $request->query('sort','start_desc');
 
-        $query = Appointment::with(['patient','rating'])
+        $query = Appointment::with(['patient','rating','session'])
             ->where('professional_id', $user->id)
             ->where(function($q) use ($finalStates){
                 $q->where('start','<', now())

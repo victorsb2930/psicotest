@@ -152,6 +152,12 @@ class AppointmentRatingController extends Controller
             $rating->responded_at = $rating->response_text ? now() : null;
         }
         try { $rating->save(); } catch (\Throwable $e) { return response()->json(['ok'=>false,'message'=>'save_error'],500); }
+        // If the professional provided a response, notify the patient
+        try {
+            if ($rating->response_text && $rating->patient) {
+                try { $rating->patient->notify(new \App\Notifications\RatingResponded($rating)); } catch (\Throwable $_) {}
+            }
+        } catch (\Throwable $_) {}
         return response()->json(['ok'=>true]);
     }
 }

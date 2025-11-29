@@ -41,6 +41,11 @@ class Appointment extends Model
 		return $this->hasOne(AppointmentRating::class);
 	}
 
+	public function session()
+	{
+		return $this->hasOne(\App\Models\AppointmentSession::class, 'appointment_id');
+	}
+
 	public function patient()
 	{
 		return $this->belongsTo(User::class, 'patient_id');

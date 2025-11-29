@@ -77,17 +77,22 @@
                     @php
                         $start = $a->start ? $a->start->format('d/m/Y H:i') : null;
                         $end = $a->end ? $a->end->format('H:i') : null;
-                        if ($a->start && $a->end) {
-                            // Compute signed minutes and clamp to zero to avoid negative durations
-                            try {
+                        // Prefer session-based duration when available (more accurate)
+                        try {
+                            if ($a->session && $a->session->started_at && $a->session->ended_at) {
+                                $mins = (int) round(($a->session->ended_at->getTimestamp() - $a->session->started_at->getTimestamp()) / 60);
+                                if ($mins < 0) $mins = 0;
+                                $dur = $mins . ' min';
+                            } elseif ($a->start && $a->end) {
                                 $mins = (int) round(($a->end->getTimestamp() - $a->start->getTimestamp()) / 60);
                                 if ($mins < 0) $mins = 0;
                                 $dur = $mins . ' min';
-                            } catch (\Throwable $_) {
-                                $dur = $a->end->diffInMinutes($a->start) . ' min';
+                            } else {
+                                $dur = '—';
                             }
-                        } else {
-                            $dur = '—';
+                        } catch (\Throwable $_) {
+                            // Fallback to safe diffInMinutes
+                            $dur = ($a->start && $a->end) ? max(0, $a->end->diffInMinutes($a->start)).' min' : '—';
                         }
                         $ratingScore = $a->rating?->score;
                         $statusLabel = strtoupper($a->status);
