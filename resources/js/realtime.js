@@ -88,6 +88,12 @@ if (echoConfig) {
 				if (window.modalNotification) window.modalNotification('Amistad aceptada', `${e.to_name} ahora es tu amigo`, { template: 'success' });
 			});
 
+			// Rating response from professional (notify patient)
+			window.Echo.private(channelName).listen('RatingResponded', (e) => {
+				window.dispatchEvent(new CustomEvent('rt:rating_responded', { detail: e }));
+				if (window.modalNotification) window.modalNotification('Respuesta a tu valoración', e.message || 'El profesional respondió a tu valoración', { template: 'info' });
+			});
+
 		// Also listen on a public presence channel for status changes
 		try {
 			window.Echo.channel('presence')

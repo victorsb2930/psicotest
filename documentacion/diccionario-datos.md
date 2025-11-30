@@ -1,4 +1,4 @@
-# Diccionario de Datos — Psicoguia
+# Diccionario de Datos — Psicoguia (actualizado 2025-12-01)
 
 Este documento describe el modelo lógico y físico de datos del aplicativo, sus entidades, relaciones, claves y restricciones. Está generado a partir de las migraciones y modelos Eloquent del proyecto en fecha 10/10/2025.
 
@@ -32,347 +32,157 @@ Relaciones clave (cardinalidades):
 
 ### Diagrama ER (Mermaid)
 
+El diagrama siguiente resume las relaciones principales. Puede pegarse en herramientas que soporten Mermaid para visualizar.
+
 ```mermaid
 erDiagram
-  USERS ||--o{ USER_PHOTOS : has
-  APPOINTMENTS }o--|| USERS : professional_id
-  APPOINTMENTS }o--|| USERS : patient_id
-  MESSAGES }o--|| USERS : from_id
-  MESSAGES }o--|| USERS : to_id
-  FRIEND_REQUESTS }o--|| USERS : from_user
-  FRIEND_REQUESTS }o--|| USERS : to_user
-  USER_DEVICES }o--|| USERS : belongs_to
-  USER_LOGINS }o--|| USERS : belongs_to
-  DEVICE_REOPEN_ATTEMPTS }o--|| USERS : belongs_to
-  DEVICE_REOPEN_BLOCKS }o--|| USERS : belongs_to
-  PROFESSIONAL_APPLICATIONS }o--|| USERS : author
-  PROFESSIONAL_APPLICATIONS }o--|| USERS : reviewer
+    USERS ||--o{ APPOINTMENTS : professional_id
+    USERS ||--o{ APPOINTMENTS : patient_id
+    USERS ||--o{ MESSAGES : from_id
+    USERS ||--o{ MESSAGES : to_id
+    USERS ||--o{ FRIEND_REQUESTS : from_id
+    USERS ||--o{ FRIEND_REQUESTS : to_id
+    USERS ||--o{ USER_DEVICES : user_id
+    USERS ||--o{ USER_LOGINS : user_id
+    USERS ||--o{ DEVICE_REOPEN_ATTEMPTS : user_id
+    USERS ||--o{ DEVICE_REOPEN_BLOCKS : user_id
+    USERS ||--o{ PROFESSIONAL_APPLICATIONS : user_id
+    USERS ||--o{ PROFESSIONAL_APPLICATIONS : reviewed_by
+    USERS ||--o{ USER_PHOTOS : user_id
+    USERS ||--o{ APPOINTMENT_SESSIONS : professional_id
+    USERS ||--o{ APPOINTMENT_SESSIONS : patient_id
 
-  ROLES ||--o{ MODEL_HAS_ROLES : via
-  PERMISSIONS ||--o{ MODEL_HAS_PERMISSIONS : via
-  ROLES ||--o{ ROLE_HAS_PERMISSIONS : grants
+    APPOINTMENTS ||--o{ APPOINTMENT_SESSIONS : appointment_id
+    APPOINTMENTS ||--o{ APPOINTMENT_RESCHEDULES : appointment_id
+    APPOINTMENT_SESSIONS ||--o{ APPOINTMENT_SESSION_LOGS : session_id
 
-  USERS {
-    int id PK
-    string name
-    string lastname
-    string bithday
-    string gender
-    string email
-    string phone
-    string timezone
-    string password
-    string speciality
-    string appointment_types
-    string location
-    decimal rating
-    string status
-    timestamp email_verified_at
-    timestamp last_seen_at
-  }
+    PAYMENTS }o--|| USERS : user_id
+    PAYMENTS }o--|| USERS : recipient_user_id
+    PAYMENTS }o--|| APPOINTMENTS : appointment_id
 
-  APPOINTMENTS {
-    int id PK
-    int professional_id
-    int patient_id
-    string title
-    timestamp start
-    timestamp end
-    boolean all_day
-    string status
-    text notes
-  }
+    ROLES ||--o{ MODEL_HAS_ROLES : role_id
+    PERMISSIONS ||--o{ ROLE_HAS_PERMISSIONS : permission_id
 
-  MESSAGES {
-    int id PK
-    int from_id
-    int to_id
-    text body
-    timestamp read_at
-  }
+    MESSAGES }o--|| APPOINTMENTS : appointment_id
 
-  FRIEND_REQUESTS {
-    int id PK
-    int from_id
-    int to_id
-    string status
-    timestamp accepted_at
-    timestamp rejected_at
-  }
+    MENU_ITEMS ||--o{ MENU_ITEM_ROLE : menu_item_id
+    ROLES ||--o{ MENU_ITEM_ROLE : role_id
 
-  PROFESSIONAL_APPLICATIONS {
-    int id PK
-    int user_id
-    string titulo_path
-    string cedula_path
-    string status
-    text notes
-    int reviewed_by
-    timestamp reviewed_at
-  }
-
-  USER_DEVICES {
-    int id PK
-    int user_id
-    string token_hash
-    string name
-    string ip_address
-    text user_agent
-    timestamp last_seen_at
-    timestamp revoked_at
-  }
-
-  USER_LOGINS {
-    int id PK
-    int user_id
-    string session_id
-    string ip_address
-    text user_agent
-    string browser_token_hash
-    timestamp started_at
-    timestamp ended_at
-    int duration_seconds
-  }
-
-  DEVICE_REOPEN_ATTEMPTS {
-    int id PK
-    int user_id
-    string token_hash
-    string ip_address
-    text user_agent
-    boolean success
-    string action
-  }
-
-  DEVICE_REOPEN_BLOCKS {
-    int id PK
-    int user_id
-    string token_hash
-    timestamp blocked_until
-    boolean permanent
-    int admin_unlocked_by
-    timestamp admin_unlocked_at
-  }
-
-  USER_PHOTOS {
-    int id PK
-    int user_id
-    string path
-    text caption
-    boolean is_profile
-  }
 ```
 
-Notas:
-- Los canales privados de broadcasting no persisten en BD (definidos en `routes/channels.php`).
-- La tabla `notifications` no está en las migraciones del repo; si se añade, se integra con `users` (morph) de forma estándar de Laravel.
+Notas sobre el diagrama:
+- `PAYMENTS` fue extendida para incluir `recipient_user_id` y `type` en noviembre de 2025.
+- `APPOINTMENT_SESSIONS` es la entidad que representa sesiones en curso/realizadas (handshake/webrtc metadata, duración, etc.).
 
-## Diccionario físico por tabla
+=== Diccionario físico por tabla (tablas principales) ===
 
-A continuación, cada tabla con columnas, tipos, nulos, default, PK, FK e índices relevantes.
+Formato: `Columna | Tipo | Nulo | Default | Notas`
 
-### users
-- id: bigint, PK
-- name: varchar(255), not null
-- email: varchar(255), unique, not null (normalizado a minúsculas por código)
-- phone: varchar(32), null, INDEX
-- timezone: varchar(255), null
-- speciality: varchar(255), null
-- appointment_types: varchar(255), null
-- location: varchar(255), null
-- rating: numeric(3,1), null
-- email_verified_at: timestamp, null
-- password: varchar(255), not null (hash)
-- is_active: boolean default true
-- deactivated_reason: text, null
-- deactivated_at: timestamp, null
-- status: varchar(32) default 'online', INDEX
-- last_seen_at: timestamp, null, INDEX
-- remember_token: varchar(100), null
-- deleted_at: timestamp, null (soft delete)
-- created_at/updated_at: timestamp
+-- `users`
 
-Índices:
-- UNIQUE (email)
-- INDEX (status), INDEX (last_seen_at), INDEX (phone)
+Columna | Tipo | Nulo | Default | Notas
+---|---:|:---:|:---:|---
+id | bigint PK | no | autoinc | usuario
+name | varchar(255) | no |  | 
+lastname | varchar(255) | yes |  | 
+email | varchar(255) | no |  | unique, normalizado
+password | varchar(255) | no |  | hash
+phone | varchar(32) | yes | null | índice
+timezone | varchar(255) | yes | null | 
+speciality | varchar(255) | yes | null | profesional
+appointment_types | varchar(255) | yes | null | 
+location | varchar(255) | yes | null | 
+rating | numeric(3,1) | yes | null | promedio
+status | varchar(32) | yes | 'online' | índice (online/offline)
+last_seen_at | timestamp | yes | null | índice
+email_verified_at | timestamp | yes | null | 
+remember_token | varchar(100) | yes | null | 
+deleted_at | timestamp | yes | null | soft delete
+created_at / updated_at | timestamp | no |  | 
 
-### password_reset_tokens
-- email: varchar, PK
-- token: varchar, not null
-- created_at: timestamp, null
+-- `appointments`
 
-### sessions (Laravel)
-- id: varchar, PK
-- user_id: bigint, null, INDEX
-- ip_address: varchar(45), null
-- user_agent: text, null
-- payload: longtext
-- last_activity: integer, INDEX
+Columna | Tipo | Nulo | Default | Notas
+---|---:|:---:|:---:|---
+id | bigint PK | no | autoinc | 
+professional_id | bigint FK -> users.id | no |  | profesional
+patient_id | bigint FK -> users.id | no |  | paciente
+title | varchar(255) | yes | null | 
+start | timestamp | yes | null | 
+end | timestamp | yes | null | 
+all_day | boolean | no | false | 
+status | varchar(32) | no | 'pending' | estados: pending/accepted/in_progress/completed/cancelled
+notes | text | yes | null | 
+deleted_at | timestamp | yes | null | soft delete
+created_at / updated_at | timestamp | no |  | 
 
-### user_photos
-- id: bigint, PK
-- user_id: bigint, FK -> users.id ON DELETE CASCADE, INDEX
-- path: varchar(255), null
-- caption: varchar(255), null
-- is_profile: boolean default false, INDEX
-- created_at/updated_at
+-- `appointment_sessions`
 
-### professional_applications
-- id: bigint, PK
-- user_id: bigint, FK -> users.id ON DELETE CASCADE
-- titulo_path: varchar(255), null
-- cedula_path: varchar(255), null
-- status: enum('pending','approved','rejected') default 'pending'
-- notes: text, null
-- reviewed_by: bigint, FK -> users.id NULL ON DELETE SET NULL
-- reviewed_at: timestamp, null
-- created_at/updated_at
+Columna | Tipo | Nulo | Default | Notas
+---|---:|:---:|:---:|---
+id | bigint PK | no | autoinc | registro de sesión rtc
+appointment_id | bigint FK -> appointments.id | no |  | 
+room | varchar(255) | yes | null | id de sala/signaling
+started_at | timestamp | yes | null | 
+ended_at | timestamp | yes | null | 
+duration_seconds | integer | yes | null | calculado
+meta | json | yes | null | datos adicionales (ice, logs)
+created_at / updated_at | timestamp | no |  | 
 
-Índices: FK implícitas.
+-- `appointment_session_logs`
 
-### appointments
-- id: bigint, PK
-- professional_id: bigint, FK -> users.id ON DELETE CASCADE
-- patient_id: bigint, FK -> users.id ON DELETE CASCADE
-- title: varchar(255), null
-- start: timestamp, null
-- end: timestamp, null
-- all_day: boolean default false
-- status: enum('pending','accepted','rejected','cancelled') default 'pending'
-- notes: text, null
-- created_at/updated_at
-- deleted_at: timestamp, null (soft delete)
+Columna | Tipo | Nulo | Default | Notas
+---|---:|:---:|:---:|---
+id | bigint PK | no | autoinc | 
+appointment_session_id | bigint FK -> appointment_sessions.id | no |  | 
+type | varchar(64) | yes | null | event type
+payload | json | yes | null | 
+created_at | timestamp | no |  | 
 
-### messages
-- id: bigint, PK
-- from_id: bigint, FK -> users.id ON DELETE CASCADE
-- to_id: bigint, FK -> users.id ON DELETE CASCADE
-- body: text, not null
-- read_at: timestamp, null
-- created_at/updated_at
+-- `appointment_reschedules`
 
-Índices:
-- INDEX (from_id, to_id)
+Columna | Tipo | Nulo | Default | Notas
+---|---:|:---:|:---:|---
+id | bigint PK | no | autoinc | 
+appointment_id | bigint FK -> appointments.id | no |  | 
+proposed_start | timestamp | yes | null | 
+proposed_end | timestamp | yes | null | 
+status | varchar(32) | no | 'pending' | 
+created_at / updated_at | timestamp | no |  | 
 
-### friend_requests
-- id: bigint, PK
-- from_id: bigint, FK -> users.id ON DELETE CASCADE
-- to_id: bigint, FK -> users.id ON DELETE CASCADE
-- status: enum('pending','accepted','rejected') default 'pending'
-- accepted_at: timestamp, null
-- rejected_at: timestamp, null
-- created_at/updated_at
+-- `appointment_ratings`
 
-Restricciones/Índices:
-- UNIQUE (from_id, to_id)
+Columna | Tipo | Nulo | Default | Notas
+---|---:|:---:|:---:|---
+id | bigint PK | no | autoinc | 
+appointment_id | bigint FK -> appointments.id | no |  | 
+patient_id | bigint FK -> users.id | no |  | quien calificó
+professional_id | bigint FK -> users.id | no |  | calificado
+score | integer | no |  | rango configurable
+comment | text | yes | null | 
+responded_at | timestamp | yes | null | respuesta del profesional
+created_at / updated_at | timestamp | no |  | 
 
-### user_logins
-- id: bigint, PK
-- user_id: bigint, INDEX
-- session_id: varchar(255), null, INDEX
-- ip_address: varchar(255), null
-- user_agent: text, null
-- browser_token_hash: varchar(64), null, INDEX
-- started_at: timestamp, null
-- ended_at: timestamp, null
-- duration_seconds: integer unsigned, null
-- created_at/updated_at
+-- `messages`
 
-Índices y reglas:
-- PostgreSQL: índice único parcial `user_logins_unique_open_session` en (user_id, session_id) WHERE ended_at IS NULL.
+Columna | Tipo | Nulo | Default | Notas
+---|---:|:---:|:---:|---
+id | bigint PK | no | autoinc | 
+from_id | bigint FK -> users.id | no |  | 
+to_id | bigint FK -> users.id | no |  | 
+body | text | no |  | 
+appointment_id | bigint FK -> appointments.id | yes | null | opcionalmente atado a cita
+read_at | timestamp | yes | null | 
+created_at / updated_at | timestamp | no |  | 
 
-### user_devices
-- id: bigint, PK
-- user_id: bigint, FK -> users.id ON DELETE CASCADE, INDEX
-- token_hash: varchar(64), INDEX
-- name: varchar(255), null
-- ip_address: varchar(255), null
-- user_agent: text, null
-- last_seen_at: timestamp, null
-- revoked_at: timestamp, null
-- created_at/updated_at
+-- `friend_requests`
 
-### device_reopen_attempts
-- id: bigint, PK
-- user_id: bigint, INDEX
-- token_hash: varchar(64), null, INDEX
-- ip_address: varchar(45), null
-- user_agent: text, null
-- success: boolean, null
-- action: varchar(255) default 'confirm'
-- created_at/updated_at
-
-### device_reopen_blocks
-- id: bigint, PK
-- user_id: bigint, INDEX
-- token_hash: varchar(64), null, INDEX
-- blocked_until: timestamp, null, INDEX
-- permanent: boolean default false
-- admin_unlocked_by: bigint, null (referencia lógica a users.id; sin FK explícita)
-- admin_unlocked_at: timestamp, null
-- created_at/updated_at
-
-### Spatie Permission (autorización)
-Tablas: `roles`, `permissions`, `model_has_roles`, `model_has_permissions`, `role_has_permissions`.
-
-roles
-- id: bigint, PK
-- team_id: bigint null (no usado si teams=false)
-- name: varchar, not null
-- guard_name: varchar, not null
-- show_in_signup: boolean default false
-- signup_label: varchar null
-- requires_docs: boolean default false
-- icon_class: varchar null
-- badge_color: varchar null
-- timestamps
-
-Índices:
-- UNIQUE (name, guard_name) [o con team_id si teams=true]
-
-permissions
-- id: bigint, PK
-- name, guard_name, timestamps; UNIQUE (name, guard_name)
-
-model_has_roles
-- role_id: bigint FK -> roles.id
-- model_type: string
-- model_id: bigint
-- team_id: bigint null si teams=true
-- PK compuesta: (role_id, model_id, model_type[, team_id])
-
-model_has_permissions
-- permission_id: bigint FK -> permissions.id
-- model_type, model_id, team_id (si aplica)
-- PK compuesta: (permission_id, model_id, model_type[, team_id])
-
-role_has_permissions
-- permission_id: bigint FK -> permissions.id
-- role_id: bigint FK -> roles.id
-- PK compuesta: (permission_id, role_id)
-
-### Infraestructura Laravel
-- cache, cache_locks: claves/valores y locks.
-- jobs, job_batches, failed_jobs: colas de trabajos.
-- password_reset_tokens, sessions: seguridad y sesiones.
-
-## Reglas de negocio relevantes
-- Mensajes sólo se pueden enviar entre usuarios con amistad aceptada (enfoque aplicado en el controlador).
-- Amistad se modela por `friend_requests` con par único (from_id,to_id); la amistad efectiva es status=accepted (se trata como relación no dirigida a efectos de UI y permisos).
-- `user_logins`: control de “sesión abierta” por navegador mediante `browser_token_hash` y único parcial en Postgres.
-- `user_devices`: token hash por dispositivo; revocación blanda por `revoked_at`.
-- `professional_applications`: revisión por un usuario revisor (nullable) con marcas de tiempo.
-
-## Notas de implementación y mantenimiento
-- Emails de usuario se normalizan a minúsculas en migración y en el mutator del modelo (`setEmailAttribute`).
-- Soft deletes en `users` y `appointments` (cuidado con consultas que deban incluir borrados).
-- Si se añade la tabla `notifications` de Laravel, documentarla como: morph a notifiable, `type`, `data (json)`, `read_at`.
-- Índices parciales (PostgreSQL) no se trasladan automáticamente a MySQL; si se usa MySQL, considerar un índice único condicional equivalente o manejarlo en aplicación.
-
-## Cómo generar/actualizar este documento
-- Fuente de verdad: migraciones en `database/migrations` y modelos en `app/Models`.
-- Al crear una nueva migración, añadir la tabla en la sección “Diccionario físico” y actualizar el ER.
-- Se puede validar con `php artisan schema:dump` o herramientas como dbdocs.io/dbdiagram.io si se desea exportar.
-
----
-Última actualización: automatizada desde el repo a fecha de commit (10/10/2025).
+Columna | Tipo | Nulo | Default | Notas
+---|---:|:---:|:---:|---
+id | bigint PK | no | autoinc | 
+from_id | bigint FK -> users.id | no |  | solicitante
+to_id | bigint FK -> users.id | no |  | receptor
+status | varchar(32) | no | 'pending' | pending/accepted/rejected
+accepted_at | timestamp | yes | null | 
+rejected_at | timestamp | yes | null | 
+created_at / updated_at | timestamp | no |  | 
