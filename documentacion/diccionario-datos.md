@@ -1,4 +1,4 @@
-# Diccionario de Datos — Psicoguia (actualizado 2025-12-01)
+# Diccionario de Datos — PsicoTest (actualizado 2025-12-01)
 
 Este documento describe el modelo lógico y físico de datos del aplicativo, sus entidades, relaciones, claves y restricciones. Está generado a partir de las migraciones y modelos Eloquent del proyecto.
 

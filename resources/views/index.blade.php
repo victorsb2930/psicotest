@@ -1,5 +1,5 @@
 @extends('layout')
-@section('title', 'PsicoGuia')
+@section('title', 'PsicoTest')
 @section('page', 'index')
 @section('content')
 

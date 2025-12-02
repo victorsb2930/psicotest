@@ -1,13 +1,13 @@
 # Documentación del proyecto
 
-Propósito: Psicoguia es una aplicación Laravel que sirve como guía y panel administrativo para profesionales y usuarios. Este archivo documenta los comandos esenciales y convenciones que un nuevo colaborador necesita conocer para poner el proyecto en marcha y entender la estructura general.
+Propósito: PsicoTest es una aplicación Laravel que sirve como guía y panel administrativo para profesionales y usuarios. Este archivo documenta los comandos esenciales y convenciones que un nuevo colaborador necesita conocer para poner el proyecto en marcha y entender la estructura general.
 
 Comandos esenciales (arranque rápido)
 
 1) Clonar y configurar:
 ```bash
 git clone <repo-url>
-cd psicoguia
+cd PsicoTest
 cp .env.example .env
 # editar .env según sea necesario (DB, APP_URL, etc.)
 ```

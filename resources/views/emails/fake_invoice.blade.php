@@ -11,5 +11,5 @@
         <li>Finaliza: {{ \Carbon\Carbon::parse($subscription->ends_at)->format('d/m/Y H:i:s') }}</li>
     </ul>
 
-    <p>Este es un comprobante simulado generado por psicoguia.</p>
+    <p>Este es un comprobante simulado generado por PsicoTest.</p>
 </div>

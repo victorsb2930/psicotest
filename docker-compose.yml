@@ -93,7 +93,7 @@ services:
     build:
       context: ./server/signaling
       dockerfile: Dockerfile
-    container_name: psicoguia-signaling
+    container_name: PsicoTest-signaling
     restart: unless-stopped
     ports:
       - "4000:4000"
@@ -104,8 +104,8 @@ services:
 
 volumes:
   pg_data:
-    name: psicoguia_pg_data
+    name: PsicoTest_pg_data
   vendor_data:
-    name: psicoguia_vendor_data
+    name: PsicoTest_vendor_data
   mailhog_data:
-    name: psicoguia_mailhog_data
+    name: PsicoTest_mailhog_data

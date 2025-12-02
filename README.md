@@ -1,6 +1,6 @@
-# Psicoguia — Guía de onboarding para colaboradores
+# PsicoTest — Guía de onboarding para colaboradores
 
-Bienvenido/a al repositorio de Psicoguia. Este documento explica paso a paso lo que debe hacer un nuevo colaborador que clona el proyecto para dejarlo funcionando en su entorno local (con Docker) y cómo solucionar problemas comunes.
+Bienvenido/a al repositorio de PsicoTest. Este documento explica paso a paso lo que debe hacer un nuevo colaborador que clona el proyecto para dejarlo funcionando en su entorno local (con Docker) y cómo solucionar problemas comunes.
 
 Requisitos previos
 - Git
@@ -11,7 +11,7 @@ Requisitos previos
 1) Clonar el repositorio
 
 -
-# Psicoguia — Guía de arranque y comandos (ordenados)
+# PsicoTest — Guía de arranque y comandos (ordenados)
 
 Esta guía concentra los pasos exactos y los comandos en el orden correcto para que un nuevo colaborador deje el proyecto funcionando localmente (con Docker). Está en español y contiene atajos y soluciones a problemas comunes.
 
@@ -27,7 +27,7 @@ Resumen rápido (comandos mínimos en orden)
 
 ```bash
 git clone <repo-url>
-cd psicoguia
+cd PsicoTest
 ```
 
 2. Copiar y revisar variables de entorno
@@ -193,7 +193,7 @@ Si trabajas en Windows con PowerShell, copia y pega estos comandos en el orden i
 ```powershell
 # 1) Clona el repositorio y entra en la carpeta
 git clone <repo-url>
-cd psicoguia
+cd PsicoTest
 
 # 2) Copia el .env de ejemplo y edítalo según tu entorno
 cp .env.example .env

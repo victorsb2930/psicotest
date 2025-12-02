@@ -14,7 +14,7 @@
 <body>
   <div class="header">
     <h2>Factura</h2>
-    <div>PsicoGuia</div>
+    <div>PsicoTest</div>
   </div>
   <p>Cliente: {{ $user->name }} &lt;{{ $user->email }}&gt;</p>
   <p>Plan: {{ $plan->name }} ({{ $plan->key }})</p>

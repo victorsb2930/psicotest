@@ -20,7 +20,7 @@
 	<meta name="broadcast-driver" content="{{ config('broadcasting.default') }}">
 	<meta name="default-avatar" content="{{ Vite::asset('resources/images/default-avatar.png') }}">
 	@if(auth()->check())<meta name="auth-user-id" content="{{ auth()->id() }}">@endif
-	<title>@yield('title', 'PsicoGuia')</title>
+	<title>@yield('title', 'PsicoTest')</title>
 	<!-- Minimal critical CSS -->
 	<style>
 		:root {
@@ -492,7 +492,7 @@
 			<a href="{{ auth()->check() ? ( auth()->user()->hasRole('admin') ? '/adminarea' : (auth()->user()->hasRole('professional') ? '/professionalarea' : '/userarea') ) : '/' }}"
 				class="brand d-flex align-items-center mb-0 text-white text-decoration-none">
 				<img src="{{ Vite::asset('resources/images/p.png') }}" alt="Logo" width="40" height="32" class="me-2 align-self-center nav-brand-img">
-				<span class="fs-4">PsicoGuia</span>
+				<span class="fs-4">PsicoTest</span>
 			</a>
 
 			<ul class="nav nav-pills align-items-center mb-0">
@@ -714,7 +714,7 @@
 
 			// sincronización entre pestañas usando localStorage
 			window.addEventListener('storage', function(e){
-				if (e.key !== 'psicoguia_presence') return;
+				if (e.key !== 'PsicoTest_presence') return;
 				try {
 					const payload = JSON.parse(e.newValue || '{}');
 					if (payload && payload.status) {
@@ -735,7 +735,7 @@
 				window.__userPresence = status;
 				applyPresenceToUI(status);
 				try {
-					localStorage.setItem('psicoguia_presence', JSON.stringify({ status: status, ts: Date.now() }));
+					localStorage.setItem('PsicoTest_presence', JSON.stringify({ status: status, ts: Date.now() }));
 				} catch(e) { /* ignore localStorage errors */ }
 				return true;
 			};
