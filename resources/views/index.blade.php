@@ -28,31 +28,28 @@
 		<h2 class="text-center fw-bold mb-4">Beneficios de PsicoTest</h2>
 		<div class="row g-4 justify-content-center">
 			<div class="col-12 col-sm-6 col-md-4">
-				<div class="card benefit-card h-100 border-0">
-					<div class="card-body d-flex flex-column align-items-center justify-content-center p-4 text-center">
+				<x-card class="benefit-card h-100 border-0" title="Acceso inmediato">
+					<x-slot name="icon">
 						<div class="icon-circle mb-3"><i class="bi bi-clock-fill fs-3"></i></div>
-						<h5 class="card-title fw-bold">Acceso inmediato</h5>
-						<p class="card-text text-muted mb-0">Conéctate con especialistas certificados en cualquier momento y lugar.</p>
-					</div>
-				</div>
+					</x-slot>
+					<p class="card-text text-muted mb-0">Conéctate con especialistas certificados en cualquier momento y lugar.</p>
+				</x-card>
 			</div>
 			<div class="col-12 col-sm-6 col-md-4">
-				<div class="card benefit-card h-100 border-0">
-					<div class="card-body d-flex flex-column align-items-center justify-content-center p-4 text-center">
+				<x-card class="benefit-card h-100 border-0" title="Atención personalizada">
+					<x-slot name="icon">
 						<div class="icon-circle mb-3"><i class="bi bi-chat-left-text-fill fs-3"></i></div>
-						<h5 class="card-title fw-bold">Atención personalizada</h5>
-						<p class="card-text text-muted mb-0">Recibe acompañamiento y seguimiento adaptado a tus necesidades emocionales.</p>
-					</div>
-				</div>
+					</x-slot>
+					<p class="card-text text-muted mb-0">Recibe acompañamiento y seguimiento adaptado a tus necesidades emocionales.</p>
+				</x-card>
 			</div>
 			<div class="col-12 col-sm-6 col-md-4">
-				<div class="card benefit-card h-100 border-0">
-					<div class="card-body d-flex flex-column align-items-center justify-content-center p-4 text-center">
+				<x-card class="benefit-card h-100 border-0" title="Confidencialidad">
+					<x-slot name="icon">
 						<div class="icon-circle mb-3"><i class="bi bi-shield-lock-fill fs-3"></i></div>
-						<h5 class="card-title fw-bold">Confidencialidad</h5>
-						<p class="card-text text-muted mb-0">Tu privacidad es nuestra prioridad en cada interacción.</p>
-					</div>
-				</div>
+					</x-slot>
+					<p class="card-text text-muted mb-0">Tu privacidad es nuestra prioridad en cada interacción.</p>
+				</x-card>
 			</div>
 		</div>
 	</div>

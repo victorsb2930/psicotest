@@ -32,7 +32,7 @@
 	'title' => null,
 	'titleRight' => null,
 	'subtitle' => null,
-	'icon' => null,
+	// Use a named slot `icon` instead of passing raw HTML via prop to avoid parsing issues
 	'footer' => null,
 	'center' => true,
 	'hover' => true,
@@ -62,9 +62,10 @@
 
 <div {{ $attributes->merge(['class' => $classes, 'style' => $styleAttr]) }}>
 	<div class="{{ $bodyClasses }}">
-		@if($icon)
+		{{-- Icon slot: use <x-slot name="icon"> to provide HTML icon markup from the caller --}}
+		@isset($icon)
 			<div class="display-4 mb-2">{!! $icon !!}</div>
-		@endif
+		@endisset
 
 		<div class="d-flex flex-column flex-md-row justify-content-between align-items-center gap-2 w-100">
 			@if($title)
