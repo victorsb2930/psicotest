@@ -86,8 +86,8 @@
     </table>
   </div>
 
-  <div>
-    {{ $items->links() }}
+  <div class="d-flex justify-content-end mt-3">
+    {{ $items->appends(request()->query())->links('pagination::bootstrap-5') }}
   </div>
 </div>
 @endsection

@@ -62,7 +62,7 @@ export function modalNotification(
 	const startColor = makeRgbaFromRgb(rgbObj, clamp(opts.bgOpacity));
 	const midColor = makeRgbaFromRgb(rgbObj, clamp(opts.bgOpacity * 0.7));
 	const endColor = makeRgbaFromRgb(rgbObj, clamp(opts.bgOpacity * 0.35));
-	const bodyBg = `linear-gradient(90deg, ${startColor} 0%, ${midColor} 45%, ${endColor} 100%)`;
+	const bodyBg = startColor;
 
 	const iconBg = makeRgbaFromRgb(rgbObj, clamp(opts.bgOpacity * 1.0));
 	// Secondary text should be more opaque when bgOpacity is high

@@ -17,7 +17,7 @@
 	/* Plan specific helpers */
 	.plan-active { border: 1.5px solid rgba(25, 135, 84, 0.12); box-shadow: 0 8px 28px rgba(25,135,84,0.06); }
 	.plan-discount-badge { font-size: .775rem; margin-right: .35rem; }
-	.plan-popular-badge { background: linear-gradient(90deg,#ffd166,#ff9f1c); color: #222; }
+	.plan-popular-badge { background-color: var(--brand-500); color: #06283D; }
 	.price-large { font-size: 1.6rem; font-weight: 700; }
 	.btn-plan-cta:focus { outline: 3px solid rgba(13,110,253,0.15); outline-offset: 2px; }
 

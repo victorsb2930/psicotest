@@ -95,6 +95,308 @@ function handleCtaClick(e) {
 	}
 }
 
+// --- Mental test wizard (page-scoped, uses modalConfirm but does NOT modify modalConfirm.js) ---
+function _buildQuestionHtml(idx, question, choices) {
+	const name = `mtq_${idx}`;
+	const parts = choices.map((c, i) => {
+		const id = `${name}_opt_${i}`;
+		return `<div class="form-check text-start">
+			<input class="form-check-input" type="radio" name="${name}" id="${id}" value="${i}">
+			<label class="form-check-label" for="${id}">${window.escapeHtml ? window.escapeHtml(c) : c}</label>
+		</div>`;
+	}).join('');
+	return `<div id="mtq_container_${idx}">
+		<p class="mb-3">${window.escapeHtml ? window.escapeHtml(question) : question}</p>
+		<div class="mb-2">${parts}</div>
+	</div>`;
+}
+
+function _interpretScore(score, max) {
+	const pct = (score / (max || 1)) * 100;
+	if (pct < 20) return { label: 'Mínima', advice: 'Tus respuestas indican pocas dificultades actuales.' };
+	if (pct < 50) return { label: 'Leve', advice: 'Podrías beneficiarte de seguimiento o autocuidado.' };
+	if (pct < 75) return { label: 'Moderada', advice: 'Considera consultar con un profesional para evaluación.' };
+	return { label: 'Severa', advice: 'Se recomienda solicitar atención profesional pronto.' };
+}
+
+function showMentalTestWizard() {
+	try {
+		const questions = [
+			'En las últimas dos semanas, ¿con qué frecuencia has sentido poco interés o placer en hacer cosas?',
+			'En las últimas dos semanas, ¿con qué frecuencia te has sentido decaído, deprimido o sin esperanzas?',
+			'¿Con qué frecuencia has tenido dificultades para conciliar el sueño o te has despertado muy temprano?',
+			'¿Con qué frecuencia te has sentido cansado o con poca energía?',
+			'¿Con qué frecuencia has tenido dificultad para concentrarte en cosas, como leer el periódico o ver la televisión?'
+		];
+		const choices = ['Nunca', 'A veces', 'Frecuentemente', 'Siempre'];
+		const answers = new Array(questions.length).fill(null);
+		let currentIndex = 0;
+		const modalId = `mentalTestWizard-${Date.now()}`;
+
+		function showInlineError($modal, msg) {
+			try {
+				const $body = $modal.find(`#modalBody${modalId}`);
+				$body.find('.mt-error').remove();
+				const safe = (window.escapeHtml ? window.escapeHtml(msg) : msg);
+				$body.find(`#mtq_container_${currentIndex}`).append(`<div class="mt-error text-danger small mt-2">${safe}</div>`);
+			} catch (_) { }
+		}
+
+		function renderStep($modal, i) {
+			currentIndex = i;
+			const total = questions.length;
+			// update title and body
+			$modal.find(`#modalTitle${modalId}`).text(`Pregunta ${i + 1} de ${total}`);
+			$modal.find(`#modalBody${modalId}`).html(_buildQuestionHtml(i, questions[i], choices));
+			// remove any previous error
+			$modal.find('.mt-error').remove();
+			// pre-select previous answer if exists
+			if (answers[i] !== null && typeof answers[i] !== 'undefined') {
+				const sel = $modal.find(`#modalBody${modalId} input[name=mtq_${i}][value='${answers[i]}']`);
+				if (sel && sel.length) sel.prop('checked', true);
+			}
+			// update buttons state
+			const $back = $modal.find(`#modalBtn_${modalId}_1`);
+			const $next = $modal.find(`#modalBtn_${modalId}_2`);
+			if ($back && $back.length) {
+				if (i === 0) { $back.prop('disabled', true).addClass('disabled'); } else { $back.prop('disabled', false).removeClass('disabled'); }
+			}
+			if ($next && $next.length) {
+				if (i === total - 1) { $next.text('Terminar'); } else { $next.text('Siguiente'); }
+			}
+			// focus first input
+			setTimeout(() => { try { $modal.find(`#modalBody${modalId} input[type=radio]`).first().trigger('focus'); } catch(_){} }, 60);
+		}
+
+		const buttons = [
+			{ text: 'Cancelar', className: 'btn-outline-secondary', dismiss: true },
+			{ text: 'Atrás', className: 'btn-secondary', closeOnClick: false, onClick: function ($modal) { try { if (currentIndex > 0) renderStep($modal, currentIndex - 1); } catch (_) {} } },
+			{ text: 'Siguiente', className: 'btn-primary', closeOnClick: false, onClick: function ($modal) {
+				try {
+					const sel = $modal.find(`#modalBody${modalId} input[name=mtq_${currentIndex}]:checked`);
+					if (!sel || sel.length === 0) {
+						showInlineError($modal, 'Por favor seleccioná una opción para continuar.');
+						return;
+					}
+					answers[currentIndex] = Number(sel.val() || 0);
+					// if last, show results inside the same modal
+					if (currentIndex === questions.length - 1) {
+						// More dynamic, domain-based interpretation and several suggestion templates
+						const vals = answers.map(v => Number(v || 0));
+						// Domains: mood (q0,q1), sleep (q2), energy (q3), cognition (q4)
+						const domain = {
+							mood: (vals[0] || 0) + (vals[1] || 0), // max 6
+							sleep: (vals[2] || 0), // max 3
+							energy: (vals[3] || 0), // max 3
+							cognition: (vals[4] || 0) // max 3
+						};
+
+						const domainMax = { mood: 6, sleep: 3, energy: 3, cognition: 3 };
+
+						function pctKey(v, max) {
+							const p = (v / (max || 1)) * 100;
+							if (p >= 75) return 'marked';
+							if (p >= 50) return 'moderate';
+							if (p >= 25) return 'mild';
+							return 'none';
+						}
+
+						const domainSeverity = {};
+						Object.keys(domain).forEach(k => { domainSeverity[k] = pctKey(domain[k], domainMax[k]); });
+
+						// Determine dominant domain (by percent of max)
+						let dominant = Object.keys(domain).map(k => ({ k, pct: (domain[k] / domainMax[k]) })).sort((a,b) => b.pct - a.pct)[0].k;
+
+						// Templates per domain + severity (arrays to vary phrasing)
+						const templates = {
+							mood: {
+								marked: [
+									'Es posible que estés experimentando síntomas significativos relacionados con el estado de ánimo o ansiedad. Recomendamos solicitar una evaluación profesional para una orientación precisa.'
+								],
+								moderate: [
+									'Se observan signos de preocupación emocional o estrés sostenido. Considerá técnicas de autocuidado y, si persisten, consultá con un profesional.'
+								],
+								mild: [
+									'Hay indicios leves de malestar emocional. Actividades de autocuidado y seguimiento suelen ser útiles.'
+								],
+								none: [
+									'No se detectan señales claras de malestar emocional en este breve screening.'
+								]
+							},
+							sleep: {
+								marked: [
+									'Existen síntomas relevantes de alteración del sueño que podrían estar afectando tu bienestar. La higiene del sueño y, si no mejora, la consulta con un especialista son recomendables.'
+								],
+								moderate: [
+									'Estás mostrando dificultades para dormir de forma recurrente. Prueba rutinas regulares y técnicas de relajación antes de dormir.'
+								],
+								mild: [
+									'Algunas molestias en el sueño están presentes; mejorar hábitos nocturnos suele ayudar.'
+								],
+								none: [
+									'No hay signos significativos de problemas de sueño en este cuestionario.'
+								]
+							},
+							energy: {
+								marked: [
+									'Fatiga persistente y baja energía pueden indicar sobrecarga o condiciones médicas subyacentes. Considerá evaluación médica y apoyo profesional.'
+								],
+								moderate: [
+									'Poca energía o cansancio recurrente: actividad física moderada y pausas regulares pueden mejorar tu vitalidad.'
+								],
+								mild: [
+									'Alguna reducción de energía observada; pequeños cambios en actividad y sueño pueden ser útiles.'
+								],
+								none: [
+									'No se observan signos relevantes de fatiga en este screening.'
+								]
+							},
+							cognition: {
+								marked: [
+									'Dificultades notables de concentración pueden impactar el rendimiento diario; técnicas de organización y evaluación profesional pueden ser necesarias.'
+								],
+								moderate: [
+									'Dificultad para concentrarte con cierta frecuencia: fragmentar tareas y reducir distracciones es recomendable.'
+								],
+								mild: [
+									'Leves dificultades de atención; estructura y descansos breves suelen ayudar.'
+								],
+								none: [
+									'No se detectan dificultades de concentración importantes en este screening.'
+								]
+							}
+						};
+
+						// Suggestions pool per domain and severity (multiple strings to vary)
+						const suggestionsPool = {
+							mood: {
+								marked: [
+									'Contactate con un profesional de salud mental para evaluación y seguimiento.',
+									'Evita el aislamiento: mantener contactos de apoyo puede ser un primer paso importante.'
+								],
+								moderate: [
+									'Lleva un diario de estado de ánimo para identificar patrones.',
+									'Practica técnicas de respiración y pausas programadas en tu día.'
+								],
+								mild: [
+									'Hablar con alguien de confianza sobre cómo te sientes puede aliviar.',
+									'Dedica 10-15 minutos diarios a actividades que disfrutes.'
+								],
+								none: [
+									'Mantener hábitos emocionales saludables: sueño, actividad física y relaciones sociales.'
+								]
+							},
+							sleep: {
+								marked: [
+									'Establece horarios fijos de sueño y evita cafeína por la tarde.',
+									'Crea una rutina relajante (lectura ligera, ducha tibia) antes de acostarte.'
+								],
+								moderate: [
+									'Reduce el uso de pantallas 60 minutos antes de dormir.',
+									'Mantén una temperatura agradable y ambiente oscuro en el dormitorio.'
+								],
+								mild: [
+									'Prueba técnicas de relajación breve antes de dormir (respiración 4-4-8).'
+								],
+								none: [
+									'Sigue manteniendo buenas prácticas de sueño.'
+								]
+							},
+							energy: {
+								marked: [
+									'Evaluá posibles causas médicas con tu médico si la fatiga es marcada.',
+									'Integrá actividad física regular y revisá tu alimentación.'
+								],
+								moderate: [
+									'Incorpora pausas activas y caminatas cortas durante el día.',
+									'Revisa la calidad del sueño y la hidratación como factores clave.'
+								],
+								mild: [
+									'Pequeños cambios en rutina y descanso pueden mejorar la energía.'
+								],
+								none: [
+									'Buen nivel de energía aparente; mantiene hábitos saludables.'
+								]
+							},
+							cognition: {
+								marked: [
+									'Considera estrategias de compensación (listas, recordatorios) y valoración profesional si interfiere con el trabajo.'
+								],
+								moderate: [
+									'Divide tareas en pasos pequeños y usa la técnica Pomodoro (25/5).'
+								],
+								mild: [
+									'Mejora ambiente de trabajo reduciendo ruidos y distracciones.'
+								],
+								none: [
+									'Atención en rango esperado; continua con buenas prácticas de organización.'
+								]
+							}
+						};
+
+						// Helper to pick up to N suggestions from pool with randomness
+						function pickSuggestions(dom, sev, n) {
+							const pool = (suggestionsPool[dom] && suggestionsPool[dom][sev]) || [];
+							const general = ['Practica respiración 3–5 minutos al día.', 'Realizá pausas activas y mantené contacto social.', 'Si las dificultades aumentan, consultá con un profesional.'];
+							const chosen = [];
+							// shuffle pool copy
+							const copy = pool.slice();
+							while (copy.length && chosen.length < n) {
+								const idx = Math.floor(Math.random() * copy.length);
+								chosen.push(copy.splice(idx,1)[0]);
+							}
+							// complement with general tips if not enough
+							let gcopy = general.slice();
+							while (chosen.length < n && gcopy.length) {
+								const idx = Math.floor(Math.random() * gcopy.length);
+								chosen.push(gcopy.splice(idx,1)[0]);
+							}
+							return chosen;
+						}
+
+						const sev = domainSeverity[dominant];
+						const mainArr = (templates[dominant] && templates[dominant][sev]) || ['Observaciones relevantes identificadas.'];
+						const mainMessage = mainArr[Math.floor(Math.random() * mainArr.length)];
+
+						// Pick up to 3 suggestions focused on dominant domain plus one cross-domain tip
+						const tailored = pickSuggestions(dominant, sev, 3);
+
+						const safeMain = window.escapeHtml ? window.escapeHtml(mainMessage) : mainMessage;
+						const sugHtml = tailored.map(s => `<li>${window.escapeHtml ? window.escapeHtml(s) : s}</li>`).join('');
+
+						$modal.find(`#modalTitle${modalId}`).text('Interpretación y recomendaciones');
+						$modal.find(`#modalBody${modalId}`).html(`<div class="p-2">
+							<p class="mb-2">${safeMain}</p>
+							<h6 class="mt-3">Sugerencias prácticas</h6>
+							<ul class="small mb-0">${sugHtml}</ul>
+							<p class="mt-3 text-muted small">Este cuestionario es orientativo y no reemplaza una evaluación profesional.</p>
+						</div>`);
+
+						// replace footer with single Close button
+						const wrapper = `<div class="px-4 pb-4 d-flex justify-content-end"><div class="modal-footer border-0 pt-0"><button type="button" class="btn btn-primary" data-bs-dismiss="modal">Cerrar</button></div></div>`;
+						$modal.find(`#modalBody${modalId}`).nextAll().remove();
+						$modal.find('.modal-content').append(wrapper);
+						return;
+					}
+					// otherwise advance
+					renderStep($modal, currentIndex + 1);
+				} catch (e) { /* ignore and do nothing */ }
+			} }
+		];
+
+		// create modal once
+		modalConfirm({ modalId, title: `Pregunta 1 de ${questions.length}`, body: _buildQuestionHtml(0, questions[0], choices), buttons }, 'normal', { centered: true, scrollable: false });
+		// after created, render initial state and ensure Back is disabled
+		setTimeout(() => {
+			const $m = $(`#${modalId}`);
+			if ($m && $m.length) renderStep($m, 0);
+		}, 80);
+
+	} catch (e) { /* fail silently */ }
+}
+
+// --- end mental test wizard ---
+
 function attachHandlers() {
 	// Avoid attaching local quick-login handler if a global handler is present
 	if (window.__quickLoginGlobalAttached) {
@@ -106,6 +408,14 @@ function attachHandlers() {
 		$cta.off('click' + NS).on('click' + NS, handleCtaClick);
 	}
 	$(document).off('click' + NS).on('click' + NS, 'a[href*="/welcome#registro"]', function(){});
+
+	// Bind mental test button in the hero (if present)
+	try {
+		$('#btn-mental-test').off('click' + NS).on('click' + NS, function(e){
+			e.preventDefault();
+			try { showMentalTestWizard(); } catch (_) { }
+		});
+	} catch (_) {}
 	$(document).off('submit' + NS).on('submit' + NS, '#quickLoginFormLocal', function(e){ e.preventDefault(); });
 }
 
@@ -118,6 +428,9 @@ function detachHandlers() {
 	const $m = $('.modal').has('#quickLoginFormLocal');
 		$m.each(function(){ const inst = bootstrap.Modal.getInstance(this); inst?.hide(); $(this).remove(); });
 	} catch (_) {}
+
+	// Unbind mental test button
+	try { $('#btn-mental-test').off('click' + NS); } catch (_) {}
 }
 
 export function init() { attachHandlers(); }

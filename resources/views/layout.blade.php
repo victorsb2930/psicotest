@@ -24,18 +24,23 @@
 	<!-- Minimal critical CSS -->
 	<style>
 		:root {
-			--brand-600: #e11d6a;
-			/* deep warm pink */
-			--brand-500: #f02d77;
-			/* vivid pink */
-			--brand-400: #f472b6;
-			/* light pink */
+			/* Sky blue palette (solid, accessible) - primary color made lighter */
+			--brand-700: #024a6f; /* darker for hover */
+			--brand-600: #0369a1; /* header (moderate) */
+			--brand-500: #7dd3fc; /* primary lighter blue */
+			--brand-400: #e6fbff; /* very light background */
 			--brand-100: #fff;
+			/* Neutralize framework gradient variables */
+			--bs-gradient: none;
 			--header-h: 72px;
-			/* approx header height; adjust if needed */
 			--footer-h: 68px;
-			/* target shorter footer height */
 		}
+
+		/* Force-remove any remaining inline gradients set via style attributes */
+		[style*="linear-gradient"] { background-image: none !important; }
+		/* Remove Bootstrap progress stripes and placeholder masks (they use gradient backgrounds/masks) */
+		.progress-bar-striped, .progress-bar-striped.progress-bar-animated { background-image: none !important; }
+		.placeholder-wave { -webkit-mask-image: none !important; mask-image: none !important; }
 
 		html,
 		body {
@@ -44,11 +49,10 @@
 			color: #111217
 		}
 
-		/* Header: pink gradient, subtle shadow and comfortable padding */
+		/* Header: solid sky blue for a clean modern look */
 		.site-header {
-			background: linear-gradient(90deg, var(--brand-600) 0%, var(--brand-500) 60%, var(--brand-400) 100%);
 			background-color: var(--brand-600);
-			box-shadow: 0 6px 30px rgba(16, 24, 40, 0.08);
+			box-shadow: 0 6px 24px rgba(3, 105, 161, 0.08);
 			padding: 0.9rem 0;
 		}
 
@@ -70,7 +74,7 @@
 		.site-header .nav-link:hover,
 		.site-header .nav-link:focus {
 			color: #fff;
-			background: rgba(255, 255, 255, 0.08);
+			background: var(--brand-700);
 		}
 
 		.site-header .nav-pills {
@@ -88,26 +92,26 @@
 
 		/* Primary CTA: filled pink, white text, subtle shadow and softer pill */
 		.btn-cta {
-			background: linear-gradient(90deg, var(--brand-500), var(--brand-400));
+			background-color: var(--brand-500);
 			color: #fff;
 			font-weight: 700;
 			padding: 10px 18px;
 			border-radius: 14px;
-			box-shadow: 0 8px 28px rgba(219, 39, 119, 0.14);
+			box-shadow: 0 8px 26px rgba(14,165,255,0.06);
 			border: 0;
 			display: inline-block;
 		}
 
-		/* Navbar-specific CTA: keep pink gradient but use a muted/gray label so the text reads over pink */
+		/* Navbar-specific CTA: subtle label contrasting new gradient */
 		.site-header .btn-cta {
-			color: #9CA3AF !important;
+			color: #F8FAFC !important;
 			font-weight: 700;
-			box-shadow: 0 8px 28px rgba(219, 39, 119, 0.12);
+			box-shadow: 0 6px 20px rgba(99,102,241,0.08);
 		}
 
 		.btn-cta:hover {
 			transform: translateY(-2px);
-			box-shadow: 0 16px 40px rgba(240, 110, 186, 0.16) !important;
+			box-shadow: 0 12px 34px rgba(3,105,161,0.10) !important;
 			opacity: 0.98
 		}
 
@@ -120,9 +124,8 @@
 			border: 1px solid rgba(255, 255, 255, 0.08);
 		}
 
-		/* Footer uses pink tones but inverted vertical gradient (light -> dark) */
+		/* Footer uses solid color (no gradients) */
 		footer.site-header {
-			background: linear-gradient(180deg, var(--brand-400) 0%, var(--brand-500) 60%, var(--brand-600) 100%) !important;
 			background-color: var(--brand-600);
 		}
 
@@ -138,7 +141,6 @@
 		/* Left menu: use the same horizontal pink gradient and fallback color as header/footer
 		to keep colors consistent across browsers (Brave/Edge color-management differences). */
 		#left-menu .card {
-			background: linear-gradient(90deg, var(--brand-600) 0%, var(--brand-500) 60%, var(--brand-400) 100%);
 			background-color: var(--brand-600);
 			color: var(--brand-100);
 			border: 0;
@@ -148,7 +150,6 @@
 
 		/* Apply same visual to mobile offcanvas menu */
 		#leftmenu-offcanvas .card {
-			background: linear-gradient(90deg, var(--brand-600) 0%, var(--brand-500) 60%, var(--brand-400) 100%);
 			background-color: var(--brand-600);
 			color: var(--brand-100);
 			border: 0;
@@ -282,6 +283,28 @@
 			box-shadow: 0 8px 24px rgba(16,24,40,0.04);
 		}
 
+		/* Hero section helper for index page */
+		.hero-section {
+			background-color: var(--brand-400);
+			padding-top: 4.5rem;
+			padding-bottom: 4.5rem;
+		}
+
+		.hero-card {
+			background-color: #ffffff;
+			border-radius: 12px;
+			box-shadow: 0 18px 50px rgba(11,78,108,0.06);
+			padding: 1.5rem;
+		}
+
+		/* Benefit cards (used on index) */
+		.benefit-card { background: #fff; border-radius: 12px; box-shadow: 0 8px 28px rgba(16,24,40,0.04); }
+		.icon-circle {
+			display:flex; align-items:center; justify-content:center; width:64px; height:64px; border-radius:14px;
+			background-color: var(--brand-500);
+		}
+		.icon-circle i { color: #fff; }
+
 		/* Ensure table responsive container has white background */
 		.card .table-responsive {
 			background: transparent;
@@ -294,7 +317,7 @@
 		.card {
 			background: #fff;
 		}
-		#left-menu .card { background: linear-gradient(90deg, var(--brand-600) 0%, var(--brand-500) 60%, var(--brand-400) 100%); }
+		#left-menu .card { background-color: var(--brand-600); }
 
 		/* Table header styling - stronger contrast and no bottom rule */
 		.roles-table thead th {
@@ -457,12 +480,12 @@
 		/* Use Display-P3 colors on wide-gamut displays for more consistent saturation where supported */
 		@supports (color: color(display-p3 1 0 0)) {
 			:root {
-				--brand-600: color(display-p3 0.882 0.114 0.416);
-				/* approx #e11d6a */
-				--brand-500: color(display-p3 0.941 0.176 0.482);
-				/* approx #f02d77 */
-				--brand-400: color(display-p3 0.957 0.447 0.712);
-				/* approx #f472b6 */
+				--brand-600: color(display-p3 0.011 0.412 0.631);
+				/* approx #0369a1 (darker sky blue) */
+				--brand-500: color(display-p3 0.058 0.647 1.0);
+				/* approx #0ea5ff (vivid sky blue) */
+				--brand-400: color(display-p3 0.490 0.827 0.988);
+				/* approx #7dd3fc (light sky) */
 			}
 		}
 	</style>
@@ -478,7 +501,7 @@
 
 	@if($showHeader)
 	<header class="site-header py-3 mb-0 border-bottom w-100"
-		style="background: linear-gradient(90deg, var(--brand-600) 0%, var(--brand-500) 60%, var(--brand-400) 100%); background-color: var(--brand-600);">
+		style="background-color: var(--brand-600);">
 	<div class="container-fluid d-flex align-items-center justify-content-between">
 			{{-- Mobile left menu toggle --}}
 			@if(auth()->check())
@@ -643,17 +666,17 @@
 
 	@if($showFooter)
 	<footer class="text-white site-header mt-auto"
-		style="background: linear-gradient(180deg, var(--brand-400) 0%, var(--brand-500) 60%, var(--brand-600) 100%); background-color: var(--brand-600);">
+		style="background-color: var(--brand-600);">
 		<div class="container py-4">
 			<div class="row justify-content-center text-center">
 				<div class="col-12 col-md-10 col-lg-8">
 					<p class="mb-2">&copy; 2025 PsicoTest. Todos los derechos reservados.</p>
 					<ul class="list-inline mb-0">
-						<li class="list-inline-item"><a class="link-light text-decoration-underline" href="#">Política
-								de privacidad</a></li>
+						<li class="list-inline-item"><a id="footer-privacy" class="link-light text-decoration-underline" href="#">Política
+							de privacidad</a></li>
 						<li class="list-inline-item text-white-50">|</li>
-						<li class="list-inline-item"><a class="link-light text-decoration-underline" href="#">Términos
-								de uso</a></li>
+						<li class="list-inline-item"><a id="footer-terms" class="link-light text-decoration-underline" href="#">Términos
+							de uso</a></li>
 					</ul>
 				</div>
 			</div>
@@ -668,6 +691,60 @@
 		window.__defaultAvatar = (document.querySelector('meta[name="default-avatar"]') || {}).content || null;
 	</script>
 	@vite(['resources/js/realtime.js', 'resources/js/rtc.js'])
+
+	<script>
+	// Footer modals: Política de privacidad y Términos de uso
+	document.addEventListener('DOMContentLoaded', function(){
+		function openModal(title, htmlBody){
+			try {
+				if (window.modalConfirm && typeof window.modalConfirm === 'function') {
+					window.modalConfirm({ modalId: `footerModal-${Date.now()}`, title: title, body: htmlBody, btnsType: 'ac' }, 'normal', { size: 'lg', scrollable: true, centered: true });
+					return;
+				}
+			} catch (e) { /* fallthrough to alert */ }
+			// Fallback
+			alert(title + "\n\n" + (htmlBody.replace(/<[^>]+>/g, '')).slice(0, 2000));
+		}
+
+		const privacyHtml = `
+			<div class="p-2">
+				<h5>Resumen</h5>
+				<p class="small text-muted">En PsicoTest tratamos tus datos con confidencialidad y respeto. Esta política describe qué datos recogemos, con qué finalidad y cómo podés ejercer tus derechos.</p>
+				<h6 class="mt-3">Datos que recolectamos</h6>
+				<ul class="small">
+					<li>Información de cuenta: nombre, email, foto de perfil.</li>
+					<li>Datos de uso: registros de sesión, interacciones con la plataforma y métricas anónimas.</li>
+					<li>Datos clínicos opcionales: notas o respuestas que el profesional o vos introduzcáis (si corresponde).</li>
+				</ul>
+				<h6 class="mt-3">Finalidad</h6>
+				<p class="small">Utilizamos los datos para ofrecer servicios (citas, mensajería), mejorar la plataforma y cumplir obligaciones legales. Los datos clínicos solo se usan para la prestación del servicio y con el consentimiento correspondiente.</p>
+				<h6 class="mt-3">Compartir y retención</h6>
+				<p class="small">No vendemos tus datos. Podemos compartir información con proveedores de infraestructura o cuando la ley lo exija. Conservamos los datos el tiempo necesario para la finalidad indicada y según la normativa aplicable.</p>
+				<h6 class="mt-3">Tus derechos</h6>
+				<p class="small">Podés acceder, rectificar, eliminar o limitar el tratamiento de tus datos. Para ejercerlos contactanos en <a href="mailto:privacy@psicotest.example">privacy@psicotest.example</a>.</p>
+			</div>`;
+
+		const termsHtml = `
+			<div class="p-2">
+				<h5>Resumen</h5>
+				<p class="small text-muted">Estos Términos regulan el uso de PsicoTest. Al utilizar la plataforma aceptás las condiciones aquí descritas.</p>
+				<h6 class="mt-3">Condiciones de uso</h6>
+				<ul class="small">
+					<li>Tienes la responsabilidad de mantener la confidencialidad de tu cuenta.</li>
+					<li>No se permite el uso indebido de la plataforma, suplantación o envío de contenido ilegal.</li>
+					<li>Los profesionales registrados deben respetar las regulaciones aplicables a su práctica.</li>
+				</ul>
+				<h6 class="mt-3">Limitaciones y responsabilidad</h6>
+				<p class="small">La información ofrecida en la plataforma es orientativa. PsicoTest no reemplaza la evaluación profesional presencial ni actúa como proveedor médico. En la medida permitida por la ley, la responsabilidad está limitada conforme a estos términos.</p>
+				<h6 class="mt-3">Jurisdicción</h6>
+				<p class="small">Estos términos se rigen por las leyes del país donde opera la entidad que provee PsicoTest. Cualquier disputa se someterá a los tribunales competentes.</p>
+				<p class="small mt-2 text-muted">Para consultas legales escribinos a <a href="mailto:frankispaul12@gmail.com">frankispaul12@gmail.com</a>.</p>
+			</div>`;
+
+		document.getElementById('footer-privacy')?.addEventListener('click', function(e){ e.preventDefault(); openModal('Política de privacidad', privacyHtml); });
+		document.getElementById('footer-terms')?.addEventListener('click', function(e){ e.preventDefault(); openModal('Términos de uso', termsHtml); });
+	});
+	</script>
 	<script>
 		// Presence dropdown handler: send POST to /profile/presence and update dot color
 		document.addEventListener('DOMContentLoaded', function(){

@@ -63,7 +63,7 @@
                 <tr>
                     <td>{{ $p->id }}</td>
                     <td>{{ optional($p->created_at)->toDateTimeString() }}</td>
-                    <td>{{ optional($p->user)->name ?? '—' }}</td>
+                    <td>{{ optional($p->user)->name . " " . optional($p->user)->lastname ?? '—' }}</td>
                     <td>{{ optional($p->recipient)->name ?? 'Plataforma' }}</td>
                     <td>{{ $p->type ?? 'sale' }}</td>
                     <td>{{ number_format(($p->amount_cents ?? 0)/100, 2) }} {{ $p->currency }}</td>

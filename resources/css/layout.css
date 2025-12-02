@@ -6,17 +6,17 @@
 	30%, 50%, 70% { transform: translateX(-4px); }
 	40%, 60% { transform: translateX(4px); }
 }
-/* Estilos globales del layout */
-.bg-brand { background-color: #f58198; }
-.bg-brand-soft { background-color: #fff0f2; }
-.text-brand { color: #f58198 !important; }
-.text-brand-dark { color: #b73a56 !important; }
+/* Estilos globales del layout - usa variables definidas en layout.blade.php (:root) */
+.bg-brand { background-color: var(--brand-600); }
+.bg-brand-soft { background-color: var(--brand-400); }
+.text-brand { color: var(--brand-500) !important; }
+.text-brand-dark { color: var(--brand-600) !important; }
 .text-600 { color: #666 !important; }
-.shadow-brand { box-shadow: 0 5px 15px rgba(245, 129, 152, 0.3) !important; }
+.shadow-brand { box-shadow: 0 6px 22px rgba(3,105,161,0.08) !important; }
 
 /* Botón de marca reutilizable */
-.btn-brand { background-color:#b73a56; color:#fff; }
-.btn-brand:hover { background-color:#f58198; color:#fff; }
+.btn-brand { background-color: var(--brand-600); color:#fff; }
+.btn-brand:hover { background-color: var(--brand-500); color:#fff; }
 
 /* Tipografía global */
 html, body { font-family: 'Poppins', Arial, sans-serif; }
@@ -27,31 +27,30 @@ html, body { font-family: 'Poppins', Arial, sans-serif; }
 .navbar-dark .navbar-nav .nav-link:hover,
 .navbar-dark .navbar-nav .nav-link.active { color: #ffe9ed !important; }
 
-.btn-light { background: #ffffff !important; color: #f58198; border: none; }
-.btn-light:hover { background: #d75a6f; color: #ffffff !important; }
+.btn-light { background: #ffffff !important; color: var(--brand-600); border: none; }
+.btn-light:hover { background: rgba(14,165,255,0.06); color: #ffffff !important; }
 
 /* Site Header */
-.site-header { background-color: #f58198; }
+.site-header { background-color: var(--brand-600); }
 .site-header .brand, .site-header .brand span { color: #fff !important; }
 .site-header .nav .nav-link:not(.btn-cta) { border-radius: .375rem; }
 .site-header .nav .nav-link:not(.btn-cta) { color: #fff; }
-.site-header .nav .nav-link:hover { background-color: #d75a6f; color: #fff !important; }
+.site-header .nav .nav-link:hover { background-color: var(--brand-700); color: #fff !important; }
 .site-header .btn-link { color: #fff !important; }
 
 /* Generic CTA button look for links */
-.btn-cta { 
-	display: inline-block; 
-	background-color: #ffffff; 
-	color: #f58198; 
-	font-weight: 700; 
-	padding: 6px 16px; 
-	border-radius: 9999px; 
-	padding: 9px 18px; 
-	transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease; 
+.btn-cta {
+	display: inline-block;
+	background-color: var(--brand-500);
+	color: #fff;
+	font-weight: 700;
+	padding: 9px 18px;
+	border-radius: 9999px;
+	transition: transform 0.18s ease, box-shadow 0.18s ease;
 }
-.btn-cta:hover, .btn-cta:focus { 
-	letter-spacing: 0.2px;
-	background-color: #d75a6f; 
-	color: #ffffff !important; 
-	text-decoration: none; 
+.btn-cta:hover, .btn-cta:focus {
+	transform: translateY(-2px);
+	box-shadow: 0 14px 36px rgba(3,105,161,0.10);
+	color: #fff !important;
+	text-decoration: none;
 }
