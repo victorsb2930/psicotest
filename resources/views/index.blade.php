@@ -17,7 +17,7 @@
 
 <section id="beneficios" class="py-5 bg-brand-soft">
 		<div class="container">
-			<h2 class="text-center text-brand fw-bold mb-4">Beneficios de PsicoGuía</h2>
+			<h2 class="text-center text-brand fw-bold mb-4">Beneficios de PsicoTest</h2>
 			<div class="row g-4 justify-content-center align-items-stretch">
 			<div class="col-12 col-sm-6 col-md-4">
 				<x-card :square-md="true" icon="🧠" class="text-center">
@@ -48,7 +48,7 @@
 			<div class="col-12 col-md-4">
 				<x-card :square-md="true" class="position-relative">
 					<div class="position-absolute top-0 start-0 p-3 display-5 opacity-25">❝</div>
-					<p class="mb-4 fst-italic text-muted">“Gracias a PsicoGuía pude encontrar un terapeuta que realmente me entiende y me ayuda cada día.”</p>
+					<p class="mb-4 fst-italic text-muted">“Gracias a PsicoTest pude encontrar un terapeuta que realmente me entiende y me ayuda cada día.”</p>
 					<h6 class="text-end text-brand fw-bold mb-0">— Mariana R.</h6>
 				</x-card>
 			</div>

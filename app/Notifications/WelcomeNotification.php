@@ -17,7 +17,7 @@ class WelcomeNotification extends Notification
     public function toDatabase($notifiable)
     {
         return [
-            'title' => '¡Bienvenido(a) a PsicoGuía!',
+            'title' => '¡Bienvenido(a) a PsicoTest!',
             'body' => 'Tu cuenta está lista. Explora el chat y tus opciones.',
             'icon' => 'heart',
             'link' => '/',

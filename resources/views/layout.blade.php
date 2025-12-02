@@ -647,7 +647,7 @@
 		<div class="container py-4">
 			<div class="row justify-content-center text-center">
 				<div class="col-12 col-md-10 col-lg-8">
-					<p class="mb-2">&copy; 2025 PsicoGuía. Todos los derechos reservados.</p>
+					<p class="mb-2">&copy; 2025 PsicoTest. Todos los derechos reservados.</p>
 					<ul class="list-inline mb-0">
 						<li class="list-inline-item"><a class="link-light text-decoration-underline" href="#">Política
 								de privacidad</a></li>

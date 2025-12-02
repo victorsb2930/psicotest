@@ -77,7 +77,7 @@ Route::post('/email/verification-notification', function(\Illuminate\Http\Reques
 	}
 	// Generar nuevo token único (invalida cualquier anterior)
 	$user->email_verification_token = Str::random(40);
-	$user->email_verification_token_expires_at = now()->addMinutes(60);
+	$user->email_verification_token_expires_at = now()->addDay(1);
 	try { $user->save(); } catch (\Throwable $_) {}
 	$url = url('/email/verify/'.$user->id.'/'.$user->email_verification_token);
 	$fromAddr = config('mail.from.address');

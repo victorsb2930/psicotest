@@ -7,6 +7,6 @@
         <p>Motivo: {{ $application->notes }}</p>
     @endif
     <p>Puedes volver a intentarlo corrigiendo la información o documentos.</p>
-    <p>Saludos,<br>Equipo Psicoguía</p>
+    <p>Saludos,<br>Equipo PsicoTest</p>
 </body>
 <html>
