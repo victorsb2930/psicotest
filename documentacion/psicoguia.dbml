@@ -1,0 +1,367 @@
+// PsicoGuia ER diagram definition for dbdiagram.io
+// Generated 2025-12-03 from Laravel migrations. Paste in https://dbdiagram.io/d
+// or run `dbdiagram show psicoguia.dbml` if you have the CLI.
+
+Table users {
+  id bigint [pk]
+  name varchar
+  lastname varchar
+  email varchar [unique]
+  password varchar
+  status varchar
+  is_active boolean
+  last_seen_at timestamp
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table roles {
+  id bigint [pk]
+  name varchar
+  guard_name varchar
+  show_in_signup boolean
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table permissions {
+  id bigint [pk]
+  name varchar
+  guard_name varchar
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table model_has_roles {
+  role_id bigint [ref: > roles.id]
+  model_type varchar
+  model_id bigint [ref: > users.id]
+  primary key (role_id, model_id, model_type)
+}
+
+Table role_has_permissions {
+  permission_id bigint [ref: > permissions.id]
+  role_id bigint [ref: > roles.id]
+  primary key (permission_id, role_id)
+}
+
+Table plans {
+  id bigint [pk]
+  key varchar [unique]
+  name varchar
+  price_cents int
+  currency varchar
+  interval varchar
+  features json
+  active boolean
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table subscriptions {
+  id bigint [pk]
+  user_id bigint [ref: > users.id]
+  plan_id bigint [ref: > plans.id]
+  status varchar
+  starts_at timestamp
+  ends_at timestamp
+  provider varchar
+  provider_id varchar
+  meta json
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table subscription_usages {
+  id bigint [pk]
+  subscription_id bigint [ref: > subscriptions.id]
+  user_id bigint [ref: > users.id]
+  feature_key varchar
+  period_start date
+  period_end date
+  used int
+  limit int
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table payments {
+  id bigint [pk]
+  user_id bigint [ref: > users.id]
+  recipient_user_id bigint [ref: > users.id]
+  subscription_id bigint [ref: > subscriptions.id]
+  appointment_id bigint [ref: > appointments.id]
+  amount_cents int
+  currency varchar
+  provider varchar
+  provider_charge_id varchar
+  status varchar
+  type varchar
+  meta json
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table menu_items {
+  id bigint [pk]
+  label varchar
+  route_name varchar
+  url varchar
+  icon_class varchar
+  section varchar
+  sort_order int
+  enabled boolean
+  permission varchar
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table menu_item_role {
+  menu_item_id bigint [ref: > menu_items.id]
+  role_id bigint [ref: > roles.id]
+  primary key (menu_item_id, role_id)
+}
+
+Table appointments {
+  id bigint [pk]
+  professional_id bigint [ref: > users.id]
+  patient_id bigint [ref: > users.id]
+  title varchar
+  start timestamp
+  "end" timestamp
+  status varchar
+  room_id varchar
+  notes text
+  created_at timestamp
+  updated_at timestamp
+  deleted_at timestamp
+}
+
+Table appointment_sessions {
+  id bigint [pk]
+  appointment_id bigint [ref: > appointments.id]
+  room_id varchar
+  started_at timestamp
+  ended_at timestamp
+  professional_joined_at timestamp
+  patient_joined_at timestamp
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table appointment_session_logs {
+  id bigint [pk]
+  appointment_id bigint [ref: > appointments.id]
+  appointment_session_id bigint [ref: > appointment_sessions.id]
+  event_type varchar
+  payload json
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table appointment_reschedules {
+  id bigint [pk]
+  appointment_id bigint [ref: > appointments.id]
+  old_start_at timestamp
+  new_start_at timestamp
+  reason text
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table appointment_ratings {
+  id bigint [pk]
+  appointment_id bigint [ref: > appointments.id]
+  professional_id bigint [ref: > users.id]
+  patient_id bigint [ref: > users.id]
+  rating tinyint
+  comment text
+  response_text text
+  is_public boolean
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table appointment_audits {
+  id bigint [pk]
+  appointment_id bigint [ref: > appointments.id]
+  user_id bigint [ref: > users.id]
+  action varchar
+  from_status varchar
+  to_status varchar
+  meta json
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table appointment_metrics_daily {
+  id bigint [pk]
+  day date [unique]
+  total_appointments int
+  completed_count int
+  no_show_count int
+  skipped_count int
+  metrics_sessions int
+  avg_bitrate_kbps decimal
+  avg_loss_pct decimal
+  avg_rtt_ms decimal
+  avg_retries decimal
+  degraded_sequences_total int
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table appointment_settings {
+  id bigint [pk]
+  presence_threshold_pct tinyint
+  early_access_minutes tinyint
+  reschedule_deadline_hours smallint
+  unanswered_reprogram_hours smallint
+  ping_interval_seconds smallint
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table appointment_credit_transactions {
+  id bigint [pk]
+  user_id bigint [ref: > users.id]
+  amount int
+  meta json
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table messages {
+  id bigint [pk]
+  from_id bigint [ref: > users.id]
+  to_id bigint [ref: > users.id]
+  appointment_id bigint [ref: > appointments.id]
+  body text
+  read_at timestamp
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table friend_requests {
+  id bigint [pk]
+  from_id bigint [ref: > users.id]
+  to_id bigint [ref: > users.id]
+  status varchar
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table user_devices {
+  id bigint [pk]
+  user_id bigint [ref: > users.id]
+  token_hash varchar
+  name varchar
+  ip_address varchar
+  user_agent text
+  last_seen_at timestamp
+  revoked_at timestamp
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table user_logins {
+  id bigint [pk]
+  user_id bigint [ref: > users.id]
+  session_id varchar
+  ip_address varchar
+  user_agent text
+  started_at timestamp
+  ended_at timestamp
+  duration_seconds int
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table professional_applications {
+  id bigint [pk]
+  user_id bigint [ref: > users.id]
+  status varchar
+  documents json
+  reviewed_by bigint [ref: > users.id]
+  reviewed_at timestamp
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table professional_availabilities {
+  id bigint [pk]
+  user_id bigint [ref: > users.id]
+  day_of_week tinyint
+  start_time time
+  end_time time
+  timezone varchar
+  active boolean
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table professional_availability_exceptions {
+  id bigint [pk]
+  user_id bigint [ref: > users.id]
+  date date
+  start_time time
+  end_time time
+  status varchar
+  reason varchar
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table notifications {
+  id uuid [pk]
+  type varchar
+  notifiable_type varchar
+  notifiable_id bigint
+  data json
+  read_at timestamp
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table chat_call_logs {
+  id bigint [pk]
+  user_id bigint [ref: > users.id]
+  type varchar
+  created_at timestamp
+  updated_at timestamp
+}
+
+Ref: users.id < appointments.professional_id
+Ref: users.id < appointments.patient_id
+Ref: appointments.id < appointment_sessions.appointment_id
+Ref: appointments.id < appointment_reschedules.appointment_id
+Ref: appointments.id < appointment_session_logs.appointment_id
+Ref: appointment_sessions.id < appointment_session_logs.appointment_session_id
+Ref: appointments.id < appointment_ratings.appointment_id
+Ref: users.id < appointment_ratings.professional_id
+Ref: users.id < appointment_ratings.patient_id
+Ref: appointments.id < appointment_audits.appointment_id
+Ref: users.id < appointment_audits.user_id
+Ref: users.id < messages.from_id
+Ref: users.id < messages.to_id
+Ref: appointments.id < messages.appointment_id
+Ref: users.id < friend_requests.from_id
+Ref: users.id < friend_requests.to_id
+Ref: users.id < user_devices.user_id
+Ref: users.id < user_logins.user_id
+Ref: users.id < professional_applications.user_id
+Ref: users.id < professional_applications.reviewed_by
+Ref: users.id < professional_availabilities.user_id
+Ref: users.id < professional_availability_exceptions.user_id
+Ref: users.id < subscriptions.user_id
+Ref: plans.id < subscriptions.plan_id
+Ref: subscriptions.id < subscription_usages.subscription_id
+Ref: users.id < subscription_usages.user_id
+Ref: users.id < payments.user_id
+Ref: users.id < payments.recipient_user_id
+Ref: subscriptions.id < payments.subscription_id
+Ref: appointments.id < payments.appointment_id
+Ref: users.id < payments.user_id
+Ref: users.id < notifications.notifiable_id
+Ref: users.id < chat_call_logs.user_id
+Ref: users.id < appointment_credit_transactions.user_id
