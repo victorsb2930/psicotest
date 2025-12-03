@@ -7,6 +7,11 @@ services:
     container_name: laravel-app
     restart: unless-stopped
     volumes:
+      # Montamos el proyecto en el contenedor para desarrollo.
+      # Nota: `vendor` se monta en un volumen nombrado separado (`vendor_data`) para
+      # evitar que un bind-mount local vacío sobrescriba las dependencias instaladas
+      # dentro de la imagen. Esto protege `vendor/autoload.php` frente a borrados
+      # accidentales en el host.
       - .:/var/www/html
       - vendor_data:/var/www/html/vendor
     working_dir: /var/www/html
@@ -14,6 +19,13 @@ services:
       - db
       - redis
       - reverb
+    # Comprobación ligera: falla el servicio si falta el autoload de Composer.
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /var/www/html/vendor/autoload.php || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
   # Servicio web (Nginx)
   web:
@@ -63,6 +75,13 @@ services:
       - redis
     ports:
       - "8081:8081"
+    # Healthcheck para reverb, evita que salga healthy si faltan dependencias PHP
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /var/www/html/vendor/autoload.php || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
   # Servicio Adminer (UI para base de datos)
   adminer:
