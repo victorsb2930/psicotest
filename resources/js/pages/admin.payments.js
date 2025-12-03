@@ -1,6 +1,31 @@
 // JS module for admin payments page (data-page = admin-payments)
 import { modalConfirm } from '../utils/modalConfirm';
 
+const getPayoutButton = () => document.getElementById('btn-create-payout');
+
+function getPlatformBalanceCents() {
+  const btn = getPayoutButton();
+  if (!btn) return null;
+  const raw = btn.dataset.platformBalanceCents;
+  if (typeof raw === 'undefined') return null;
+  const parsed = parseInt(raw, 10);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+function updatePlatformBalanceCents(newBalance) {
+  const btn = getPayoutButton();
+  if (!btn) return;
+  const safeValue = Math.max(0, Number.isFinite(newBalance) ? newBalance : 0);
+  btn.dataset.platformBalanceCents = String(safeValue);
+  btn.dataset.platformBalance = (safeValue / 100).toFixed(2);
+}
+
+const notify = (title, description, template = 'info') => {
+  if (typeof window !== 'undefined' && typeof window.modalNotification === 'function') {
+    window.modalNotification(title, description, { template });
+  }
+};
+
 function renderSearchResults(container, items) {
   container.innerHTML = '';
   if (!items || !items.length) {
@@ -32,6 +57,7 @@ function renderSearchResults(container, items) {
       const infoEl = document.getElementById('admin-payout-selected-info'); if (infoEl) {
         infoEl.innerHTML = `Citas completadas: <strong>${u.completed_count ?? 0}</strong> — Este mes: <strong>${u.completed_count_month ?? 0}</strong>`;
       }
+        try { syncAppointmentCountWithSelection(); } catch (err) { }
     });
     list.appendChild(btn);
   });
@@ -77,7 +103,16 @@ function buildBodyHtml() {
           <button id="admin-payout-calc" type="button" class="btn btn-outline-primary btn-sm">Calcular</button>
         </div>
       </div>
+    <div class="mb-2">
+      <label class="form-label">Citas incluidas en este pago</label>
+      <input id="admin-payout-appointments-count" type="number" min="0" class="form-control" value="0">
+      <div class="form-text">Se actualiza al seleccionar profesional o al calcular, pero puedes ajustarlo manualmente.</div>
+    </div>
     <div class="mb-2"><label class="form-label">Moneda</label><input id="admin-payout-currency" class="form-control" value="USD"></div>
+    <div class="mb-2">
+      <label class="form-label">Notas para el recibo (opcional)</label>
+      <textarea id="admin-payout-notes" class="form-control" rows="2" placeholder="Ej. Pago correspondiente a las citas de noviembre"></textarea>
+    </div>
     <div id="admin-payout-feedback" class="text-danger small" style="display:none"></div>
   `;
   return body;
@@ -90,19 +125,48 @@ async function openPayoutModal() {
     const recipient = document.getElementById('admin-payout-selected-id')?.value || '';
     const amount = document.getElementById('admin-payout-amount')?.value?.trim() || '';
     const currency = document.getElementById('admin-payout-currency')?.value?.trim() || 'USD';
+    const appointmentsCount = parseInt(document.getElementById('admin-payout-appointments-count')?.value || '0', 10);
+    const period = document.getElementById('admin-payout-period')?.value || 'total';
+    const rateValue = document.getElementById('admin-payout-rate')?.value?.trim() || '';
+    const notes = document.getElementById('admin-payout-notes')?.value?.trim() || '';
     if (!recipient) { if (feedback) { feedback.textContent = 'Selecciona un profesional.'; feedback.style.display = ''; } return; }
-    if (!amount) { if (feedback) { feedback.textContent = 'Ingresa un monto válido.'; feedback.style.display = ''; } return; }
+    if (!amount) { if (feedback) { feedback.textContent = 'Ingresa un monto válido.'; feedback.style.display = ''; } notify('Monto inválido', 'Ingresa un monto mayor a cero.', 'warning'); return; }
+    const normalizedAmount = amount.replace(',', '.');
+    const numericAmount = Number.parseFloat(normalizedAmount);
+    if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+      if (feedback) { feedback.textContent = 'Ingresa un monto mayor a cero.'; feedback.style.display = ''; }
+      notify('Monto inválido', 'El monto debe ser mayor a cero.', 'warning');
+      return;
+    }
+    const amountCents = Math.round(numericAmount * 100);
+    const balanceCents = getPlatformBalanceCents();
+    if (balanceCents !== null && amountCents > balanceCents) {
+      const available = (balanceCents / 100).toFixed(2);
+      const msg = `Fondos insuficientes. Disponible: ${available}`;
+      if (feedback) { feedback.textContent = msg; feedback.style.display = ''; }
+      notify('Fondos insuficientes', msg, 'warning');
+      return;
+    }
     const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
     try {
-      const res = await fetch('/admin/payments/payout', { method: 'POST', headers: Object.assign({ 'Accept': 'application/json', 'Content-Type': 'application/json' }, token ? { 'X-CSRF-TOKEN': token } : {}), body: JSON.stringify({ recipient_user_id: recipient, amount, currency }) });
+      const payload = { recipient_user_id: recipient, amount, currency, appointments_count: appointmentsCount, period, rate: rateValue, notes };
+      const res = await fetch('/admin/payments/payout', { method: 'POST', headers: Object.assign({ 'Accept': 'application/json', 'Content-Type': 'application/json' }, token ? { 'X-CSRF-TOKEN': token } : {}), body: JSON.stringify(payload) });
       const j = await res.json().catch(()=>null);
       if (!res.ok || !(j && j.ok)) {
-        if (feedback) { feedback.textContent = (j && j.message) ? j.message : 'Error creando payout'; feedback.style.display = ''; }
+        const message = (j && j.message) ? j.message : 'Error creando payout';
+        if (feedback) { feedback.textContent = message; feedback.style.display = ''; }
+        notify('No se pudo crear el payout', message, res.status === 422 ? 'warning' : 'danger');
         return;
       }
-      // reload to show new payout
-      location.reload();
-    } catch (e) { if (feedback) { feedback.textContent = 'Error de red'; feedback.style.display = ''; } }
+      notify('Payout registrado', 'Se registró el pago al profesional.', 'success');
+      if (balanceCents !== null) {
+        updatePlatformBalanceCents(Math.max(0, balanceCents - amountCents));
+      }
+      setTimeout(() => { location.reload(); }, 650);
+    } catch (e) {
+      if (feedback) { feedback.textContent = 'Error de red'; feedback.style.display = ''; }
+      notify('Error de red', 'No se pudo conectar con el servidor.', 'danger');
+    }
   };
 
   modalConfirm(bodyHtml, 'normal');
@@ -111,6 +175,7 @@ async function openPayoutModal() {
   setTimeout(() => {
     const input = document.getElementById('admin-payout-search');
     const results = document.getElementById('admin-payout-results');
+    const periodSelect = document.getElementById('admin-payout-period');
     if (!input || !results) return;
     let tId = null;
     input.addEventListener('input', function () {
@@ -123,6 +188,11 @@ async function openPayoutModal() {
     });
     // support enter to search immediately
     input.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); searchProfessionals(this.value.trim(), results); } });
+    if (periodSelect) {
+      periodSelect.addEventListener('change', () => {
+        try { syncAppointmentCountWithSelection(); } catch (_) {}
+      });
+    }
   }, 80);
   // wire calculate button after modal present as well
   setTimeout(() => {
@@ -133,6 +203,7 @@ async function openPayoutModal() {
       const rateEl = document.getElementById('admin-payout-rate');
       const periodEl = document.getElementById('admin-payout-period');
       const amountEl = document.getElementById('admin-payout-amount');
+      const countEl = document.getElementById('admin-payout-appointments-count');
       const feedback = document.getElementById('admin-payout-feedback'); if (feedback) feedback.style.display = 'none';
       if (!selected || !selected.value) { if (feedback) { feedback.textContent = 'Selecciona un profesional primero.'; feedback.style.display = ''; } return; }
       const rate = parseFloat((rateEl?.value || '').toString().replace(',', '.')) || 0;
@@ -141,8 +212,20 @@ async function openPayoutModal() {
       const count = period === 'month' ? parseInt(selected.dataset.completedMonth || '0', 10) : parseInt(selected.dataset.completed || '0', 10);
       const calcAmount = (count * rate);
       if (amountEl) amountEl.value = calcAmount.toFixed(2);
+      if (countEl) countEl.value = count;
     });
   }, 160);
+}
+
+function syncAppointmentCountWithSelection() {
+  const selected = document.getElementById('admin-payout-selected-id');
+  const countEl = document.getElementById('admin-payout-appointments-count');
+  const periodEl = document.getElementById('admin-payout-period');
+  if (!selected || !countEl) return;
+  if (!selected.value) { countEl.value = '0'; return; }
+  const period = periodEl?.value || 'total';
+  const count = period === 'month' ? parseInt(selected.dataset.completedMonth || '0', 10) : parseInt(selected.dataset.completed || '0', 10);
+  countEl.value = isNaN(count) ? '0' : String(count);
 }
 
 export function init(){

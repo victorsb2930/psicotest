@@ -1,16 +1,63 @@
-// PsicoGuia ER diagram definition for dbdiagram.io
+// PsicoTest ER diagram definition for dbdiagram.io
 // Generated 2025-12-03 from Laravel migrations. Paste in https://dbdiagram.io/d
-// or run `dbdiagram show psicoguia.dbml` if you have the CLI.
+// or run `dbdiagram show PsicoTest.dbml` if you have the CLI.
 
 Table users {
   id bigint [pk]
   name varchar
   lastname varchar
+  birthdate date
+  gender varchar
   email varchar [unique]
+  phone varchar
+  timezone varchar
+  speciality varchar
+  appointment_types varchar
+  location varchar
+  rating decimal(3,1)
+  email_verified_at timestamp
+  email_verification_token varchar
+  email_verification_token_expires_at timestamp
   password varchar
-  status varchar
   is_active boolean
+  two_factor_enabled boolean
+  two_factor_method varchar
+  deactivated_reason text
+  deactivated_at timestamp
+  status varchar
   last_seen_at timestamp
+  cc_user_id bigint
+  cc_login varchar
+  ratings_count int
+  ratings_avg decimal(3,2)
+  ratings_breakdown json
+  remember_token varchar
+  created_at timestamp
+  updated_at timestamp
+  deleted_at timestamp
+}
+
+Table password_reset_tokens {
+  email varchar [pk]
+  token varchar
+  created_at timestamp
+}
+
+Table sessions {
+  id varchar [pk]
+  user_id bigint
+  ip_address varchar
+  user_agent text
+  payload longtext
+  last_activity int
+}
+
+Table user_photos {
+  id bigint [pk]
+  user_id bigint [ref: > users.id]
+  path varchar
+  caption varchar
+  is_profile boolean
   created_at timestamp
   updated_at timestamp
 }
@@ -20,6 +67,11 @@ Table roles {
   name varchar
   guard_name varchar
   show_in_signup boolean
+  signup_label varchar
+  requires_docs boolean
+  icon_class varchar
+  badge_color varchar
+  home_path varchar
   created_at timestamp
   updated_at timestamp
 }
@@ -32,10 +84,17 @@ Table permissions {
   updated_at timestamp
 }
 
+Table model_has_permissions {
+  permission_id bigint [ref: > permissions.id]
+  model_type varchar
+  model_id bigint
+  primary key (permission_id, model_id, model_type)
+}
+
 Table model_has_roles {
   role_id bigint [ref: > roles.id]
   model_type varchar
-  model_id bigint [ref: > users.id]
+  model_id bigint
   primary key (role_id, model_id, model_type)
 }
 
@@ -90,7 +149,6 @@ Table payments {
   user_id bigint [ref: > users.id]
   recipient_user_id bigint [ref: > users.id]
   subscription_id bigint [ref: > subscriptions.id]
-  appointment_id bigint [ref: > appointments.id]
   amount_cents int
   currency varchar
   provider varchar
@@ -129,9 +187,13 @@ Table appointments {
   title varchar
   start timestamp
   "end" timestamp
+  all_day boolean
   status varchar
   room_id varchar
   notes text
+  rejection_reason text
+  penalty_applied_at timestamp
+  penalty_type varchar
   created_at timestamp
   updated_at timestamp
   deleted_at timestamp
@@ -145,6 +207,10 @@ Table appointment_sessions {
   ended_at timestamp
   professional_joined_at timestamp
   patient_joined_at timestamp
+  professional_left_at timestamp
+  patient_left_at timestamp
+  professional_presence_seconds int
+  patient_presence_seconds int
   created_at timestamp
   updated_at timestamp
 }
@@ -162,9 +228,14 @@ Table appointment_session_logs {
 Table appointment_reschedules {
   id bigint [pk]
   appointment_id bigint [ref: > appointments.id]
-  old_start_at timestamp
-  new_start_at timestamp
+  requested_by bigint [ref: > users.id]
+  original_start timestamp
+  original_end timestamp
+  proposed_start timestamp
+  proposed_end timestamp
+  status varchar
   reason text
+  responded_at timestamp
   created_at timestamp
   updated_at timestamp
 }
@@ -178,6 +249,8 @@ Table appointment_ratings {
   comment text
   response_text text
   is_public boolean
+  edited_at timestamp
+  responded_at timestamp
   created_at timestamp
   updated_at timestamp
 }
@@ -235,7 +308,6 @@ Table messages {
   id bigint [pk]
   from_id bigint [ref: > users.id]
   to_id bigint [ref: > users.id]
-  appointment_id bigint [ref: > appointments.id]
   body text
   read_at timestamp
   created_at timestamp
@@ -247,6 +319,8 @@ Table friend_requests {
   from_id bigint [ref: > users.id]
   to_id bigint [ref: > users.id]
   status varchar
+  accepted_at timestamp
+  rejected_at timestamp
   created_at timestamp
   updated_at timestamp
 }
@@ -260,6 +334,30 @@ Table user_devices {
   user_agent text
   last_seen_at timestamp
   revoked_at timestamp
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table device_reopen_attempts {
+  id bigint [pk]
+  user_id bigint [ref: > users.id]
+  token_hash varchar
+  ip_address varchar
+  user_agent text
+  success boolean
+  action varchar
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table device_reopen_blocks {
+  id bigint [pk]
+  user_id bigint [ref: > users.id]
+  token_hash varchar
+  blocked_until timestamp
+  permanent boolean
+  admin_unlocked_by bigint
+  admin_unlocked_at timestamp
   created_at timestamp
   updated_at timestamp
 }
@@ -280,8 +378,16 @@ Table user_logins {
 Table professional_applications {
   id bigint [pk]
   user_id bigint [ref: > users.id]
+  titulo_path varchar
+  cedula_path varchar
+  cv_path varchar
+  exequatur_path varchar
+  titulo_viewed_at timestamp
+  cedula_viewed_at timestamp
+  cv_viewed_at timestamp
+  exequatur_viewed_at timestamp
   status varchar
-  documents json
+  notes text
   reviewed_by bigint [ref: > users.id]
   reviewed_at timestamp
   created_at timestamp
@@ -306,7 +412,7 @@ Table professional_availability_exceptions {
   date date
   start_time time
   end_time time
-  status varchar
+  status varchar // available|blocked
   reason varchar
   created_at timestamp
   updated_at timestamp
@@ -331,10 +437,13 @@ Table chat_call_logs {
   updated_at timestamp
 }
 
+Ref: users.id < user_photos.user_id
+Ref: users.id < sessions.user_id
 Ref: users.id < appointments.professional_id
 Ref: users.id < appointments.patient_id
 Ref: appointments.id < appointment_sessions.appointment_id
 Ref: appointments.id < appointment_reschedules.appointment_id
+Ref: users.id < appointment_reschedules.requested_by
 Ref: appointments.id < appointment_session_logs.appointment_id
 Ref: appointment_sessions.id < appointment_session_logs.appointment_session_id
 Ref: appointments.id < appointment_ratings.appointment_id
@@ -344,10 +453,12 @@ Ref: appointments.id < appointment_audits.appointment_id
 Ref: users.id < appointment_audits.user_id
 Ref: users.id < messages.from_id
 Ref: users.id < messages.to_id
-Ref: appointments.id < messages.appointment_id
 Ref: users.id < friend_requests.from_id
 Ref: users.id < friend_requests.to_id
 Ref: users.id < user_devices.user_id
+Ref: users.id < device_reopen_attempts.user_id
+Ref: users.id < device_reopen_blocks.user_id
+Ref: users.id < device_reopen_blocks.admin_unlocked_by
 Ref: users.id < user_logins.user_id
 Ref: users.id < professional_applications.user_id
 Ref: users.id < professional_applications.reviewed_by
@@ -360,8 +471,5 @@ Ref: users.id < subscription_usages.user_id
 Ref: users.id < payments.user_id
 Ref: users.id < payments.recipient_user_id
 Ref: subscriptions.id < payments.subscription_id
-Ref: appointments.id < payments.appointment_id
-Ref: users.id < payments.user_id
-Ref: users.id < notifications.notifiable_id
 Ref: users.id < chat_call_logs.user_id
 Ref: users.id < appointment_credit_transactions.user_id

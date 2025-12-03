@@ -43,7 +43,12 @@
 
     <div class="table-responsive">
         <div class="d-flex justify-content-end mb-2">
-            <button id="btn-create-payout" class="btn btn-sm btn-success">Crear payout a profesional</button>
+            <button
+                id="btn-create-payout"
+                class="btn btn-sm btn-success"
+                data-platform-balance="{{ $platform_balance ?? '0.00' }}"
+                data-platform-balance-cents="{{ $platform_balance_cents ?? 0 }}"
+            >Crear payout a profesional</button>
         </div>
         <table class="table table-sm table-hover">
             <thead>
