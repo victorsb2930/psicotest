@@ -33,6 +33,10 @@ Relaciones clave (cardinalidades):
 erDiagram
     USERS ||--o{ APPOINTMENTS : professional_id
     USERS ||--o{ APPOINTMENTS : patient_id
+    USERS ||--o{ APPOINTMENT_SESSIONS : professional_id
+    USERS ||--o{ APPOINTMENT_SESSIONS : patient_id
+    USERS ||--o{ APPOINTMENT_RATINGS : professional_id
+    USERS ||--o{ APPOINTMENT_RATINGS : patient_id
     USERS ||--o{ MESSAGES : from_id
     USERS ||--o{ MESSAGES : to_id
     USERS ||--o{ FRIEND_REQUESTS : from_id
@@ -44,29 +48,168 @@ erDiagram
     USERS ||--o{ PROFESSIONAL_APPLICATIONS : user_id
     USERS ||--o{ PROFESSIONAL_APPLICATIONS : reviewed_by
     USERS ||--o{ USER_PHOTOS : user_id
-    USERS ||--o{ APPOINTMENT_SESSIONS : professional_id
-    USERS ||--o{ APPOINTMENT_SESSIONS : patient_id
+    USERS ||--o{ SUBSCRIPTIONS : user_id
+    USERS ||--o{ SUBSCRIPTION_USAGES : user_id
+    USERS ||--o{ PAYMENTS : user_id
+    USERS ||--o{ PAYMENTS : recipient_user_id
 
     APPOINTMENTS ||--o{ APPOINTMENT_SESSIONS : appointment_id
     APPOINTMENTS ||--o{ APPOINTMENT_RESCHEDULES : appointment_id
+    APPOINTMENTS ||--o{ APPOINTMENT_RATINGS : appointment_id
+    APPOINTMENTS ||--o{ APPOINTMENT_SESSION_LOGS : appointment_id
+    APPOINTMENTS ||--o{ MESSAGES : appointment_id
+
     APPOINTMENT_SESSIONS ||--o{ APPOINTMENT_SESSION_LOGS : appointment_session_id
 
-    PAYMENTS }o--|| USERS : user_id
-    PAYMENTS }o--|| USERS : recipient_user_id
-    PAYMENTS }o--|| APPOINTMENTS : appointment_id
+    PLANS ||--o{ SUBSCRIPTIONS : plan_id
+    SUBSCRIPTIONS ||--o{ SUBSCRIPTION_USAGES : subscription_id
+    SUBSCRIPTIONS ||--o{ PAYMENTS : subscription_id
 
     ROLES ||--o{ MODEL_HAS_ROLES : role_id
+    USERS ||--o{ MODEL_HAS_ROLES : model_id
     PERMISSIONS ||--o{ ROLE_HAS_PERMISSIONS : permission_id
-
-    MESSAGES }o--|| APPOINTMENTS : appointment_id
+    ROLES ||--o{ ROLE_HAS_PERMISSIONS : role_id
 
     MENU_ITEMS ||--o{ MENU_ITEM_ROLE : menu_item_id
     ROLES ||--o{ MENU_ITEM_ROLE : role_id
 ```
 
+Leyenda rápida: `||` = 1, `o{` = 0..N, `}|` = 1..N. Las tablas pivote (`model_has_roles`, `menu_item_role`, etc.) están desplegadas para dejar explícita la cardinalidad real entre actores.
+
+#### Diagrama Chen (rectángulos y relaciones)
+
+> Rectángulos = entidades, rombos = relaciones (Mermaid no soporta triángulos puros, así que se usa la forma de decisión). Las etiquetas sobre los enlaces indican la cardinalidad del lado desde donde parte la flecha.
+
+```mermaid
+flowchart LR
+classDef entity fill:#eef4ff,stroke:#1d4ed8,stroke-width:1.2px,color:#0f172a;
+classDef relation fill:#fff7ed,stroke:#ea580c,stroke-width:1.2px,color:#7c2d12,font-size:12px;
+
+USERS[USERS]:::entity
+APPOINTMENTS[APPOINTMENTS]:::entity
+APPT_SESSIONS[APPOINTMENT_SESSIONS]:::entity
+APPT_RATINGS[APPOINTMENT_RATINGS]:::entity
+MESSAGES[MESSAGES]:::entity
+FRIEND_REQUESTS[FRIEND_REQUESTS]:::entity
+USER_DEVICES[USER_DEVICES]:::entity
+APPT_RESCHEDULES[APPOINTMENT_RESCHEDULES]:::entity
+PRO_APPS[PROFESSIONAL_APPLICATIONS]:::entity
+APPT_SESSION_LOGS[APPOINTMENT_SESSION_LOGS]:::entity
+SUBSCRIPTIONS[SUBSCRIPTIONS]:::entity
+APPT_AUDITS[APPOINTMENT_AUDITS]:::entity
+APPT_METRICS[APPOINTMENT_METRICS_DAILY]:::entity
+APPT_SETTINGS[APPOINTMENT_SETTINGS]:::entity
+APPT_CREDITS[APPOINTMENT_CREDIT_TRANSACTIONS]:::entity
+PLANS[PLANS]:::entity
+PAYMENTS[PAYMENTS]:::entity
+SUB_USAGE[SUBSCRIPTION_USAGES]:::entity
+
+PRO_AVAILS[PROFESSIONAL_AVAILABILITIES]:::entity
+PRO_AVAIL_EXC[PROFESSIONAL_AVAILABILITY_EXCEPTIONS]:::entity
+REL_PRO{Profesional\nde cita}:::relation
+REL_PAT{Paciente\nde cita}:::relation
+REL_SESSION{Genera\nsesión}:::relation
+REL_RATING{Calificación}:::relation
+NOTIFICATIONS[NOTIFICATIONS]:::entity
+CHAT_CALL_LOGS[CHAT_CALL_LOGS]:::entity
+REL_MSG_SEND{Envía\nmensaje}:::relation
+REL_MSG_RECV{Recibe\nmensaje}:::relation
+REL_FRIEND_FROM{Solicita\namistad}:::relation
+REL_RESCH{Reprogramación}:::relation
+REL_FRIEND_TO{Responde\namistad}:::relation
+REL_SESSION_LOG{Evento\nde sesión}:::relation
+REL_DEVICE{Usa\ndispositivo}:::relation
+REL_AUDIT{Auditoría}:::relation
+REL_METRIC{Agrega\ndiario}:::relation
+REL_SETTINGS{Configura\nagenda}:::relation
+REL_PRO_APPLY{Tramita\nalta}:::relation
+REL_SUB{Posee\nsuscripción}:::relation
+REL_PLAN{Incluye\nplan}:::relation
+REL_PAYMENT{Paga}:::relation
+REL_PAYOUT{Recibe\npago}:::relation
+REL_USAGE{Consume\ncupos}:::relation
+REL_AVAIL{Define\ndisponibilidad}:::relation
+REL_AVAIL_EX{Excepción\nde disp.}:::relation
+
+USERS -- "1" --> REL_PRO
+REL_PRO -- "0..N" --> APPOINTMENTS
+USERS -- "1" --> REL_PAT
+REL_PAT -- "0..N" --> APPOINTMENTS
+REL_NOTIF{Recibe\nnotificación}:::relation
+REL_CHAT{Registra\nllamada}:::relation
+REL_CREDIT{Mov.\ncréditos}:::relation
+
+APPOINTMENTS -- "1" --> REL_SESSION
+REL_SESSION -- "0..1" --> APPT_SESSIONS
+
+USERS -- "1" --> REL_RATING
+REL_RATING -- "0..1" --> APPT_RATINGS
+APPOINTMENTS -- "1" --> REL_RESCH
+REL_RESCH -- "0..N" --> APPT_RESCHEDULES
+
+APPOINTMENTS -- "1" --> REL_RATING
+
+
+APPOINTMENTS -- "1" --> REL_SESSION_LOG
+REL_SESSION_LOG -- "0..N" --> APPT_SESSION_LOGS
+
+APPOINTMENTS -- "1" --> REL_AUDIT
+REL_AUDIT -- "0..N" --> APPT_AUDITS
+
+USERS -- "1" --> REL_MSG_SEND
+REL_MSG_SEND -- "0..N" --> MESSAGES
+MESSAGES -- "1" --> REL_MSG_RECV
+
+APPT_SESSION_LOGS -- "0..N" --> REL_METRIC
+REL_METRIC -- "1" --> APPT_METRICS
+
+REL_SETTINGS -- "1" --> APPT_SETTINGS
+APPOINTMENTS -- "config" --> REL_SETTINGS
+REL_MSG_RECV -- "1" --> USERS
+
+USERS -- "1" --> REL_FRIEND_FROM
+REL_FRIEND_FROM -- "0..N" --> FRIEND_REQUESTS
+FRIEND_REQUESTS -- "1" --> REL_FRIEND_TO
+REL_FRIEND_TO -- "1" --> USERS
+
+USERS -- "1" --> REL_DEVICE
+REL_DEVICE -- "0..N" --> USER_DEVICES
+
+USERS -- "1" --> REL_AVAIL
+REL_AVAIL -- "0..N" --> PRO_AVAILS
+USERS -- "1" --> REL_AVAIL_EX
+REL_AVAIL_EX -- "0..N" --> PRO_AVAIL_EXC
+
+USERS -- "1" --> REL_PRO_APPLY
+REL_PRO_APPLY -- "0..N" --> PRO_APPS
+
+USERS -- "1" --> REL_SUB
+REL_SUB -- "0..N" --> SUBSCRIPTIONS
+SUBSCRIPTIONS -- "1" --> REL_PLAN
+REL_PLAN -- "1" --> PLANS
+
+SUBSCRIPTIONS -- "1" --> REL_USAGE
+REL_USAGE -- "0..N" --> SUB_USAGE
+
+USERS -- "1" --> REL_PAYMENT
+REL_PAYMENT -- "0..N" --> PAYMENTS
+USERS -- "0..N" --> REL_PAYOUT
+REL_PAYOUT -- "0..N" --> PAYMENTS
+
+USERS -- "1" --> REL_NOTIF
+REL_NOTIF -- "0..N" --> NOTIFICATIONS
+
+USERS -- "1" --> REL_CHAT
+REL_CHAT -- "0..N" --> CHAT_CALL_LOGS
+
+USERS -- "1" --> REL_CREDIT
+REL_CREDIT -- "0..N" --> APPT_CREDITS
+```
+
 Notas sobre el diagrama:
 - `payments` fue extendida para incluir `recipient_user_id` y `type` (migración 2025-11-24).
-- `appointment_sessions` representa sesiones RTC con métricas y presencia.
+- `appointment_sessions` y `appointment_session_logs` gestionan la capa RTC y cada sesión puede generar múltiples logs.
+- Las líneas punteadas indican dependencias sin FK directo (por ejemplo `appointment_settings` es una tabla singleton de configuración y `appointment_metrics_daily` se alimenta de los logs agregados).
 
 ---
 
