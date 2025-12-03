@@ -97,7 +97,27 @@
 				} else {
 					$subtitleVar = '';
 				}
-				$iconHtml = '<i class="bi bi-award"></i>';
+				$iconClass = 'bi-award';
+				switch (strtolower((string)($p->key ?? ''))) {
+					case 'starter':
+					case 'basic':
+						$iconClass = 'bi-rocket-takeoff';
+						break;
+					case 'plus':
+					case 'growth':
+						$iconClass = 'bi-bar-chart-line';
+						break;
+					case 'pro':
+					case 'premium':
+						$iconClass = 'bi-gem';
+						break;
+					case 'enterprise':
+					case 'corp':
+						$iconClass = 'bi-building';
+						break;
+					default:
+						$iconClass = 'bi-award';
+				}
 			@endphp
 			@php
 				$cardClasses = 'w-100';
@@ -105,7 +125,10 @@
 				if ($isActive) { $cardClasses .= ' plan-active'; }
 			@endphp
 			<div class="col-12 col-md-6 col-lg-4 d-flex justify-content-center" data-plan-key="{{ $p->key }}" data-plan-id="{{ $p->id }}" data-plan-title="{{ $p->name }}" data-plan-price="{{ $p->price_cents ?? 0 }}" data-plan-desc="{{ $subtitleVar }}" data-plan-discount="{{ isset($p->features['discount_percent']) ? $p->features['discount_percent'] : 0 }}" data-plan-visible-roles='{{ e(json_encode($p->features['visible_roles'] ?? [])) }}' data-plan-multi-discounts='{{ e(json_encode($p->features['multi_month_discounts'] ?? [])) }}'>
-				<x-card :title="$p->name" :subtitle="$subtitleVar" :icon="$iconHtml" class="{{ $cardClasses }}" :squareMd="true" :compact="true" :hover="true">
+				<x-card :title="$p->name" :subtitle="$subtitleVar" class="{{ $cardClasses }}" :squareMd="true" :compact="true" :hover="true">
+					<x-slot name="icon">
+						<i class="bi {{ $iconClass }}" aria-hidden="true"></i>
+					</x-slot>
 					@if(($p->features['popular'] ?? false) === true)
 						<span class="badge plan-popular-badge position-absolute top-0 end-0 m-2">Más popular</span>
 					@elseif($loop->iteration === ceil($loop->count/2))

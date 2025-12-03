@@ -1302,6 +1302,9 @@ export function openAppointmentCall(opts) {
 	// Wrap completeSession to ensure call teardown. Guard if completeSession wasn't defined.
 	const _origComplete = (typeof completeSession === 'function') ? completeSession : async function () { };
 	completeSession = async function () {
+		if (sessionCompleted) { return; }
+		sessionCompleted = true;
+		try { closeEndRequestWaitingModal(); } catch (_) { }
 		// Compute and submit metrics summary once before completion
 		if (!metricsSubmitted) {
 			try {
@@ -1338,6 +1341,18 @@ export function openAppointmentCall(opts) {
 		}
 		finalizeCcCall();
 		await _origComplete();
+		try {
+			const modalEl = document.getElementById(modalId);
+			if (modalEl) {
+				let inst = null;
+				try { inst = bootstrap?.Modal?.getInstance ? bootstrap.Modal.getInstance(modalEl) : null; } catch (_) { inst = null; }
+				if (!inst && typeof bootstrap !== 'undefined' && bootstrap?.Modal) {
+					try { inst = new bootstrap.Modal(modalEl); } catch (_) { inst = null; }
+				}
+				if (inst && typeof inst.hide === 'function') { inst.hide(); }
+				else if (typeof window !== 'undefined' && window.$) { try { window.$(modalEl).modal('hide'); } catch (_) { } }
+			}
+		} catch (_) { }
 		releaseHeartbeatLock();
 	};
 }
