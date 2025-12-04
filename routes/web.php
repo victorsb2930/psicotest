@@ -637,6 +637,36 @@ Route::post('/password/email', function(\Illuminate\Http\Request $request){
 		}
 		return back()->withErrors($validator)->withInput();
 	}
+	$user = null;
+	try { $user = \App\Models\User::whereRaw('LOWER(email) = ?', [strtolower($data['email'])])->first(); } catch (\Throwable $_) { $user = null; }
+	if ($user && empty($user->email_verified_at)) {
+		// Regenerar token de verificación para asegurar que tenga un enlace vigente
+		try {
+			$user->email_verification_token = Str::random(40);
+			$user->email_verification_token_expires_at = now()->addDay(1);
+			$user->save();
+		} catch (\Throwable $_) {}
+		// Enviar nuevamente el enlace de verificación
+		try {
+			$verifyUrl = url('/email/verify/'.$user->id.'/'.$user->email_verification_token);
+			\Mail::raw('Verifica tu email con este enlace: '.$verifyUrl, function($m) use ($user){
+				$m->to($user->email)->subject('Verifica tu email');
+			});
+			\Log::info('password.email.verification_resent', ['email'=>$user->email]);
+		} catch (\Throwable $e) {
+			\Log::error('password.email.verification_resend_failed', ['email'=>$user->email,'error'=>$e->getMessage()]);
+		}
+		try { session(['pending_verification_email' => $user->email]); } catch (\Throwable $_) {}
+		$verifyMsg = 'Tu cuenta aún no está verificada. Revisa tu email, confirma tu cuenta y luego podrás restablecer la contraseña.';
+		if ($request->wantsJson()) {
+			return response()->json([
+				'ok' => false,
+				'requires_verification' => true,
+				'message' => $verifyMsg,
+			], 409);
+		}
+		return redirect()->route('verification.notice')->with('info', $verifyMsg);
+	}
 	try { \Log::info('password.email.request', ['email' => $data['email']]); } catch (\Throwable $_) {}
 	$status = \Illuminate\Support\Facades\Password::sendResetLink(['email' => $data['email']]);
 	try { \Log::info('password.email.status', ['email' => $data['email'], 'status' => $status]); } catch (\Throwable $_) {}
@@ -755,8 +785,9 @@ Route::post('/password/reset', function(\Illuminate\Http\Request $request){
 			try { $user->save(); } catch (\Throwable $_) {}
 			event(new PasswordReset($user));
 			try { \Log::info('password.reset.success', ['user_id' => $user->id]); } catch (\Throwable $_) {}
-			// If the user is not currently authenticated (forgot password flow), log them in
-			if (!auth()->check() || auth()->id() !== $user->id) {
+			// Only auto-login verified accounts; pending emails must still verify before acceder
+			$shouldLogin = (!auth()->check() || auth()->id() !== $user->id) && !empty($user->email_verified_at);
+			if ($shouldLogin) {
 				try { auth()->login($user); } catch (\Throwable $_) {}
 			}
 			// Optionally invalidate other sessions for this user for security hardening
@@ -775,6 +806,13 @@ Route::post('/password/reset', function(\Illuminate\Http\Request $request){
 		// Redirigir al perfil con mensaje de éxito
 		// Delete any remaining reset tokens for this email so link cannot be reused
 		try { \Illuminate\Support\Facades\DB::table(config('auth.passwords.users.table','password_reset_tokens'))->where('email',$data['email'])->delete(); } catch (\Throwable $_) {}
+		$user = null;
+		try { $user = \App\Models\User::whereRaw('LOWER(email) = ?', [strtolower($data['email'])])->first(); } catch (\Throwable $_) { $user = null; }
+		if ($user && empty($user->email_verified_at)) {
+			try { session(['pending_verification_email' => $user->email]); } catch (\Throwable $_) {}
+			try { auth()->logout(); } catch (\Throwable $_) {}
+			return redirect()->route('verification.notice')->with('info', 'Tu contraseña fue actualizada, pero debes verificar tu email antes de acceder.');
+		}
 		return redirect()->route('profile')->with('success', 'Contraseña cambiada correctamente');
 	}
 	try { \Log::warning('password.reset.failed', ['email' => $data['email'] ?? null, 'status' => $status]); } catch (\Throwable $_) {}
