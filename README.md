@@ -232,6 +232,27 @@ docker-compose exec app chmod -R ug+rwx storage bootstrap/cache || true
 
 Si sigues estos pasos en un entorno limpio, la aplicación debería arrancar. Si algo falla, pega aquí la salida de la terminal y lo reviso.
 
+Respaldos de base de datos (PostgreSQL)
+
+- Usa `scripts/backup-postgres.ps1` desde PowerShell para generar dumps consistentes sin salir del contenedor. El script lee `.env`, ejecuta `pg_dump` contra el servicio `db` del `docker-compose.yml` y guarda un archivo con timestamp en la carpeta indicada (por defecto `./backups`).
+- Ejemplo rápido (crea `backups/` si no existe y usa el prefijo `psicoguia`):
+
+```powershell
+pwsh ./scripts/backup-postgres.ps1 -OutputDirectory "./backups" -FilePrefix "psicoguia"
+```
+
+- Si necesitas más opciones, ejecuta `pwsh ./scripts/backup-postgres.ps1 -Help`. Para un comando manual sin script, puedes usar:
+
+```powershell
+docker compose exec -T db sh -c "env PGPASSWORD=$Env:DB_PASSWORD pg_dump -U $Env:DB_USERNAME -h 127.0.0.1 -d $Env:DB_DATABASE" > backups/psicoguia-manual.sql
+```
+
+- Restaurar un dump (esto sobreescribe la BD del contenedor):
+
+```powershell
+docker compose exec -T db sh -c "env PGPASSWORD=$Env:DB_PASSWORD psql -U $Env:DB_USERNAME -d $Env:DB_DATABASE" < backups/psicoguia-YYYYMMDD_HHMMSS.sql
+```
+
 Preguntas frecuentes
 
 - ¿Debo ejecutar `composer install` en mi host o dentro del contenedor? R: Lo más consistente es hacerlo dentro del contenedor con `docker-compose exec app composer install`.
