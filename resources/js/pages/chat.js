@@ -605,8 +605,15 @@ export function init() {
 						const res = await fetch(`/friends/search?q=${encodeURIComponent(q)}`);
 						const j = await res.json();
 						friendSearchResults.innerHTML = '';
-						if (!j.ok) return;
-						if (!j.results.length) { friendSearchResults.innerHTML = '<div class="list-group-item text-muted">Sin resultados</div>'; return; }
+						if (!j.ok) {
+							friendSearchResults.innerHTML = '<div class="list-group-item text-danger">Error al buscar</div>';
+							return;
+						}
+						if (!j.results.length) {
+							const msg = j.requires_appointment ? 'Sin resultados. Solo verás personas con quienes ya tengas una cita aceptada.' : 'Sin resultados';
+							friendSearchResults.innerHTML = `<div class="list-group-item text-muted">${msg}</div>`;
+							return;
+						}
 						j.results.forEach(u => {
 							const a = document.createElement('button'); a.type = 'button'; a.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-center';
 							a.innerHTML = `<span><strong>${escapeHtml(u.name)}</strong><br><span class='text-muted small'>${escapeHtml(u.email)}</span></span><span class='badge text-bg-primary'>+</span>`;
@@ -614,7 +621,13 @@ export function init() {
 								try {
 									const r = await fetch(`/friend/${u.id}/request`, { method: 'POST', headers: csrf ? { 'X-CSRF-TOKEN': csrf } : {} });
 									const jj = await r.json();
-									if (jj.ok) { window.modalNotification?.('Solicitud enviada', u.name, { template: 'success' }); a.remove(); loadIncoming(); loadOutgoing(); refreshCounters(); }
+									if (jj.ok) {
+										window.modalNotification?.('Solicitud enviada', u.name, { template: 'success' });
+										a.remove(); loadIncoming(); loadOutgoing(); refreshCounters();
+									} else {
+										const errMsg = jj.message || 'Solo puedes agregar contactos con quienes ya tengas una cita aceptada.';
+										window.modalNotification?.('No se pudo enviar', errMsg, { template: 'warning' });
+									}
 								} catch (_) { }
 							});
 							friendSearchResults.appendChild(a);

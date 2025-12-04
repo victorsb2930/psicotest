@@ -43,7 +43,7 @@
 						<div class="tab-pane fade" id="tab-search" role="tabpanel" aria-labelledby="tab-search-link">
 							<input id="friend-search" class="form-control mb-2" placeholder="Nombre o email" autocomplete="off">
 							<div id="friend-search-results" class="list-group small chat-pane"></div>
-							<div class="form-text">Solo se muestran usuarios con los que no tienes relación.</div>
+							<div class="form-text">Solo aparecerán personas con quienes no tengas relación y ya hayan compartido una cita aceptada contigo.</div>
 						</div>
 					</div>
 				</div>

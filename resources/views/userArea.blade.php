@@ -7,11 +7,7 @@
 @auth
 <div class="container py-4">
 	<header class="d-flex justify-content-between align-items-center mb-4">
-		<h3>Hola, {{ $user->name }}</h3>
-		<div class="d-flex gap-2">
-			<input class="form-control form-control-sm" placeholder="Buscar por especialidad o nombre">
-			<button class="btn btn-primary btn-sm">Buscar</button>
-		</div>
+		<h3>Hola, {{ $user->name . " " . $user->lastname }}</h3>
 	</header>
 
 	<div class="row g-3">

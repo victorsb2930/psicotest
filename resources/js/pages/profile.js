@@ -1,5 +1,12 @@
 // Profile page module (single clean implementation with 2FA method selection)
 const api = { list: '/profile/photos', upload: '/profile/photos', set: id => `/profile/photos/${id}/set-profile`, delete: id => `/profile/photos/${id}`, presence: '/profile/presence', heartbeat: '/profile/heartbeat' };
+const detailsApi = {
+	names: '/profile/details/names',
+	gender: '/profile/details/gender',
+	birthdate: '/profile/details/birthdate',
+	location: '/profile/details/location',
+	speciality: '/profile/details/speciality'
+};
 let _pollInterval = null, _hbInterval = null;
 const POLL_PERIOD = 5000;
 let _visibilityHandler = null, _beforeUnloadHandler = null;
@@ -7,6 +14,9 @@ let _btnChangePhotoHandler = null, _inputPhotoHandler = null;
 let _avatarClickHandler = null, _galleryClickHandler = null;
 let _reopen2faSubmitHandler = null, _reopen2faCancelHandler = null;
 let _resetPasswordMenuHandler = null, _toggle2faHandler = null;
+let _profileMetaEl = null;
+let _profileState = {};
+let _detailMenuHandlers = [];
 
 async function refreshGallery(){
 	try {
@@ -26,6 +36,8 @@ function startHeartbeat(){ if(_hbInterval) return; sendHeartbeat(); _hbInterval=
 function stopHeartbeat(){ if(_hbInterval){ clearInterval(_hbInterval); _hbInterval=null; } }
 
 export function init(){
+	setupProfileState();
+	setupProfileForms();
 	// Foto: subida
 	const btn=document.getElementById('btn-change-photo'); const input=document.getElementById('input-photo');
 	if(btn&&input){ _btnChangePhotoHandler=()=>input.click(); btn.addEventListener('click',_btnChangePhotoHandler); _inputPhotoHandler=async function(){ const f=this.files[0]; if(!f) return; const fd=new FormData(); fd.append('photo',f); try{ const r=await axios.post(api.upload,fd); if(r.data?.ok){ await refreshGallery(); modalNotification?.('Foto subida','Foto subida correctamente',{template:'success'});} else modalNotification?.('Error','No se pudo subir la foto',{template:'danger'}); }catch(err){ modalNotification?.('Error','No se pudo subir la foto',{template:'danger'},true,{xhr:err?.response}); } finally { try{ this.value=''; }catch(_){} } }; input.addEventListener('change',_inputPhotoHandler); }
@@ -59,6 +71,7 @@ export function init(){
 
 export function destroy(){
 	stopPolling(); stopHeartbeat();
+	teardownProfileForms();
 	try{ if(_btnChangePhotoHandler) document.getElementById('btn-change-photo')?.removeEventListener('click',_btnChangePhotoHandler);}catch(_){}
 	try{ if(_inputPhotoHandler) document.getElementById('input-photo')?.removeEventListener('change',_inputPhotoHandler);}catch(_){}
 	try{ if(_avatarClickHandler) document.getElementById('profile-avatar')?.removeEventListener('click',_avatarClickHandler);}catch(_){}
@@ -69,5 +82,306 @@ export function destroy(){
 	try{ if(_toggle2faHandler) document.getElementById('profileToggle2faItem')?.removeEventListener('click',_toggle2faHandler);}catch(_){}
 	try{ if(_visibilityHandler) document.removeEventListener('visibilitychange',_visibilityHandler);}catch(_){}
 	try{ if(_beforeUnloadHandler) window.removeEventListener('beforeunload',_beforeUnloadHandler);}catch(_){}
+	_profileMetaEl=null; _profileState={};
 	_btnChangePhotoHandler=_inputPhotoHandler=_avatarClickHandler=_galleryClickHandler=_visibilityHandler=_beforeUnloadHandler=_reopen2faSubmitHandler=_reopen2faCancelHandler=_resetPasswordMenuHandler=_toggle2faHandler=null;
+}
+
+function setupProfileState(){
+	_profileMetaEl=document.getElementById('profileMeta');
+	if(!_profileMetaEl){ _profileState={}; return; }
+	_profileState={
+		name:_profileMetaEl.dataset.name||'',
+		lastname:_profileMetaEl.dataset.lastname||'',
+		gender:_profileMetaEl.dataset.gender||'',
+		birthdate:_profileMetaEl.dataset.birthdate||'',
+		location:_profileMetaEl.dataset.location||'',
+		speciality:_profileMetaEl.dataset.speciality||'',
+		email:_profileMetaEl.dataset.email||'',
+		isProfessional:_profileMetaEl.dataset.isProfessional==='1'
+	};
+}
+
+function setupProfileForms(){
+	teardownProfileForms();
+	const defs=buildProfileFormDefinitions();
+	defs.forEach(def=>{
+		const trigger=document.getElementById(def.triggerId);
+		if(!trigger) return;
+		const handler=e=>{ e?.preventDefault(); openProfileDetailModal(def); };
+		trigger.addEventListener('click',handler);
+		_detailMenuHandlers.push({element:trigger, handler});
+	});
+}
+
+function teardownProfileForms(){
+	_detailMenuHandlers.forEach(item=>{
+		try{ item.element?.removeEventListener('click',item.handler);}catch(_){ }
+	});
+	_detailMenuHandlers=[];
+}
+
+function buildProfileFormDefinitions(){
+	const defs=[
+		{
+			key:'names',
+			triggerId:'profileEditNamesItem',
+			modalId:'profileDetailNames',
+			endpoint:detailsApi.names,
+			title:'Editar nombres y apellidos',
+			successMessage:'Nombres actualizados.',
+			getFields:()=>[
+				{type:'text', name:'name', label:'Nombres', value:_profileState.name||'', required:true, maxLength:255, placeholder:'Ej. Ana María'},
+				{type:'text', name:'lastname', label:'Apellidos', value:_profileState.lastname||'', required:true, maxLength:255, placeholder:'Ej. Pérez Gómez'}
+			],
+			onSuccess:fields=>{
+				updateProfileState({ name: fields.name || '', lastname: fields.lastname || '' });
+				setFieldDisplay('name', fields.name);
+				setFieldDisplay('lastname', fields.lastname);
+				refreshFullName(fields.full_name);
+			}
+		},
+		{
+			key:'gender',
+			triggerId:'profileEditGenderItem',
+			modalId:'profileDetailGender',
+			endpoint:detailsApi.gender,
+			title:'Actualizar género',
+			successMessage:'Género actualizado.',
+			getFields:()=>[
+				{type:'select', name:'gender', label:'Género', value:(_profileState.gender||'').toLowerCase(), required:true, options:[
+					{value:'', label:'Selecciona una opción'},
+					{value:'masculino', label:'Masculino'},
+					{value:'femenino', label:'Femenino'},
+				]}
+			],
+			onSuccess:fields=>{
+				const genderVal=(fields.gender||'');
+				updateProfileState({ gender: genderVal });
+				setFieldDisplay('gender', fields.gender_label || formatGenderLabel(genderVal));
+			}
+		},
+		{
+			key:'birthdate',
+			triggerId:'profileEditBirthdateItem',
+			modalId:'profileDetailBirthdate',
+			endpoint:detailsApi.birthdate,
+			title:'Actualizar fecha de nacimiento',
+			successMessage:'Fecha de nacimiento actualizada.',
+			getFields:()=>[
+				{type:'date', name:'birthdate', label:'Fecha de nacimiento', value:_profileState.birthdate||'', required:true, max:new Date().toISOString().slice(0,10)}
+			],
+			onSuccess:fields=>{
+				const iso=fields.birthdate || '';
+				updateProfileState({ birthdate: iso });
+				setFieldDisplay('birthdate', iso ? formatDateForDisplay(iso) : '');
+				const ageDisplay=calculateAgeDisplay(iso, fields.age);
+				setFieldDisplay('age', ageDisplay);
+			}
+		},
+		{
+			key:'location',
+			triggerId:'profileEditLocationItem',
+			modalId:'profileDetailLocation',
+			endpoint:detailsApi.location,
+			title:'Actualizar ubicación',
+			successMessage:'Ubicación actualizada.',
+			getFields:()=>[
+				{type:'text', name:'location', label:'Ubicación', value:_profileState.location||'', required:true, maxLength:255, placeholder:'Ciudad, provincia'}
+			],
+			onSuccess:fields=>{
+				updateProfileState({ location: fields.location || '' });
+				setFieldDisplay('location', fields.location);
+			}
+		}
+	];
+	if (_profileState.isProfessional) {
+		defs.push({
+			key:'speciality',
+			triggerId:'profileEditSpecialityItem',
+			modalId:'profileDetailSpeciality',
+			endpoint:detailsApi.speciality,
+			title:'Actualizar especialidad',
+			successMessage:'Especialidad actualizada.',
+			getFields:()=>[
+				{type:'text', name:'speciality', label:'Especialidad', value:_profileState.speciality||'', required:true, maxLength:255, placeholder:'Ej. Psicología clínica'}
+			],
+			onSuccess:fields=>{
+				updateProfileState({ speciality: fields.speciality || '' });
+				setFieldDisplay('speciality', fields.speciality);
+			}
+		});
+	}
+	return defs;
+}
+
+function openProfileDetailModal(def){
+	if (typeof modalConfirm !== 'function') return;
+	const modalId = def.modalId;
+	const formId = `${modalId}_form`;
+	const errorId = `${modalId}_error`;
+	const fields = typeof def.getFields === 'function' ? def.getFields() : (def.fields || []);
+	const description = def.description ? `<p class="text-muted small mb-3">${def.description}</p>` : '';
+	const bodyHtml = `${description}<form id="${formId}" novalidate>${fields.map(renderProfileField).join('')}<div class="alert alert-danger d-none" id="${errorId}"></div></form>`;
+	modalConfirm({
+		title: def.title || 'Editar',
+		body: bodyHtml,
+		btnsType: 'ac',
+		confirmLabel: def.confirmLabel || 'Guardar',
+		cancelLabel: def.cancelLabel || 'Cancelar',
+		closeClick: false,
+		modalId,
+		onClickYes: async ()=>{
+			const form=document.getElementById(formId);
+			const errorBox=document.getElementById(errorId);
+			const confirmBtn=document.getElementById(`modalConfirmBtn_${modalId}`);
+			if(!form) return;
+			errorBox?.classList.add('d-none');
+			if(confirmBtn) confirmBtn.disabled=true;
+			const formData=new FormData(form);
+			const payload={};
+			fields.forEach(field=>{
+				const raw=formData.get(field.name);
+				payload[field.name]=typeof raw==='string'?raw.trim():raw;
+			});
+			try{
+				const response=await axios.post(def.endpoint, payload);
+				if(response?.data?.ok){
+					const returnedFields=response.data.fields || {};
+					if(typeof def.onSuccess === 'function') def.onSuccess(returnedFields, response.data);
+					if(typeof modalNotification === 'function') modalNotification('Perfil', def.successMessage || 'Datos actualizados',{template:'success'});
+					const modalEl=document.getElementById(modalId);
+					if(modalEl){
+						try{ (bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl)).hide(); }catch(_){ }
+					}
+				} else {
+					const msg=response?.data?.message || 'No se pudo guardar.';
+					displayProfileFormError(errorBox, msg);
+				}
+			}catch(err){
+				const msg=extractProfileErrorMessage(err) || 'No se pudo guardar.';
+				displayProfileFormError(errorBox, msg);
+			} finally {
+				if(confirmBtn) confirmBtn.disabled=false;
+			}
+		}
+	}, 'normal', { size: 'md' });
+}
+
+function renderProfileField(field){
+	const label=field.label ? `<label class="form-label" for="${field.name}">${field.label}</label>` : '';
+	const help=field.help ? `<div class="form-text">${field.help}</div>` : '';
+	const commonAttrs=[
+		field.required ? 'required' : '',
+		field.maxLength ? `maxlength="${field.maxLength}"` : '',
+		field.placeholder ? `placeholder="${escapeHtml(field.placeholder)}"` : '',
+		field.autofocus ? 'autofocus' : '',
+		field.min ? `min="${typeof field.min==='function'?field.min():field.min}"` : '',
+		field.max ? `max="${typeof field.max==='function'?field.max():field.max}"` : ''
+	].filter(Boolean).join(' ');
+	let control='';
+	if(field.type==='select'){
+		const options=(field.options||[]).map(opt=>{
+			const val=opt.value ?? '';
+			const isSelected = (field.value ?? '') === val;
+			return `<option value="${escapeHtml(String(val))}"${isSelected?' selected':''}>${escapeHtml(String(opt.label ?? ''))}</option>`;
+		}).join('');
+		control=`<select class="form-select" id="${field.name}" name="${field.name}" ${commonAttrs}>${options}</select>`;
+	} else {
+		const type=field.type==='date' ? 'date' : 'text';
+		const value=field.value ?? '';
+		control=`<input type="${type}" class="form-control" id="${field.name}" name="${field.name}" value="${escapeHtml(String(value))}" ${commonAttrs}>`;
+	}
+	return `<div class="mb-3">${label}${control}${help}</div>`;
+}
+
+function displayProfileFormError(errorBox, message){
+	if(!errorBox) return;
+	errorBox.textContent=message;
+	errorBox.classList.remove('d-none');
+}
+
+function extractProfileErrorMessage(err){
+	const resp=err?.response;
+	if(!resp){ return 'Error de red. Inténtalo de nuevo.'; }
+	if(resp.data?.errors){
+		const firstKey=Object.keys(resp.data.errors)[0];
+		if(firstKey) return resp.data.errors[firstKey][0];
+	}
+	return resp.data?.message || 'No se pudo guardar.';
+}
+
+function updateProfileState(patch){
+	Object.entries(patch).forEach(([key,val])=>{
+		_profileState[key]=val ?? '';
+		if(!_profileMetaEl) return;
+		if(val===undefined || val===null || val===''){
+			delete _profileMetaEl.dataset[key];
+		} else {
+			_profileMetaEl.dataset[key]=val;
+		}
+	});
+}
+
+const PROFILE_FIELD_FALLBACKS={
+	name:'No especificado',
+	lastname:'No especificado',
+	gender:'No especificado',
+	birthdate:'No especificada',
+	age:'',
+	location:'No especificada',
+	speciality:'No especificada',
+	full_name:'Sin nombre'
+};
+
+function setFieldDisplay(field, value){
+	const nodes=document.querySelectorAll(`[data-profile-field="${field}"]`);
+	if(!nodes.length) return;
+	const fallback=PROFILE_FIELD_FALLBACKS[field] ?? '—';
+	const resolved=(value !== undefined && value !== null && String(value).trim() !== '') ? String(value) : fallback;
+	nodes.forEach(node=>{ node.textContent=resolved; });
+}
+
+function refreshFullName(fullName){
+	let value=fullName && String(fullName).trim();
+	if(!value){
+		value=[_profileState.name||'', _profileState.lastname||''].map(v=>String(v).trim()).filter(Boolean).join(' ').trim();
+	}
+	if(!value) value=_profileState.email || 'Sin nombre';
+	setFieldDisplay('full_name', value);
+}
+
+function formatDateForDisplay(dateStr){
+	if(!dateStr) return '';
+	const date=new Date(dateStr);
+	if(Number.isNaN(date.getTime())) return dateStr;
+	try {
+		return new Intl.DateTimeFormat('es-ES', { day:'2-digit', month:'long', year:'numeric' }).format(date);
+	} catch (_) {
+		return date.toISOString().slice(0,10);
+	}
+}
+
+function calculateAgeDisplay(dateStr, providedAge){
+	if(typeof providedAge === 'number' && providedAge >= 0) return `${providedAge} años`;
+	if(!dateStr) return '';
+	const birth=new Date(dateStr);
+	if(Number.isNaN(birth.getTime())) return '';
+	const today=new Date();
+	let age=today.getFullYear()-birth.getFullYear();
+	const m=today.getMonth()-birth.getMonth();
+	if(m<0 || (m===0 && today.getDate()<birth.getDate())){ age--; }
+	return age>=0 ? `${age} años` : '';
+}
+
+function formatGenderLabel(value){
+	if(!value) return 'No especificado';
+	const map={
+		masculino:'Masculino',
+		femenino:'Femenino',
+		'no binario':'No binario',
+		otro:'Otro',
+		'prefiero no decir':'Prefiero no decir'
+	};
+	const key=String(value).toLowerCase();
+	return map[key] || (key.charAt(0).toUpperCase()+key.slice(1));
 }

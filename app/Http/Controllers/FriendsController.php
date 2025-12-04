@@ -50,7 +50,14 @@ class FriendsController extends Controller
 
         // If current user is neither pure type2 nor pure type3, return empty results (no cross-role search)
         if (is_null($allowedTargetRole)) {
-            return response()->json(['ok' => true, 'results' => collect(), 'query' => $q, 'excluded_count' => 0, 'allowed_target_role' => null]);
+            return response()->json([
+                'ok' => true,
+                'results' => collect(),
+                'query' => $q,
+                'excluded_count' => 0,
+                'allowed_target_role' => null,
+                'requires_appointment' => true,
+            ]);
         }
 
         // Gather related user ids (friends in any status) + self
@@ -69,7 +76,22 @@ class FriendsController extends Controller
         $driver = \DB::connection()->getDriverName();
         $likeOp = $driver === 'pgsql' ? 'ilike' : 'like';
 
-    $query = User::query()->whereNotIn('id', $relatedIds)->whereHas('roles', function($w) use ($allowedTargetRole){ $w->where('id', $allowedTargetRole); });
+        $query = User::query()
+            ->whereNotIn('id', $relatedIds)
+            ->whereHas('roles', function($w) use ($allowedTargetRole){ $w->where('id', $allowedTargetRole); })
+            ->whereExists(function($sub) use ($me, $isType2, $isType3){
+                $sub->selectRaw('1')
+                    ->from('appointments')
+                    ->whereNull('appointments.deleted_at')
+                    ->whereIn(DB::raw("LOWER(TRIM(appointments.status))"), ['accepted','in_progress','completed']);
+                if ($isType2 && !$isType3) {
+                    $sub->where('appointments.professional_id', $me->id)
+                        ->whereColumn('appointments.patient_id', 'users.id');
+                } else {
+                    $sub->where('appointments.patient_id', $me->id)
+                        ->whereColumn('appointments.professional_id', 'users.id');
+                }
+            });
         if ($q !== '') {
             $query->where(function($w) use ($q, $likeOp){
                 $w->where('name', $likeOp, '%'.$q.'%')
@@ -84,7 +106,8 @@ class FriendsController extends Controller
             'ok'=>true,
             'results'=>$users,
             'query'=>$q,
-            'excluded_count'=>count($relatedIds)
+            'excluded_count'=>count($relatedIds),
+            'requires_appointment'=>true,
         ]);
     }
 }

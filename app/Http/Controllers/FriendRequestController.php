@@ -7,19 +7,79 @@ use App\Events\FriendRequestSent;
 use App\Events\FriendRequestAccepted;
 use App\Notifications\FriendRequestReceived;
 use App\Notifications\FriendRequestAcceptedNotification;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 class FriendRequestController extends Controller {
+    protected array $chatStatuses = ['accepted','in_progress','completed'];
+
+    protected function shareAcceptedAppointment(User $a, User $b): bool
+    {
+        if (!Schema::hasTable('appointments')) {
+            return false;
+        }
+
+        $statuses = array_map('strtolower', $this->chatStatuses);
+
+        return DB::table('appointments')
+            ->whereNull('deleted_at')
+            ->whereIn(DB::raw('LOWER(TRIM(status))'), $statuses)
+            ->where(function($q) use ($a, $b) {
+                $q->where(function($sub) use ($a, $b) {
+                    $sub->where('professional_id', $a->id)->where('patient_id', $b->id);
+                })->orWhere(function($sub) use ($a, $b) {
+                    $sub->where('professional_id', $b->id)->where('patient_id', $a->id);
+                });
+            })
+            ->exists();
+    }
+
     public function send(Request $r, User $user){
         $me = $r->user();
-        if ($me->id === $user->id) return response()->json(['ok'=>false,'error'=>'same_user'],400);
+        if ($me->id === $user->id) {
+            return response()->json(['ok'=>false,'error'=>'same_user'],400);
+        }
+        if (!Schema::hasTable('friend_requests')) {
+            return response()->json(['ok'=>false,'error'=>'unavailable'],503);
+        }
+
+        // Role gating: only allow cross-role pairing (user<->professional)
+        try {
+            $myRoles = method_exists($me, 'roles') ? $me->roles()->pluck('id')->map(fn($i)=>(int)$i)->toArray() : [];
+            $targetRoles = method_exists($user, 'roles') ? $user->roles()->pluck('id')->map(fn($i)=>(int)$i)->toArray() : [];
+            $is2 = in_array(2, $myRoles, true); $is3 = in_array(3, $myRoles, true);
+            $targetIs2 = in_array(2, $targetRoles, true); $targetIs3 = in_array(3, $targetRoles, true);
+            $validPair = ($is2 && $targetIs3) || ($is3 && $targetIs2);
+            if (!$validPair) {
+                return response()->json(['ok'=>false,'error'=>'role_mismatch','message'=>'Solo puedes agregar contactos del rol complementario.'],403);
+            }
+        } catch (\Throwable $_) {}
+
+        if (!$this->shareAcceptedAppointment($me, $user)) {
+            return response()->json([
+                'ok'=>false,
+                'error'=>'missing_appointment',
+                'message'=>'Solo puedes agregar contactos con quienes ya tengas una cita aceptada.',
+            ], 403);
+        }
+
+        $pendingExists = FriendRequest::query()
+            ->where(function($q) use ($me, $user) {
+                $q->where([['from_id',$me->id],['to_id',$user->id]])
+                  ->orWhere([['from_id',$user->id],['to_id',$me->id]]);
+            })
+            ->where('status','pending')
+            ->exists();
+        if ($pendingExists) {
+            return response()->json(['ok'=>true,'duplicate'=>true]);
+        }
+
         $fr = FriendRequest::firstOrNew(['from_id'=>$me->id,'to_id'=>$user->id]);
         $shouldNotify = false;
         if (!$fr->exists) {
-            // brand new request
             $fr->status = 'pending';
             $fr->save();
             $shouldNotify = true;
         } else {
-            // If an existing request is not pending (e.g., was rejected), allow resend and notify again
             if ($fr->status !== 'pending') {
                 $fr->status = 'pending';
                 $fr->accepted_at = null; $fr->rejected_at = null;
@@ -29,7 +89,6 @@ class FriendRequestController extends Controller {
         }
         if ($shouldNotify) {
             try { broadcast(new FriendRequestSent($fr->load('from')))->toOthers(); } catch (\Throwable $_) {}
-            // Database notification to the recipient
             try { $user->notify(new FriendRequestReceived($me)); } catch (\Throwable $_) {}
         }
         return response()->json(['ok'=>true,'status'=>$fr->status]);

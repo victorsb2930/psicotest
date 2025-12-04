@@ -23,7 +23,7 @@
                 <div class="card-body">
                     <input id="friend-search" class="form-control mb-2" placeholder="Nombre o email" autocomplete="off">
                     <div id="friend-search-results" class="list-group small" style="max-height:200px; overflow:auto;"></div>
-                    <div class="form-text">Solo se muestran usuarios con los que no tienes relación.</div>
+                    <div class="form-text">Solo verás usuarios sin relación previa y con quienes ya tengas una cita aceptada.</div>
                 </div>
             </div>
             <div class="card shadow-sm mb-3">
@@ -106,13 +106,28 @@
         if(!q){ resultsBox.innerHTML=''; return; }
         try {
             const res = await fetch(`/friends/search?q=${encodeURIComponent(q)}`); const j = await res.json();
-            if(!j.ok) return; resultsBox.innerHTML='';
-            if(!j.results.length){ resultsBox.innerHTML='<div class="list-group-item text-muted">Sin resultados</div>'; return; }
+            resultsBox.innerHTML='';
+            if(!j.ok){ resultsBox.innerHTML='<div class="list-group-item text-danger">Error al buscar</div>'; return; }
+            if(!j.results.length){
+                const msg = j.requires_appointment ? 'Sin resultados. Solo verás personas con quienes ya tengas una cita aceptada.' : 'Sin resultados';
+                resultsBox.innerHTML=`<div class="list-group-item text-muted">${msg}</div>`;
+                return;
+            }
             j.results.forEach(u=>{
                 const a = document.createElement('button'); a.type='button'; a.className='list-group-item list-group-item-action d-flex justify-content-between align-items-center';
                 a.innerHTML = `<span><strong>${u.name}</strong><br><span class='text-muted small'>${u.email}</span></span><span class='badge text-bg-primary'>+</span>`;
                 a.addEventListener('click', async ()=>{
-                    try { const r = await fetch(`/friend/${u.id}/request`, {method:'POST', headers:{'X-CSRF-TOKEN':token}}); const jj = await r.json(); if(jj.ok){ window.modalNotification?.('Solicitud enviada', u.name, {template:'success'}); a.remove(); } } catch(_){ }
+                    try {
+                        const r = await fetch(`/friend/${u.id}/request`, {method:'POST', headers:{'X-CSRF-TOKEN':token}});
+                        const jj = await r.json();
+                        if(jj.ok){
+                            window.modalNotification?.('Solicitud enviada', u.name, {template:'success'});
+                            a.remove();
+                        } else {
+                            const err = jj.message || 'Solo puedes agregar contactos con quienes ya tengas una cita aceptada.';
+                            window.modalNotification?.('No se pudo enviar', err, {template:'warning'});
+                        }
+                    } catch(_){ }
                 });
                 resultsBox.appendChild(a);
             });

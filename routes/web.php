@@ -1036,6 +1036,13 @@ Route::middleware('auth')->group(function(){
 		return response()->json(['ok'=>true,'message'=>'Teléfono actualizado.']);
 	})->name('profile.phone.update');
 
+	// Profile detail updates
+	Route::post('/profile/details/names', [\App\Http\Controllers\ProfileDetailsController::class, 'updateNames'])->name('profile.details.names');
+	Route::post('/profile/details/gender', [\App\Http\Controllers\ProfileDetailsController::class, 'updateGender'])->name('profile.details.gender');
+	Route::post('/profile/details/birthdate', [\App\Http\Controllers\ProfileDetailsController::class, 'updateBirthdate'])->name('profile.details.birthdate');
+	Route::post('/profile/details/location', [\App\Http\Controllers\ProfileDetailsController::class, 'updateLocation'])->name('profile.details.location');
+	Route::post('/profile/details/speciality', [\App\Http\Controllers\ProfileDetailsController::class, 'updateSpeciality'])->name('profile.details.speciality');
+
 
 
 	// Return current authenticated user's status (used by polling on /perfil)
@@ -1984,42 +1991,6 @@ Route::middleware('auth')->group(function(){
 		}
 	})->name('friend.requests.outgoing');
 
-	// Create a new friend request
-	Route::post('/friend/{user}/request', function(\App\Models\User $user){
-		$me = auth()->user();
-		if ($me->id === $user->id) { return response()->json(['ok'=>false,'error'=>'self'], 422); }
-		try {
-			if (!\Illuminate\Support\Facades\Schema::hasTable('friend_requests')) {
-				return response()->json(['ok'=>false,'error'=>'unavailable'], 503);
-			}
-			// Optional role gating: allow only user<->professional (2<->3) if roles table is present
-			try {
-				$myRoles = method_exists($me, 'roles') ? $me->roles()->pluck('id')->map(fn($i)=>(int)$i)->toArray() : [];
-				$targetRoles = method_exists($user, 'roles') ? $user->roles()->pluck('id')->map(fn($i)=>(int)$i)->toArray() : [];
-				$is2 = in_array(2, $myRoles, true); $is3 = in_array(3, $myRoles, true);
-				$targetIs2 = in_array(2, $targetRoles, true); $targetIs3 = in_array(3, $targetRoles, true);
-				if (($is2 && !$targetIs3) || ($is3 && !$targetIs2)) {
-					return response()->json(['ok'=>false,'error'=>'role_mismatch'], 403);
-				}
-			} catch (\Throwable $_) { /* ignore gating if roles absent */ }
-
-			// Prevent duplicates (pending either direction)
-			$exists = \App\Models\FriendRequest::where(function($q) use ($me,$user){
-				$q->where([['from_id',$me->id],['to_id',$user->id]])
-				 ->orWhere([['from_id',$user->id],['to_id',$me->id]]);
-			})->where('status','pending')->exists();
-			if ($exists) { return response()->json(['ok'=>true,'duplicate'=>true]); }
-
-			\App\Models\FriendRequest::create([
-				'from_id' => $me->id,
-				'to_id' => $user->id,
-				'status' => 'pending',
-			]);
-			return response()->json(['ok'=>true]);
-		} catch (\Throwable $e) {
-			return response()->json(['ok'=>false,'error'=>'server'], 500);
-		}
-	})->name('friend.request.create');
 });
 
 	// Simple JSON endpoints for AJAX notifications polling and marking
