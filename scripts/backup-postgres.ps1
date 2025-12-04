@@ -14,7 +14,7 @@ if (Test-Path $envPath) {
             $key = $Matches[1].Trim()
             $val = $Matches[2].Trim()
             if ($val.StartsWith('"') -and $val.EndsWith('"')) { $val = $val.Trim('"') }
-            elseif ($val.StartsWith('\'') -and $val.EndsWith('\'')) { $val = $val.Trim('\'') }
+            elseif ($val.StartsWith("'") -and $val.EndsWith("'")) { $val = $val.Trim("'") }
             $dotenv[$key] = $val
         }
     }
