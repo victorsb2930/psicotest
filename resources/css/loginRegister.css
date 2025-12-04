@@ -116,6 +116,14 @@
 	margin-left: -100%;
 }
 
+.page_signIn {
+    background-color: var(--brand-600, #0369a1) !important;
+}
+
+.page_signUp {
+    background-color: var(--brand-600, #0369a1) !important;
+}
+
 .login-container.active .overlay .page.page_signUp {
 	margin-left: 0%;
 }

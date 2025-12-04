@@ -66,8 +66,8 @@
 				{{ $errors->first() }}
 			</div>
 		@endif
-		<div class="row">
-			<div class="col-md-4 text-center">
+		<div class="row gy-4 align-items-stretch">
+			<div class="col-12 col-lg-4">
 				@php
 					$user = auth()->user();
 					$avatar = Vite::asset('resources/images/default-avatar.png');
@@ -84,19 +84,32 @@
 					$color = $colors[$status] ?? $colors['offline'];
 				@endphp
 
-				<div id="profile-avatar" style="position:relative; display:inline-block;">
-					<img id="profile-avatar-img" src="{{ $avatar }}" alt="avatar" class="rounded-circle" width="140" height="140">
-					<span id="profile-presence" style="position:absolute; right:12px; bottom:12px; width:16px; height:16px; border-radius:50%; border:3px solid #fff; background:{{ $color }}; cursor:pointer;" aria-hidden="true"></span>
-					<span id="profile-presence-desc" class="small text-muted" style="position:absolute; left:calc(100% + 8px); bottom:12px; white-space:nowrap;">{{ $label }}</span>
-				</div>
-				<div class="mt-3">
-					<label class="btn btn-sm btn-outline-secondary" id="btn-change-photo">Subir foto</label>
-					<input id="input-photo" type="file" accept="image/*" style="display:none">
+				<div class="h-100 bg-light-subtle rounded-4 p-4 d-flex flex-column gap-3 text-center text-lg-start align-items-center align-items-lg-start">
+					<div class="w-100 d-flex flex-column flex-sm-row flex-lg-column align-items-center align-items-sm-start gap-4">
+						<div id="profile-avatar" class="position-relative">
+							<img id="profile-avatar-img" src="{{ $avatar }}" alt="avatar" class="rounded-circle shadow-sm" width="140" height="140">
+							<span id="profile-presence" style="position:absolute; right:12px; bottom:12px; width:16px; height:16px; border-radius:50%; border:3px solid #fff; background:{{ $color }}; cursor:pointer;" aria-hidden="true"></span>
+						</div>
+						<div class="d-flex flex-column gap-1 text-center text-sm-start text-lg-start">
+							<span class="small text-muted">Estado actual</span>
+							<div class="d-flex align-items-center justify-content-center justify-content-sm-start gap-2">
+								<span id="profile-presence-desc" class="fw-semibold">{{ $label }}</span>
+								<span class="badge rounded-pill bg-secondary-subtle text-secondary">Cambiar</span>
+							</div>
+						</div>
+					</div>
+					<div class="w-100 d-flex flex-column flex-sm-row gap-2 justify-content-center justify-content-lg-start">
+						<label class="btn btn-outline-secondary w-100 w-sm-auto" id="btn-change-photo">Subir foto</label>
+						<input id="input-photo" type="file" accept="image/*" style="display:none">
+					</div>
 				</div>
 			</div>
-			<div class="col-md-8">
-				<h5 id="profile-display-name" data-profile-field="full_name">{{ $profileFullName }}</h5>
-				<p class="text-muted mb-1">{{ $user->email }}</p>
+			<div class="col-12 col-lg-8 d-flex flex-column gap-4">
+				<div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
+					<div>
+						<h5 id="profile-display-name" data-profile-field="full_name" class="mb-1">{{ $profileFullName }}</h5>
+						<p class="text-muted mb-0">{{ $user->email }}</p>
+					</div>
 				@php
 					$twoFactorPref = false;
 					try {
@@ -125,33 +138,54 @@
 						}
 					}
 				@endphp
-				<p class="mb-2"><strong>Tipo de plan:</strong> {{ $currentPlanName }}</p>
-				<div class="mt-4">
-					<h6 class="text-uppercase text-muted small mb-3">Datos personales</h6>
-					<dl class="row gy-2 mb-0">
-						<dt class="col-sm-4 text-muted small">Nombres</dt>
-						<dd class="col-sm-8" data-profile-field="name">{{ $user->name ?? 'No especificado' }}</dd>
-						<dt class="col-sm-4 text-muted small">Apellidos</dt>
-						<dd class="col-sm-8" data-profile-field="lastname">{{ $user->lastname ?? 'No especificado' }}</dd>
-						<dt class="col-sm-4 text-muted small">Género</dt>
-						<dd class="col-sm-8" data-profile-field="gender">{{ $genderDisplay ?? 'No especificado' }}</dd>
-						<dt class="col-sm-4 text-muted small">Nacimiento</dt>
-						<dd class="col-sm-8">
-							<span data-profile-field="birthdate">{{ $birthdateDisplay }}</span>
-							<span class="text-muted ms-2" data-profile-field="age">{{ $ageDisplay ? $ageDisplay.' años' : '' }}</span>
-						</dd>
-						<dt class="col-sm-4 text-muted small">Ubicación</dt>
-						<dd class="col-sm-8" data-profile-field="location">{{ $locationDisplay ?? 'No especificada' }}</dd>
-						@if($isProfessional)
-							<dt class="col-sm-4 text-muted small">Especialidad</dt>
-							<dd class="col-sm-8" data-profile-field="speciality">{{ $specialityDisplay ?? 'No especificada' }}</dd>
-						@endif
-					</dl>
+                @if($user->hasRole('user'))
+					<p class="mb-0 fw-semibold text-primary">Plan actual: {{ $currentPlanName }}</p>
+                @endif
 				</div>
-				@include('components.friend_button', ['user' => $user])
-				<hr>
-				<h6>Galería</h6>
-				<div id="photo-gallery" class="d-flex gap-2 flex-wrap"></div>
+				<div class="bg-light rounded-4 p-3 p-md-4">
+					<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+						<h6 class="text-uppercase text-muted small mb-0">Datos personales</h6>
+						<span class="badge bg-white text-muted border">Actualiza desde el menú</span>
+					</div>
+					<div class="row row-cols-1 row-cols-sm-2 g-3">
+						<div class="col">
+							<span class="text-muted text-uppercase small">Nombres</span>
+							<p class="mb-0 fw-semibold" data-profile-field="name">{{ $user->name ?? 'No especificado' }}</p>
+						</div>
+						<div class="col">
+							<span class="text-muted text-uppercase small">Apellidos</span>
+							<p class="mb-0 fw-semibold" data-profile-field="lastname">{{ $user->lastname ?? 'No especificado' }}</p>
+						</div>
+						<div class="col">
+							<span class="text-muted text-uppercase small">Género</span>
+							<p class="mb-0 fw-semibold" data-profile-field="gender">{{ $genderDisplay ?? 'No especificado' }}</p>
+						</div>
+						<div class="col">
+							<span class="text-muted text-uppercase small">Nacimiento</span>
+							<div class="d-flex flex-wrap gap-2 align-items-baseline">
+								<span class="fw-semibold" data-profile-field="birthdate">{{ $birthdateDisplay }}</span>
+								<span class="text-muted small" data-profile-field="age">{{ $ageDisplay ? $ageDisplay.' años' : '' }}</span>
+							</div>
+						</div>
+						<div class="col">
+							<span class="text-muted text-uppercase small">Ubicación</span>
+							<p class="mb-0 fw-semibold" data-profile-field="location">{{ $locationDisplay ?? 'No especificada' }}</p>
+						</div>
+						@if($isProfessional)
+							<div class="col">
+								<span class="text-muted text-uppercase small">Especialidad</span>
+								<p class="mb-0 fw-semibold" data-profile-field="speciality">{{ $specialityDisplay ?? 'No especificada' }}</p>
+							</div>
+						@endif
+					</div>
+				</div>
+				<div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-3">
+					@include('components.friend_button', ['user' => $user])
+				</div>
+				<div class="pt-3 border-top">
+					<h6 class="mb-3">Galería</h6>
+					<div id="photo-gallery" class="d-flex flex-wrap gap-3 justify-content-center justify-content-md-start"></div>
+				</div>
 			</div>
 		</div>
 		<div id="profileMeta" class="d-none"
