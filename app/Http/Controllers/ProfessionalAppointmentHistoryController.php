@@ -17,6 +17,7 @@ class ProfessionalAppointmentHistoryController extends Controller
         $status = strtolower(trim((string)$request->query('status','')));
         if ($status !== '' && !in_array($status, $allowedStatusFilter, true)) { $status = ''; }
         $patient = trim((string)$request->query('patient',''));
+        $patientId = (int) $request->query('patient_id', 0);
         $from = $request->query('from');
         $to = $request->query('to');
         $sort = $request->query('sort','start_desc');
@@ -34,12 +35,17 @@ class ProfessionalAppointmentHistoryController extends Controller
                   ->orWhere('email','like', "%{$patient}%");
             });
         }
+        if ($patientId > 0) {
+            $query->where('patient_id', $patientId);
+        }
         if ($from) { try { $query->where('start','>=', \Carbon\Carbon::parse($from)); } catch (\Throwable $_) {} }
         if ($to) { try { $query->where('start','<=', \Carbon\Carbon::parse($to)->endOfDay()); } catch (\Throwable $_) {} }
         $sortMap = [ 'start_desc' => ['start','desc'], 'start_asc' => ['start','asc'], 'status' => ['status','asc'] ];
         [$col,$dir] = $sortMap[$sort] ?? ['start','desc'];
         $query->orderBy($col,$dir);
-        return [$query, $allowedStatusFilter, compact('status','patient','from','to','sort')];
+        $filters = compact('status','patient','from','to','sort');
+        $filters['patient_id'] = $patientId > 0 ? $patientId : null;
+        return [$query, $allowedStatusFilter, $filters];
     }
     public function index(Request $request)
     {

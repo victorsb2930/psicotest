@@ -2,6 +2,39 @@
 import { modalConfirm } from '../utils/modalConfirm';
 
 const getPayoutButton = () => document.getElementById('btn-create-payout');
+const getBalanceElement = () => document.getElementById('admin-platform-balance');
+const getPayoutsElement = () => document.getElementById('admin-platform-payouts');
+const safeHtml = (value) => {
+  const str = String(value ?? '');
+  try {
+    return typeof window !== 'undefined' && typeof window.escapeHtml === 'function'
+      ? window.escapeHtml(str)
+      : str.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] || c));
+  } catch (_) {
+    return str;
+  }
+};
+
+const formatUsd = (valueCents) => {
+  const cents = Number.isFinite(valueCents) ? valueCents : 0;
+  return '$' + (Math.max(0, cents) / 100).toFixed(2);
+};
+
+const formatAmount = (valueCents, currency = 'USD') => {
+  const cents = Number.isFinite(valueCents) ? valueCents : 0;
+  return (Math.max(0, cents) / 100).toFixed(2) + ' ' + (currency || 'USD');
+};
+
+const formatDateTime = (value) => {
+  if (!value) return '—';
+  try {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return date.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
+  } catch (_) {
+    return value;
+  }
+};
 
 function getPlatformBalanceCents() {
   const btn = getPayoutButton();
@@ -18,13 +51,72 @@ function updatePlatformBalanceCents(newBalance) {
   const safeValue = Math.max(0, Number.isFinite(newBalance) ? newBalance : 0);
   btn.dataset.platformBalanceCents = String(safeValue);
   btn.dataset.platformBalance = (safeValue / 100).toFixed(2);
+  const balanceEl = getBalanceElement();
+  if (balanceEl) {
+    balanceEl.dataset.balanceCents = String(safeValue);
+    balanceEl.textContent = formatUsd(safeValue);
+  }
 }
 
 const notify = (title, description, template = 'info') => {
   if (typeof window !== 'undefined' && typeof window.modalNotification === 'function') {
     window.modalNotification(title, description, { template });
+  } else if (typeof window !== 'undefined') {
+    try {
+      window.alert(`${title}\n\n${description}`);
+    } catch (_) {}
   }
 };
+
+function incrementPayoutTotals(amountCents) {
+  const el = getPayoutsElement();
+  if (!el) return;
+  const current = parseInt(el.dataset.payoutsCents || '0', 10) || 0;
+  const next = Math.max(0, current + (Number.isFinite(amountCents) ? amountCents : 0));
+  el.dataset.payoutsCents = String(next);
+  el.textContent = formatUsd(next);
+}
+
+function buildName(user, fallbackName = '—') {
+  if (!user) return fallbackName;
+  const name = [user.name, user.lastname].filter(Boolean).join(' ').trim();
+  return name || fallbackName;
+}
+
+function buildUserCell(user, fallbackName = '—', fallbackEmail = '') {
+  const name = buildName(user, fallbackName);
+  const email = user?.email || fallbackEmail;
+  if (!email) return safeHtml(name);
+  return `${safeHtml(name)}<div class="small text-muted">${safeHtml(email)}</div>`;
+}
+
+function prependPaymentRow(payment, extras = {}) {
+  if (!payment) return;
+  const tbody = document.getElementById('admin-payments-tbody');
+  if (!tbody) return;
+  const row = document.createElement('tr');
+  row.className = 'table-success';
+  const recipientCell = buildUserCell(payment.recipient, extras.recipientName || '—', extras.recipientEmail || '');
+  const payerCell = buildUserCell(payment.user, '—');
+  const amountText = formatAmount(payment.amount_cents ?? payment.amountCents ?? 0, payment.currency);
+  const statusText = safeHtml(payment.status ?? 'pending');
+  const providerText = safeHtml(payment.provider ?? 'manual');
+  const typeText = safeHtml(payment.type ?? 'payout');
+  row.innerHTML = `
+    <td>${safeHtml(payment.id ?? '—')}</td>
+    <td>${safeHtml(formatDateTime(payment.created_at))}</td>
+    <td>${payerCell}</td>
+    <td>${recipientCell}</td>
+    <td>${typeText}</td>
+    <td>${safeHtml(amountText)}</td>
+    <td>${statusText}</td>
+    <td>${providerText}</td>
+  `;
+  tbody.prepend(row);
+  setTimeout(() => {
+    row.classList.remove('table-success');
+  }, 4000);
+}
 
 function renderSearchResults(container, items) {
   container.innerHTML = '';
@@ -47,11 +139,19 @@ function renderSearchResults(container, items) {
     btn.appendChild(badges);
     btn.dataset.userId = u.id;
     btn.dataset.userName = (u.name || '') + (u.lastname ? (' ' + u.lastname) : '');
+    if (u.email) btn.dataset.userEmail = u.email;
     btn.addEventListener('click', () => {
       // mark selected
       container.querySelectorAll('.list-group-item').forEach(n => n.classList.remove('active'));
       btn.classList.add('active');
-      const target = document.getElementById('admin-payout-selected-id'); if (target) { target.value = u.id; target.dataset.completed = (u.completed_count ?? 0); target.dataset.completedMonth = (u.completed_count_month ?? 0); }
+      const target = document.getElementById('admin-payout-selected-id');
+      if (target) {
+        target.value = u.id;
+        target.dataset.completed = (u.completed_count ?? 0);
+        target.dataset.completedMonth = (u.completed_count_month ?? 0);
+        target.dataset.email = u.email || '';
+        target.dataset.name = btn.dataset.userName || '';
+      }
       const targetName = document.getElementById('admin-payout-selected-name'); if (targetName) targetName.textContent = btn.dataset.userName;
       // show additional info about counts
       const infoEl = document.getElementById('admin-payout-selected-info'); if (infoEl) {
@@ -129,6 +229,9 @@ async function openPayoutModal() {
     const period = document.getElementById('admin-payout-period')?.value || 'total';
     const rateValue = document.getElementById('admin-payout-rate')?.value?.trim() || '';
     const notes = document.getElementById('admin-payout-notes')?.value?.trim() || '';
+    const selectedMeta = document.getElementById('admin-payout-selected-id');
+    const selectedName = document.getElementById('admin-payout-selected-name')?.textContent?.trim() || 'el profesional';
+    const selectedEmail = selectedMeta?.dataset.email || '';
     if (!recipient) { if (feedback) { feedback.textContent = 'Selecciona un profesional.'; feedback.style.display = ''; } return; }
     if (!amount) { if (feedback) { feedback.textContent = 'Ingresa un monto válido.'; feedback.style.display = ''; } notify('Monto inválido', 'Ingresa un monto mayor a cero.', 'warning'); return; }
     const normalizedAmount = amount.replace(',', '.');
@@ -158,11 +261,13 @@ async function openPayoutModal() {
         notify('No se pudo crear el payout', message, res.status === 422 ? 'warning' : 'danger');
         return;
       }
-      notify('Payout registrado', 'Se registró el pago al profesional.', 'success');
+      const successMsg = `Registramos el payout de $${numericAmount.toFixed(2)} ${currency} para ${selectedName}.`;
+      notify('Payout registrado', successMsg, 'success');
       if (balanceCents !== null) {
         updatePlatformBalanceCents(Math.max(0, balanceCents - amountCents));
       }
-      setTimeout(() => { location.reload(); }, 650);
+      incrementPayoutTotals(amountCents);
+      prependPaymentRow(j.payment, { recipientName: selectedName, recipientEmail: selectedEmail });
     } catch (e) {
       if (feedback) { feedback.textContent = 'Error de red'; feedback.style.display = ''; }
       notify('Error de red', 'No se pudo conectar con el servidor.', 'danger');

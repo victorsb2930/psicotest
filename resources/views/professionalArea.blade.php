@@ -105,12 +105,16 @@
 						$completed_total = 0;
 						$income_30d = 0;
 						$income_total = 0;
+						$pending_payout = 0;
+						$last_payout = null;
 						$rating_avg = null;
 						try {
 							$completed_month = \App\Models\Appointment::where('professional_id', $pro->id)->where('status', 'completed')->whereBetween('start', [$start, $end])->count();
 							$completed_total = \App\Models\Appointment::where('professional_id', $pro->id)->where('status', 'completed')->count();
 							$income_30d = (int) (\App\Models\Payment::where('recipient_user_id', $pro->id)->where('status', 'succeeded')->where('created_at', '>=', \Carbon\Carbon::now()->subDays(30))->sum('amount_cents')) / 100;
 							$income_total = (int) (\App\Models\Payment::where('recipient_user_id', $pro->id)->where('status', 'succeeded')->sum('amount_cents')) / 100;
+							$pending_payout = (int) (\App\Models\Payment::where('recipient_user_id', $pro->id)->where('type','payout')->where('status','pending')->sum('amount_cents')) / 100;
+							$last_payout = \App\Models\Payment::where('recipient_user_id', $pro->id)->where('type','payout')->latest('created_at')->first();
 							$rating_avg = $pro->ratings_avg ?? \App\Models\AppointmentRating::where('professional_id', $pro->id)->avg('rating');
 						} catch (\Throwable $_) {
 							// silently ignore DB errors in view
@@ -136,6 +140,21 @@
 								{{-- <a href="#" class="btn btn-outline-primary btn-sm">Nuevo cupón</a>
 								<a href="#" class="btn btn-outline-secondary btn-sm">Exportar facturas</a> --}}
 								<a href="{{ route('professional.appointments.history') }}" class="btn btn-outline-success btn-sm">Historial de citas</a>
+								<a href="{{ route('professional.payments.history') }}" class="btn btn-outline-primary btn-sm">Pagos y retiros</a>
+							</div>
+						</x-card>
+
+						<x-card title="Pagos" :hover="false" :center="false" height="auto" width="100%" >
+							<div class="d-flex justify-content-between align-items-center">
+								<div>Pendiente por confirmar</div>
+								<div class="fw-bold text-warning">${{ number_format($pending_payout, 2) }}</div>
+							</div>
+							<div class="d-flex justify-content-between align-items-center mt-2 small text-muted">
+								<div>Último payout</div>
+								<div>{{ $last_payout?->created_at?->format('d/m/Y') ?? '—' }}</div>
+							</div>
+							<div class="mt-3">
+								<a href="{{ route('professional.payments.history') }}" class="btn btn-sm btn-outline-primary w-100">Gestionar pagos</a>
 							</div>
 						</x-card>
 					</div>

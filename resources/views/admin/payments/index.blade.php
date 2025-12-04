@@ -11,11 +11,15 @@
         <div class="d-flex align-items-center gap-3">
             <div>
                 <small class="text-muted">Capital de la plataforma</small>
-                <div><strong>${{ $platform_balance ?? '0.00' }}</strong></div>
+                <div><strong id="admin-platform-balance" data-balance-cents="{{ $platform_balance_cents ?? 0 }}">${{ $platform_balance ?? '0.00' }}</strong></div>
             </div>
             <div class="text-muted small">
-                <div>Recibido por ventas: ${{ $platform_received ?? '0.00' }}</div>
-                <div>Pagos a profesionales: ${{ $platform_payouts ?? '0.00' }}</div>
+                <div>Recibido por ventas: $
+                    <span id="admin-platform-received" data-received-cents="{{ $platform_received_cents ?? 0 }}">{{ $platform_received ?? '0.00' }}</span>
+                </div>
+                <div>Pagos a profesionales: $
+                    <span id="admin-platform-payouts" data-payouts-cents="{{ $platform_payouts_cents ?? 0 }}">{{ $platform_payouts ?? '0.00' }}</span>
+                </div>
             </div>
         </div>
     </div>
@@ -63,7 +67,7 @@
                     <th>Proveedor</th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody id="admin-payments-tbody">
                 @foreach($payments as $p)
                 <tr>
                     <td>{{ $p->id }}</td>

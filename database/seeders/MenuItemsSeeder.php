@@ -71,6 +71,7 @@ class MenuItemsSeeder extends Seeder
             ['label' => 'Mi cuenta', 'route_name' => 'userarea', 'icon_class' => 'bi bi-house', 'section' => 'user', 'sort_order' => 10, 'permission' => 'userarea'],
             ['label' => 'Calendario', 'route_name' => 'appointments.index', 'icon_class' => 'bi bi-calendar3', 'section' => 'user', 'sort_order' => 20, 'permission' => null],
             ['label' => 'Buscar profesionales', 'route_name' => 'professionals.index', 'icon_class' => 'bi bi-search', 'section' => 'user', 'sort_order' => 30, 'permission' => 'userarea'],
+            ['label' => 'Mis profesionales', 'route_name' => 'user.professionals', 'icon_class' => 'bi bi-people', 'section' => 'user', 'sort_order' => 35, 'permission' => 'userarea'],
             ['label' => 'Favoritos', 'route_name' => 'favorites', 'icon_class' => 'bi bi-star', 'section' => 'user', 'sort_order' => 40, 'permission' => 'userarea'],
             // Chat es compartido entre roles; sin permiso específico para no depender de userarea/professionalarea
             ['label' => 'Chat', 'route_name' => 'chat.index', 'icon_class' => 'bi bi-chat-dots', 'section' => 'common', 'sort_order' => 50, 'permission' => null],
@@ -122,7 +123,7 @@ class MenuItemsSeeder extends Seeder
         // Professional items -> role professional (Chat y Calendario usuario se anexan aparte)
         foreach (['Mi panel','Calendario Profesional','Disponibilidad','Mis Calificaciones','Pacientes','Servicios','Historial de Citas','Historial de Pagos','Configuración'] as $lbl) { $attach($lbl, ['professional']); }
         // User items -> role user (Chat común más abajo)
-        foreach (['Mi cuenta','Calendario','Buscar profesionales','Favoritos','Planes'] as $lbl) { $attach($lbl, ['user']); }
+        foreach (['Mi cuenta','Calendario','Buscar profesionales','Mis profesionales','Favoritos','Planes'] as $lbl) { $attach($lbl, ['user']); }
         // Chat compartido para ambos roles
         $attach('Chat', ['professional','user']);
         // Common: no pivot to show for all roles

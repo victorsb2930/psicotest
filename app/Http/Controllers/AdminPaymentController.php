@@ -27,7 +27,11 @@ class AdminPaymentController extends Controller
             'admin.payments.index',
             array_merge(
                 compact('payments', 'platform_received', 'platform_payouts', 'platform_balance'),
-                ['platform_balance_cents' => $totals['balance']]
+                [
+                    'platform_balance_cents' => $totals['balance'],
+                    'platform_received_cents' => $totals['received'],
+                    'platform_payouts_cents' => $totals['payouts'],
+                ]
             )
         );
     }
@@ -90,7 +94,7 @@ class AdminPaymentController extends Controller
             ]);
 
             try {
-                $payment->loadMissing('recipient');
+                $payment->loadMissing(['recipient','user']);
                 if ($payment->recipient && $payment->recipient->email) {
                     Mail::to($payment->recipient->email)->send(new ProfessionalPayoutNotification($payment));
                 }

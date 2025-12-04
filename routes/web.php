@@ -361,6 +361,8 @@ Route::middleware(['auth'])->group(function(){
 		Route::get('/calendar/patients', [\App\Http\Controllers\ProfessionalCalendarController::class, 'searchPatients'])->name('professional.calendar.patients');
 		Route::post('/calendar/events/{appointment}/accept', [\App\Http\Controllers\AppointmentController::class, 'accept'])->name('appointments.accept');
 		Route::post('/calendar/events/{appointment}/reject', [\App\Http\Controllers\AppointmentController::class, 'reject'])->name('appointments.reject');
+		// Unique patients served by the professional
+		Route::get('/patients', [\App\Http\Controllers\ProfessionalPatientsController::class, 'index'])->name('professional.patients');
 			// Appointment history (past & finalized appointments)
 			Route::get('/appointments/history', [\App\Http\Controllers\ProfessionalAppointmentHistoryController::class, 'index'])->name('professional.appointments.history');
 			Route::get('/appointments/history/export', [\App\Http\Controllers\ProfessionalAppointmentHistoryController::class, 'export'])->name('professional.appointments.history.export');
@@ -368,6 +370,8 @@ Route::middleware(['auth'])->group(function(){
 			// Payments history for professionals
 			Route::get('/payments', [\App\Http\Controllers\ProfessionalPaymentsController::class, 'index'])->name('professional.payments.history');
 			Route::get('/payments/export', [\App\Http\Controllers\ProfessionalPaymentsController::class, 'export'])->name('professional.payments.history.export');
+			Route::post('/payments/{payment}/confirm', [\App\Http\Controllers\ProfessionalPaymentsController::class, 'confirm'])->name('professional.payments.confirm');
+			Route::post('/payments/card-transfer', [\App\Http\Controllers\ProfessionalPaymentsController::class, 'requestCardTransfer'])->name('professional.payments.card_transfer');
 	});
 
 });
@@ -379,6 +383,7 @@ Route::middleware(['auth'])->group(function(){
         // Show public profile page for a professional
         Route::get('/professional/profile/{id}', [\App\Http\Controllers\ProfessionalSearchController::class, 'show'])->name('professionals.show');
 		Route::get('/professionals/{id}/ratings/public', [\App\Http\Controllers\ProfessionalSearchController::class, 'publicRatings'])->name('professionals.ratings.public');
+		Route::get('/user/professionals', [\App\Http\Controllers\UserProfessionalsController::class, 'index'])->name('user.professionals');
 	});
 
 	Route::get('/userarea', function () {

@@ -1,6 +1,13 @@
 @extends('layout')
 @section('title', 'Perfil profesional')
 @section('content')
+@php
+    $requestedBack = request('back');
+    $backUrl = '/professionals';
+    if (is_string($requestedBack) && $requestedBack !== '') {
+        $backUrl = str_starts_with($requestedBack, '/') ? $requestedBack : $backUrl;
+    }
+@endphp
 <div class="container py-4">
     <div class="row">
         <div class="col-md-4">
@@ -12,7 +19,7 @@
                     <h4 class="mt-2">{{ $u->name }}</h4>
                     <div class="text-muted">{{ $u->speciality ?? 'General' }}</div>
                     <div class="mt-3">
-                        <a href="/professionals" class="btn btn-sm btn-outline-secondary">Volver</a>
+                        <a href="{{ $backUrl }}" class="btn btn-sm btn-outline-secondary">Volver</a>
                     </div>
                 </div>
             </div>

@@ -50,6 +50,7 @@ const pageModuleMap = {
 	,'professional-area': './pages/professional.area.js'
 	,'professional-ratings': './pages/professional.ratings.js'
 	,'user-area': './pages/user.area.js'
+	,'user-professionals': './pages/user.professionals.js'
 	,'professional-payments': './pages/professional.payments.js'
 	,'2fa-challenge': './pages/2fa/twofactor_challenge.js'
 };

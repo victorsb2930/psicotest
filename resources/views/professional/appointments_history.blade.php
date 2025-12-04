@@ -11,6 +11,9 @@
     <div class="mb-3 d-flex flex-wrap gap-2 align-items-center">
         <a href="{{ route('professionalarea') }}" class="btn btn-sm btn-outline-secondary">&larr; Volver</a>
         <form method="get" class="row g-2 align-items-end" style="flex:1;">
+            @if(!empty($filters['patient_id']))
+                <input type="hidden" name="patient_id" value="{{ $filters['patient_id'] }}">
+            @endif
             <div class="col-md-2">
                 <label class="form-label small mb-1">Estado</label>
                 <select name="status" class="form-select form-select-sm">
