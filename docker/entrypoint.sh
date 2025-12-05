@@ -15,8 +15,8 @@ if [ "$RENDER_RUNTIME" = "1" ]; then
   INSTALL_FLAGS="$INSTALL_FLAGS --no-dev"
 fi
 
-# Ensure Composer dependencies
-if [ ! -d "/var/www/html/vendor" ]; then
+# Ensure Composer dependencies (allow forcing install even if vendor exists)
+if [ ! -d "/var/www/html/vendor" ] || [ "${FORCE_COMPOSER_INSTALL:-0}" = "1" ]; then
   echo "Installing PHP dependencies with Composer..."
   composer install $INSTALL_FLAGS
 fi
