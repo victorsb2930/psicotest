@@ -690,7 +690,7 @@
 		// Read default avatar from meta (set via Blade) so editors keep syntax highlighting
 		window.__defaultAvatar = (document.querySelector('meta[name="default-avatar"]') || {}).content || null;
 	</script>
-	@vite(['resources/js/realtime.js', 'resources/js/rtc.js'])
+	{{-- Real-time handled via app.js (imports realtime/rtc dynamically) --}}
 
 	<script>
 	// Footer modals: Política de privacidad y Términos de uso

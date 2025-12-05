@@ -13,7 +13,8 @@ export default defineConfig(({ mode }) => ({
 				// CSS PAGES
 				'resources/css/loginRegister.css',
 				'resources/css/layout.css',
-				'resources/css/admin.css'
+				'resources/css/admin.css',
+				'resources/css/pages/chat.css'
 			],
 			refresh: true,
 		}),
