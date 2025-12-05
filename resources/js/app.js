@@ -15,6 +15,12 @@ import './partials/quickLogin';
 import './notifications';
 import './partials/reopen2fa';
 
+// Preload static marketing images so Vite includes them in the production manifest
+const staticMarketingAssets = import.meta.glob(['../images/**'], { eager: true, import: 'default' });
+if (typeof window !== 'undefined') {
+	window.__pgMarketingAssets = staticMarketingAssets;
+}
+
 /*
 * Agrego aqui tambien la configuracion global CSRF => CSRF token mismatch.
 */
