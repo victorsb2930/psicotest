@@ -27,10 +27,20 @@ if [ ! -f "/var/www/html/.env" ]; then
   cp /var/www/html/.env.example /var/www/html/.env || true
 fi
 
-# Generate app key if missing
+# Ensure APP_KEY placeholder exists in .env so artisan command can fill it
+if ! grep -q "^APP_KEY=" /var/www/html/.env; then
+  echo "Appending APP_KEY placeholder to .env"
+  printf '\nAPP_KEY=\n' >> /var/www/html/.env
+fi
+
+# Generate app key if missing locally and not provided via env
 if ! grep -q "^APP_KEY=base64:" /var/www/html/.env; then
-  echo "Generating APP_KEY..."
-  php artisan key:generate --force
+  if [ -n "$APP_KEY" ]; then
+    echo "APP_KEY provided via environment; skipping key generation."
+  else
+    echo "Generating APP_KEY..."
+    php artisan key:generate --force
+  fi
 fi
 
 # Wait for Postgres
