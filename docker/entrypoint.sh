@@ -72,6 +72,10 @@ if [ ! -e public/storage ]; then
   php artisan storage:link || true
 fi
 
+# Ensure cache directories exist and are writable at runtime
+mkdir -p /var/www/html/storage/framework/views /var/www/html/storage/framework/cache /var/www/html/storage/logs /var/www/html/bootstrap/cache || true
+chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache || true
+
 # Cache config/routes/views for speed (ignore failures in dev)
 php artisan optimize:clear || true
 php artisan config:cache || true
