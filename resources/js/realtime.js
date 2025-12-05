@@ -9,13 +9,16 @@ const driver = (import.meta.env.VITE_BROADCAST_DRIVER || metaDriver || 'pusher')
 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
 let echoConfig = null;
 if (driver === 'reverb') {
+	const host = window?.location?.hostname || import.meta.env.VITE_REVERB_HOST || 'localhost';
+	const isHttps = (typeof window !== 'undefined' && window.location && window.location.protocol === 'https:');
+	const port = import.meta.env.VITE_REVERB_PORT || (isHttps ? '443' : '80');
 	echoConfig = {
 		broadcaster: 'reverb',
 		key: import.meta.env.VITE_REVERB_APP_KEY || 'reverbkey',
-		wsHost: import.meta.env.VITE_REVERB_HOST || window.location.hostname,
-		wsPort: parseInt(import.meta.env.VITE_REVERB_PORT || '8080', 10),
-		wssPort: parseInt(import.meta.env.VITE_REVERB_PORT || '8080', 10),
-		forceTLS: false,
+		wsHost: host,
+		wsPort: parseInt(port, 10),
+		wssPort: parseInt(port, 10),
+		forceTLS: isHttps,
 		enabledTransports: ['ws', 'wss'],
 		authEndpoint: '/broadcasting/auth',
 		auth: {

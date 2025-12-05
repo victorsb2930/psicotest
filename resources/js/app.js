@@ -63,6 +63,18 @@ const pageModuleMap = {
 	,'2fa-challenge': './pages/2fa/twofactor_challenge.js'
 };
 
+// Preload page modules so Vite emite los chunks en build (evita 404 tipo index.js)
+const __pgPageModules = import.meta.glob([
+	'./index.js',
+	'./loginRegister.js',
+	'./contact.js',
+	'./pages/**/*.js',
+	'./components/**/*.js'
+]);
+if (typeof window !== 'undefined') {
+	window.__pgPageModules = __pgPageModules;
+}
+
 async function initPage() {
 	// Determine current page name from multiple possible markers so the
 	// page-module loader works whether `data-page` is placed on <body>,
