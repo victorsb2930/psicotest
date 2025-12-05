@@ -843,6 +843,7 @@
 	<script>
 	// Global counters dynamic update
 	document.addEventListener('DOMContentLoaded', function(){
+		if (!window.__isAuth && !window.__authUserId) return; // skip polling for guests
 		async function fetchCounters(){
 			try { const r = await fetch('/api/counters'); const j = await r.json(); if(!j.ok) return; apply(j); } catch(_){ }
 		}

@@ -64,7 +64,7 @@ const pageModuleMap = {
 };
 
 // Preload page modules so Vite emite los chunks en build (evita 404 tipo index.js)
-const __pgPageModules = import.meta.glob([
+const pageModuleLoaders = import.meta.glob([
 	'./index.js',
 	'./loginRegister.js',
 	'./contact.js',
@@ -72,7 +72,7 @@ const __pgPageModules = import.meta.glob([
 	'./components/**/*.js'
 ]);
 if (typeof window !== 'undefined') {
-	window.__pgPageModules = __pgPageModules;
+	window.__pgPageModules = pageModuleLoaders;
 }
 
 async function initPage() {
@@ -112,7 +112,13 @@ async function initPage() {
 			currentPageModuleDestroy = null;
 			return;
 		}
-		const mod = await import(/* @vite-ignore */ modulePath);
+		const loader = pageModuleLoaders[modulePath];
+		if (!loader) {
+			currentPageModule = null;
+			currentPageModuleDestroy = null;
+			return;
+		}
+		const mod = await loader();
 		currentPageModule = mod;
 		// Si exporta init(), llamarla
 		if (typeof mod.init === 'function') {
