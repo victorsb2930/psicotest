@@ -16,6 +16,8 @@ RUN apk add --no-cache \
     sqlite-dev \
     zip \
     unzip \
+    nodejs \
+    npm \
     && apk add --no-cache --virtual .build-deps $PHPIZE_DEPS \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install pdo pdo_pgsql gd exif mbstring pcntl posix \
@@ -28,6 +30,11 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
 # Copia el código de tu proyecto al contenedor.
 COPY . /var/www/html
+# Copia la configuración de Nginx adecuada (por defecto la de docker-compose)
+ARG NGINX_CONF=default
+RUN CONF_PATH=/var/www/html/docker/nginx/${NGINX_CONF}.conf; \
+    if [ ! -f "$CONF_PATH" ]; then CONF_PATH=/var/www/html/docker/nginx/default.conf; fi; \
+    cp "$CONF_PATH" /etc/nginx/conf.d/default.conf
 
 # Configura los permisos para los directorios de almacenamiento y caché de Laravel.
 RUN chown -R www-data:www-data /var/www/html/storage \
@@ -35,7 +42,7 @@ RUN chown -R www-data:www-data /var/www/html/storage \
     && chmod -R 775 /var/www/html/storage \
     && chmod -R 775 /var/www/html/bootstrap/cache
 
-# Expone el puerto de PHP-FPM
+# Default expose remains 9000 for php-fpm; Render overrides via entrypoint script.
 EXPOSE 9000
 
 # Copia y usa un entrypoint que arranca Laravel automáticamente
