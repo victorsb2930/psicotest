@@ -15,8 +15,8 @@ if [ "$RENDER_RUNTIME" = "1" ]; then
   INSTALL_FLAGS="$INSTALL_FLAGS --no-dev"
 fi
 
-# Ensure Composer dependencies (allow forcing install even if vendor exists)
-if [ ! -d "/var/www/html/vendor" ] || [ "${FORCE_COMPOSER_INSTALL:-0}" = "1" ]; then
+# Ensure Composer dependencies (Render siempre reinstala para no dejar paquetes faltantes)
+if [ "$RENDER_RUNTIME" = "1" ] || [ ! -d "/var/www/html/vendor" ] || [ "${FORCE_COMPOSER_INSTALL:-0}" = "1" ]; then
   echo "Installing PHP dependencies with Composer..."
   composer install $INSTALL_FLAGS
 fi
@@ -56,20 +56,13 @@ fi
 # Run migrations (safe if already ran)
 php artisan migrate --force || true
 
-# Install/build frontend assets during Render deploys (keep dev workflow unchanged)
+# Install/build frontend assets during Render deploys (always build para asegurar manifest actualizado)
 if [ "$RENDER_RUNTIME" = "1" ]; then
   cd /var/www/html
-  ASSETS_MANIFEST=/var/www/html/public/build/manifest.json
-  if [ "$FORCE_NPM_BUILD" = "1" ] || [ ! -f "$ASSETS_MANIFEST" ]; then
-    if [ ! -d "node_modules" ]; then
-      echo "Installing npm dependencies..."
-      npm ci
-    fi
-    echo "Building frontend assets..."
-    npm run build
-  else
-    echo "Skipping asset build; existing manifest detected."
-  fi
+  echo "Installing npm dependencies..."
+  npm ci
+  echo "Building frontend assets..."
+  npm run build
   cd - >/dev/null 2>&1 || cd /var/www/html
 fi
 
@@ -80,6 +73,7 @@ if [ ! -e public/storage ]; then
 fi
 
 # Cache config/routes/views for speed (ignore failures in dev)
+php artisan optimize:clear || true
 php artisan config:cache || true
 php artisan route:cache || true
 php artisan view:cache || true
