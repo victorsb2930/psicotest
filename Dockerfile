@@ -31,6 +31,7 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 # Copia el código de tu proyecto al contenedor.
 COPY . /var/www/html
 # Copia la configuración de Nginx adecuada (por defecto la de docker-compose)
+RUN mkdir -p /etc/nginx/conf.d
 ARG NGINX_CONF=default
 RUN CONF_PATH=/var/www/html/docker/nginx/${NGINX_CONF}.conf; \
     if [ ! -f "$CONF_PATH" ]; then CONF_PATH=/var/www/html/docker/nginx/default.conf; fi; \
