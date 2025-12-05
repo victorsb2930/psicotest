@@ -14,6 +14,8 @@ async function loadRTCIfNeeded() {
 import './partials/quickLogin';
 import './notifications';
 import './partials/reopen2fa';
+// Ensure RTC/realtime chunks are included in production manifest
+import './realtime';
 
 // Preload static marketing images so Vite includes them in the production manifest
 const staticMarketingAssets = import.meta.glob(['../images/**'], { eager: true, import: 'default' });
