@@ -1,9 +1,9 @@
 #!/bin/sh
 set -e
 
-# Detect Render runtime (Render sets RENDER=true). Allow manual override via RENDER_RUNTIME=1
+# Detect Render runtime (Render sets RENDER=true and always injects PORT). Allow manual override via RENDER_RUNTIME=1
 if [ "${RENDER_RUNTIME:-}" = "" ]; then
-  if [ "$RENDER" = "true" ] || [ "$RENDER" = "1" ]; then
+  if [ "$RENDER" = "true" ] || [ "$RENDER" = "1" ] || [ -n "$PORT" ]; then
     RENDER_RUNTIME=1
   else
     RENDER_RUNTIME=0
