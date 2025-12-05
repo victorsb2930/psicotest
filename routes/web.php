@@ -855,7 +855,32 @@ Route::get('/services', function () {
 
 #region about
 Route::get('/about', function () {
-	return view('about');
+	$professionalsCount = cache()->remember('stats:professionals_count', 300, function () {
+		try {
+			return \App\Models\User::role('professional')->count();
+		} catch (\Throwable $e) {
+			try { \Log::warning('about.stats.professionals_failed', ['error' => $e->getMessage()]); } catch (\Throwable $_) {}
+			return 0;
+		}
+	});
+	$sessionsCount = cache()->remember('stats:sessions_count', 300, function () {
+		try {
+			return \App\Models\Appointment::count();
+		} catch (\Throwable $e) {
+			try { \Log::warning('about.stats.sessions_failed', ['error' => $e->getMessage()]); } catch (\Throwable $_) {}
+			return 0;
+		}
+	});
+	$averageRating = cache()->remember('stats:average_rating', 300, function () {
+		try {
+			return round((float) (\App\Models\AppointmentRating::avg('rating') ?? 0), 1);
+		} catch (\Throwable $e) {
+			try { \Log::warning('about.stats.rating_failed', ['error' => $e->getMessage()]); } catch (\Throwable $_) {}
+			return 0.0;
+		}
+	});
+
+	return view('about', compact('professionalsCount','sessionsCount','averageRating'));
 })->name('about');
 #endregion
 

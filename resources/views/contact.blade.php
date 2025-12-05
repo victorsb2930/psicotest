@@ -32,7 +32,7 @@
 										</div>
 										<div class="d-grid d-sm-flex gap-2">
 											<button type="submit" class="btn btn-brand px-4">Enviar mensaje</button>
-											<a href="mailto:contacto@PsicoTest.com" class="btn btn-outline-secondary">Escribir por correo</a>
+											<a href="mailto:{{env('MAIL_FROM_ADDRESS')}}" class="btn btn-outline-secondary">Escribir por correo</a>
 										</div>
 									</form>
 								</div>
@@ -40,7 +40,7 @@
 									<x-card :center="false" :hover="false" :compact="true" :borderless="true" class="bg-brand-soft h-100">
 										<h2 class="h5 fw-bold mb-3 text-brand">Información de contacto</h2>
 										<ul class="list-unstyled small mb-4 text-600">
-											<li class="mb-2"><strong class="text-dark">Email:</strong> contacto@PsicoTest.com</li>
+											<li class="mb-2"><strong class="text-dark">Email:</strong> {{env('MAIL_FROM_ADDRESS')}}</li>
 											<li class="mb-2"><strong class="text-dark">Teléfono:</strong> +1 809 555 1234</li>
 											<li><strong class="text-dark">Horario:</strong> Lunes a Viernes, 9am - 6pm</li>
 										</ul>
