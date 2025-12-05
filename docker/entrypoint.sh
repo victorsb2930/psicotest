@@ -84,6 +84,14 @@ php artisan config:cache || true
 php artisan route:cache || true
 php artisan view:cache || true
 
+# Allow ad-hoc artisan commands via env (useful on hosts without shell access)
+if [ -n "${ARTISAN_ON_BOOT:-}" ]; then
+  echo "Running custom artisan command: php artisan ${ARTISAN_ON_BOOT}"
+  if ! php artisan ${ARTISAN_ON_BOOT}; then
+    echo "Custom artisan command failed; continuing startup" >&2
+  fi
+fi
+
 # Adjust Nginx listen port if Render injected PORT
 if [ "$RENDER_RUNTIME" = "1" ]; then
   LISTEN_PORT=${PORT:-8080}
