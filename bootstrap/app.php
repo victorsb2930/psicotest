@@ -13,6 +13,8 @@ return Application::configure(basePath: dirname(__DIR__))
 		health: '/up',
 	)
 	->withMiddleware(function (Middleware $middleware): void {
+		// Trust proxy headers (Render) so URLs/assets use https
+		$middleware->trustProxies(at: '*');
 		// Route middleware aliases
 		$middleware->alias([
 			'perm' => \App\Http\Middleware\CheckPermission::class,
