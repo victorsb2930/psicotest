@@ -6,7 +6,7 @@
 </head>
 <body>
   <p>Hola {{ $user->name }},</p>
-  <p>Se ha creado una cuenta para ti en <strong>PiscoGuía</strong> por un administrador.</p>
+  <p>Se ha creado una cuenta para ti en <strong>PsicoTest</strong> por un administrador.</p>
   <p>Tus credenciales temporales son:</p>
   <ul>
     <li><strong>Email:</strong> {{ $user->email }}</li>
@@ -14,6 +14,6 @@
   </ul>
   <p>Por favor inicia sesión en <a href="{{ url('/') }}">{{ url('/') }}</a> y cambia tu contraseña desde tu perfil lo antes posible.</p>
   <p>Si no solicitaste esta cuenta, contacta con el administrador.</p>
-  <p>Saludos,<br>PiscoGuía</p>
+  <p>Saludos,<br>PsicoTest</p>
 </body>
 </html>

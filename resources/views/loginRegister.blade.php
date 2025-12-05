@@ -1,5 +1,5 @@
 @extends('layout')
-@section('title', 'PiscoGuía: Inicia sesión o Registrate')
+@section('title', 'PsicoTest: Inicia sesión o Registrate')
 @section('page', 'login-register')
 @section('content')
 @if(auth()->check())

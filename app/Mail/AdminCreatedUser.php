@@ -28,7 +28,7 @@ class AdminCreatedUser extends Mailable
      */
     public function build()
     {
-        return $this->subject('Tu cuenta en PiscoGuía ha sido creada')
+        return $this->subject('Tu cuenta en PsicoTest ha sido creada')
                     ->view('emails.admin_created_user')
                     ->with(['user' => $this->user, 'password' => $this->plainPassword]);
     }
