@@ -59,6 +59,8 @@ php artisan migrate --force || true
 # Install/build frontend assets during Render deploys (always build para asegurar manifest actualizado)
 if [ "$RENDER_RUNTIME" = "1" ]; then
   cd /var/www/html
+  # Clean previous Vite build to avoid stale manifest/assets
+  rm -rf public/build || true
   echo "Installing npm dependencies..."
   npm ci
   echo "Building frontend assets..."
