@@ -56,26 +56,31 @@ fi
 # Run migrations (safe if already ran)
 php artisan migrate --force || true
 
-# Install/build frontend assets during Render deploys (always build para asegurar manifest actualizado)
+# Install/build frontend assets during Render deploys.
+# If SKIP_RENDER_BUILD=1, assume assets are already baked into the image (public/build committed) and skip npm ci/build to avoid OOM.
 if [ "$RENDER_RUNTIME" = "1" ]; then
-  cd /var/www/html
-  # Clean previous Vite build to avoid stale manifest/assets
-  rm -rf public/build || true
-  # Log current git revision (if available) to diagnose stale images
-  if [ -d .git ]; then
-    echo "Deployed git revision:" $(git rev-parse --short HEAD || echo "(unknown)")
+  if [ "${SKIP_RENDER_BUILD:-0}" = "1" ]; then
+    echo "Skipping npm build (SKIP_RENDER_BUILD=1); serving prebuilt assets from public/build";
+  else
+    cd /var/www/html
+    # Clean previous Vite build to avoid stale manifest/assets
+    rm -rf public/build || true
+    # Log current git revision (if available) to diagnose stale images
+    if [ -d .git ]; then
+      echo "Deployed git revision:" $(git rev-parse --short HEAD || echo "(unknown)")
+    fi
+    echo "Installing npm dependencies..."
+    npm ci
+    echo "Building frontend assets..."
+    NODE_OPTIONS="--max-old-space-size=1024" npm run build
+    # Log resulting manifest head to ensure new bundle names are present
+    if [ -f public/build/manifest.json ]; then
+      echo "--- manifest head ---"
+      head -n 30 public/build/manifest.json || true
+      echo "---------------------"
+    fi
+    cd - >/dev/null 2>&1 || cd /var/www/html
   fi
-  echo "Installing npm dependencies..."
-  npm ci
-  echo "Building frontend assets..."
-  npm run build
-  # Log resulting manifest head to ensure new bundle names are present
-  if [ -f public/build/manifest.json ]; then
-    echo "--- manifest head ---"
-    head -n 30 public/build/manifest.json || true
-    echo "---------------------"
-  fi
-  cd - >/dev/null 2>&1 || cd /var/www/html
 fi
 
 # Ensure storage symlink (avoid copying host symlink in build context)
