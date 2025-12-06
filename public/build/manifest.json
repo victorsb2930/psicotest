@@ -1,0 +1,416 @@
+{
+  "_appointmentModal-CLmenvj8.js": {
+    "file": "assets/appointmentModal-CLmenvj8.js",
+    "name": "appointmentModal",
+    "css": [
+      "assets/appointmentModal-CksuuEqD.css"
+    ]
+  },
+  "_appointmentModal-CksuuEqD.css": {
+    "file": "assets/appointmentModal-CksuuEqD.css",
+    "src": "_appointmentModal-CksuuEqD.css"
+  },
+  "_rtc-ui-B92qRBe8.js": {
+    "file": "assets/rtc-ui-B92qRBe8.js",
+    "name": "rtc-ui",
+    "imports": [
+      "_vendor-9TAahJdq.js",
+      "resources/js/app.js"
+    ]
+  },
+  "_vendor-9TAahJdq.js": {
+    "file": "assets/vendor-9TAahJdq.js",
+    "name": "vendor"
+  },
+  "_videoCallModal-IKT-9Ww7.js": {
+    "file": "assets/videoCallModal-IKT-9Ww7.js",
+    "name": "videoCallModal"
+  },
+  "node_modules/@fontsource/poppins/files/poppins-devanagari-400-normal.woff": {
+    "file": "assets/poppins-devanagari-400-normal-CqVvlrh5.woff",
+    "src": "node_modules/@fontsource/poppins/files/poppins-devanagari-400-normal.woff"
+  },
+  "node_modules/@fontsource/poppins/files/poppins-devanagari-400-normal.woff2": {
+    "file": "assets/poppins-devanagari-400-normal-CJDn6rn8.woff2",
+    "src": "node_modules/@fontsource/poppins/files/poppins-devanagari-400-normal.woff2"
+  },
+  "node_modules/@fontsource/poppins/files/poppins-devanagari-600-normal.woff": {
+    "file": "assets/poppins-devanagari-600-normal-ClASKHrr.woff",
+    "src": "node_modules/@fontsource/poppins/files/poppins-devanagari-600-normal.woff"
+  },
+  "node_modules/@fontsource/poppins/files/poppins-devanagari-600-normal.woff2": {
+    "file": "assets/poppins-devanagari-600-normal-STEjXBNN.woff2",
+    "src": "node_modules/@fontsource/poppins/files/poppins-devanagari-600-normal.woff2"
+  },
+  "node_modules/@fontsource/poppins/files/poppins-devanagari-700-normal.woff": {
+    "file": "assets/poppins-devanagari-700-normal-fHs-vx92.woff",
+    "src": "node_modules/@fontsource/poppins/files/poppins-devanagari-700-normal.woff"
+  },
+  "node_modules/@fontsource/poppins/files/poppins-devanagari-700-normal.woff2": {
+    "file": "assets/poppins-devanagari-700-normal-O-jipLrW.woff2",
+    "src": "node_modules/@fontsource/poppins/files/poppins-devanagari-700-normal.woff2"
+  },
+  "node_modules/@fontsource/poppins/files/poppins-latin-400-normal.woff": {
+    "file": "assets/poppins-latin-400-normal-BOb3E3N0.woff",
+    "src": "node_modules/@fontsource/poppins/files/poppins-latin-400-normal.woff"
+  },
+  "node_modules/@fontsource/poppins/files/poppins-latin-400-normal.woff2": {
+    "file": "assets/poppins-latin-400-normal-cpxAROuN.woff2",
+    "src": "node_modules/@fontsource/poppins/files/poppins-latin-400-normal.woff2"
+  },
+  "node_modules/@fontsource/poppins/files/poppins-latin-600-normal.woff": {
+    "file": "assets/poppins-latin-600-normal-BJdTmd5m.woff",
+    "src": "node_modules/@fontsource/poppins/files/poppins-latin-600-normal.woff"
+  },
+  "node_modules/@fontsource/poppins/files/poppins-latin-600-normal.woff2": {
+    "file": "assets/poppins-latin-600-normal-zEkxB9Mr.woff2",
+    "src": "node_modules/@fontsource/poppins/files/poppins-latin-600-normal.woff2"
+  },
+  "node_modules/@fontsource/poppins/files/poppins-latin-700-normal.woff": {
+    "file": "assets/poppins-latin-700-normal-BVuQR_eA.woff",
+    "src": "node_modules/@fontsource/poppins/files/poppins-latin-700-normal.woff"
+  },
+  "node_modules/@fontsource/poppins/files/poppins-latin-700-normal.woff2": {
+    "file": "assets/poppins-latin-700-normal-Qrb0O0WB.woff2",
+    "src": "node_modules/@fontsource/poppins/files/poppins-latin-700-normal.woff2"
+  },
+  "node_modules/@fontsource/poppins/files/poppins-latin-ext-400-normal.woff": {
+    "file": "assets/poppins-latin-ext-400-normal-DaBSavcJ.woff",
+    "src": "node_modules/@fontsource/poppins/files/poppins-latin-ext-400-normal.woff"
+  },
+  "node_modules/@fontsource/poppins/files/poppins-latin-ext-400-normal.woff2": {
+    "file": "assets/poppins-latin-ext-400-normal-by3JarPu.woff2",
+    "src": "node_modules/@fontsource/poppins/files/poppins-latin-ext-400-normal.woff2"
+  },
+  "node_modules/@fontsource/poppins/files/poppins-latin-ext-600-normal.woff": {
+    "file": "assets/poppins-latin-ext-600-normal-Df5ffKXP.woff",
+    "src": "node_modules/@fontsource/poppins/files/poppins-latin-ext-600-normal.woff"
+  },
+  "node_modules/@fontsource/poppins/files/poppins-latin-ext-600-normal.woff2": {
+    "file": "assets/poppins-latin-ext-600-normal-CAhIAdZj.woff2",
+    "src": "node_modules/@fontsource/poppins/files/poppins-latin-ext-600-normal.woff2"
+  },
+  "node_modules/@fontsource/poppins/files/poppins-latin-ext-700-normal.woff": {
+    "file": "assets/poppins-latin-ext-700-normal-DctTR6Tg.woff",
+    "src": "node_modules/@fontsource/poppins/files/poppins-latin-ext-700-normal.woff"
+  },
+  "node_modules/@fontsource/poppins/files/poppins-latin-ext-700-normal.woff2": {
+    "file": "assets/poppins-latin-ext-700-normal-cby-RkWa.woff2",
+    "src": "node_modules/@fontsource/poppins/files/poppins-latin-ext-700-normal.woff2"
+  },
+  "node_modules/bootstrap-icons/font/fonts/bootstrap-icons.woff": {
+    "file": "assets/bootstrap-icons-BeopsB42.woff",
+    "src": "node_modules/bootstrap-icons/font/fonts/bootstrap-icons.woff"
+  },
+  "node_modules/bootstrap-icons/font/fonts/bootstrap-icons.woff2": {
+    "file": "assets/bootstrap-icons-mSm7cUeB.woff2",
+    "src": "node_modules/bootstrap-icons/font/fonts/bootstrap-icons.woff2"
+  },
+  "resources/css/admin.css": {
+    "file": "assets/admin-DqhNk7Do.css",
+    "src": "resources/css/admin.css",
+    "isEntry": true,
+    "name": "admin",
+    "names": [
+      "admin.css"
+    ]
+  },
+  "resources/css/app.css": {
+    "file": "assets/app-BMvBHpzq.css",
+    "src": "resources/css/app.css",
+    "isEntry": true,
+    "name": "app",
+    "names": [
+      "app.css"
+    ]
+  },
+  "resources/css/layout.css": {
+    "file": "assets/layout-BDncmCHU.css",
+    "src": "resources/css/layout.css",
+    "isEntry": true,
+    "name": "layout",
+    "names": [
+      "layout.css"
+    ]
+  },
+  "resources/css/loginRegister.css": {
+    "file": "assets/loginRegister-DDL2xvE_.css",
+    "src": "resources/css/loginRegister.css",
+    "isEntry": true,
+    "name": "loginRegister",
+    "names": [
+      "loginRegister.css"
+    ]
+  },
+  "resources/css/pages/chat.css": {
+    "file": "assets/chat-C3_OHTB-.css",
+    "src": "resources/css/pages/chat.css",
+    "isEntry": true,
+    "name": "chat",
+    "names": [
+      "chat.css"
+    ]
+  },
+  "resources/images/2784445.png": {
+    "file": "assets/2784445-DmOaH2Zm.png",
+    "src": "resources/images/2784445.png"
+  },
+  "resources/images/3602139.png": {
+    "file": "assets/3602139-B1DqRclo.png",
+    "src": "resources/images/3602139.png"
+  },
+  "resources/images/4682131.png": {
+    "file": "assets/4682131-865zwIov.png",
+    "src": "resources/images/4682131.png"
+  },
+  "resources/images/785116.png": {
+    "file": "assets/785116-CL1fyKC-.png",
+    "src": "resources/images/785116.png"
+  },
+  "resources/images/about-us-image-2.webp": {
+    "file": "assets/about-us-image-2-DiZK7L_T.webp",
+    "src": "resources/images/about-us-image-2.webp"
+  },
+  "resources/images/about-us-image.webp": {
+    "file": "assets/about-us-image-Dr2U5_gm.webp",
+    "src": "resources/images/about-us-image.webp"
+  },
+  "resources/images/default-avatar.png": {
+    "file": "assets/default-avatar-BMgTU_X7.png",
+    "src": "resources/images/default-avatar.png"
+  },
+  "resources/images/foto_index.jpg": {
+    "file": "assets/foto_index-BWfcfAjn.jpg",
+    "src": "resources/images/foto_index.jpg"
+  },
+  "resources/images/p.png": {
+    "file": "assets/p-CKmlhfK_.png",
+    "src": "resources/images/p.png"
+  },
+  "resources/js/app.js": {
+    "file": "assets/app-CmDG_qbM.js",
+    "name": "app",
+    "src": "resources/js/app.js",
+    "isEntry": true,
+    "imports": [
+      "_vendor-9TAahJdq.js"
+    ],
+    "dynamicImports": [
+      "resources/js/rtc.js",
+      "resources/js/components/plans.js",
+      "resources/js/contact.js",
+      "resources/js/index.js",
+      "resources/js/loginRegister.js",
+      "resources/js/pages/2fa/twofactor_challenge.js",
+      "resources/js/pages/admin.appointment.metrics.js",
+      "resources/js/pages/admin.appointment.settings.js",
+      "resources/js/pages/admin.payments.js",
+      "resources/js/pages/admin.profapps.js",
+      "resources/js/pages/admin.roles.js",
+      "resources/js/pages/admin.users.js",
+      "resources/js/pages/chat.js",
+      "resources/js/pages/professional.area.js",
+      "resources/js/pages/professional.availability.js",
+      "resources/js/pages/professional.calendar.js",
+      "resources/js/pages/professional.payments.js",
+      "resources/js/pages/professional.ratings.js",
+      "resources/js/pages/professionals.search.js",
+      "resources/js/pages/profile.js",
+      "resources/js/pages/user.appointments.js",
+      "resources/js/pages/user.area.js",
+      "resources/js/pages/user.professionals.js"
+    ],
+    "assets": [
+      "assets/2784445-DmOaH2Zm.png",
+      "assets/3602139-B1DqRclo.png",
+      "assets/4682131-865zwIov.png",
+      "assets/785116-CL1fyKC-.png",
+      "assets/about-us-image-2-DiZK7L_T.webp",
+      "assets/about-us-image-Dr2U5_gm.webp",
+      "assets/default-avatar-BMgTU_X7.png",
+      "assets/foto_index-BWfcfAjn.jpg",
+      "assets/p-CKmlhfK_.png"
+    ]
+  },
+  "resources/js/components/plans.js": {
+    "file": "assets/plans-BobuuzQA.js",
+    "name": "plans",
+    "src": "resources/js/components/plans.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.js",
+      "_vendor-9TAahJdq.js"
+    ]
+  },
+  "resources/js/contact.js": {
+    "file": "assets/contact-CF4GmxJW.js",
+    "name": "contact",
+    "src": "resources/js/contact.js",
+    "isDynamicEntry": true
+  },
+  "resources/js/index.js": {
+    "file": "assets/index-DV6HizJi.js",
+    "name": "index",
+    "src": "resources/js/index.js",
+    "isDynamicEntry": true
+  },
+  "resources/js/loginRegister.js": {
+    "file": "assets/loginRegister-BcqB1Cue.js",
+    "name": "loginRegister",
+    "src": "resources/js/loginRegister.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.js",
+      "_vendor-9TAahJdq.js"
+    ]
+  },
+  "resources/js/pages/2fa/twofactor_challenge.js": {
+    "file": "assets/twofactor_challenge-BZJbgY_H.js",
+    "name": "twofactor_challenge",
+    "src": "resources/js/pages/2fa/twofactor_challenge.js",
+    "isDynamicEntry": true
+  },
+  "resources/js/pages/admin.appointment.metrics.js": {
+    "file": "assets/admin.appointment.metrics-c6vN_Pwl.js",
+    "name": "admin.appointment.metrics",
+    "src": "resources/js/pages/admin.appointment.metrics.js",
+    "isDynamicEntry": true
+  },
+  "resources/js/pages/admin.appointment.settings.js": {
+    "file": "assets/admin.appointment.settings-C91Y7J6s.js",
+    "name": "admin.appointment.settings",
+    "src": "resources/js/pages/admin.appointment.settings.js",
+    "isDynamicEntry": true
+  },
+  "resources/js/pages/admin.payments.js": {
+    "file": "assets/admin.payments-DCWvAbBs.js",
+    "name": "admin.payments",
+    "src": "resources/js/pages/admin.payments.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.js",
+      "_vendor-9TAahJdq.js"
+    ]
+  },
+  "resources/js/pages/admin.profapps.js": {
+    "file": "assets/admin.profapps-Bm3UK11z.js",
+    "name": "admin.profapps",
+    "src": "resources/js/pages/admin.profapps.js",
+    "isDynamicEntry": true
+  },
+  "resources/js/pages/admin.roles.js": {
+    "file": "assets/admin.roles-CPaFkqLG.js",
+    "name": "admin.roles",
+    "src": "resources/js/pages/admin.roles.js",
+    "isDynamicEntry": true
+  },
+  "resources/js/pages/admin.users.js": {
+    "file": "assets/admin.users-BiwJDlx7.js",
+    "name": "admin.users",
+    "src": "resources/js/pages/admin.users.js",
+    "isDynamicEntry": true
+  },
+  "resources/js/pages/chat.js": {
+    "file": "assets/chat-C3xDhwzg.js",
+    "name": "chat",
+    "src": "resources/js/pages/chat.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "_rtc-ui-B92qRBe8.js",
+      "_vendor-9TAahJdq.js",
+      "resources/js/app.js"
+    ]
+  },
+  "resources/js/pages/professional.area.js": {
+    "file": "assets/professional.area-B6MFhiU5.js",
+    "name": "professional.area",
+    "src": "resources/js/pages/professional.area.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "_videoCallModal-IKT-9Ww7.js"
+    ]
+  },
+  "resources/js/pages/professional.availability.js": {
+    "file": "assets/professional.availability-DmUXr5GF.js",
+    "name": "professional.availability",
+    "src": "resources/js/pages/professional.availability.js",
+    "isDynamicEntry": true
+  },
+  "resources/js/pages/professional.calendar.js": {
+    "file": "assets/professional.calendar-Cf_LTfME.js",
+    "name": "professional.calendar",
+    "src": "resources/js/pages/professional.calendar.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "_appointmentModal-CLmenvj8.js",
+      "resources/js/app.js",
+      "_vendor-9TAahJdq.js"
+    ],
+    "css": [
+      "assets/professional-BB8ezBci.css"
+    ]
+  },
+  "resources/js/pages/professional.payments.js": {
+    "file": "assets/professional.payments-BFyfajLI.js",
+    "name": "professional.payments",
+    "src": "resources/js/pages/professional.payments.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.js",
+      "_vendor-9TAahJdq.js"
+    ]
+  },
+  "resources/js/pages/professional.ratings.js": {
+    "file": "assets/professional.ratings-B_masEc1.js",
+    "name": "professional.ratings",
+    "src": "resources/js/pages/professional.ratings.js",
+    "isDynamicEntry": true
+  },
+  "resources/js/pages/professionals.search.js": {
+    "file": "assets/professionals.search-Bluo2-Zh.js",
+    "name": "professionals.search",
+    "src": "resources/js/pages/professionals.search.js",
+    "isDynamicEntry": true
+  },
+  "resources/js/pages/profile.js": {
+    "file": "assets/profile-D3GHw_Wt.js",
+    "name": "profile",
+    "src": "resources/js/pages/profile.js",
+    "isDynamicEntry": true
+  },
+  "resources/js/pages/user.appointments.js": {
+    "file": "assets/user.appointments-B9IX1T4a.js",
+    "name": "user.appointments",
+    "src": "resources/js/pages/user.appointments.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "_appointmentModal-CLmenvj8.js"
+    ]
+  },
+  "resources/js/pages/user.area.js": {
+    "file": "assets/user.area-DsIVU35I.js",
+    "name": "user.area",
+    "src": "resources/js/pages/user.area.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "_videoCallModal-IKT-9Ww7.js"
+    ]
+  },
+  "resources/js/pages/user.professionals.js": {
+    "file": "assets/user.professionals-BkSCu-M3.js",
+    "name": "user.professionals",
+    "src": "resources/js/pages/user.professionals.js",
+    "isDynamicEntry": true
+  },
+  "resources/js/rtc.js": {
+    "file": "assets/rtc-BgMOJ-d7.js",
+    "name": "rtc",
+    "src": "resources/js/rtc.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.js",
+      "_rtc-ui-B92qRBe8.js",
+      "_vendor-9TAahJdq.js"
+    ]
+  }
+}
