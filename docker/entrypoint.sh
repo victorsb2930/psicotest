@@ -61,10 +61,20 @@ if [ "$RENDER_RUNTIME" = "1" ]; then
   cd /var/www/html
   # Clean previous Vite build to avoid stale manifest/assets
   rm -rf public/build || true
+  # Log current git revision (if available) to diagnose stale images
+  if [ -d .git ]; then
+    echo "Deployed git revision:" $(git rev-parse --short HEAD || echo "(unknown)")
+  fi
   echo "Installing npm dependencies..."
   npm ci
   echo "Building frontend assets..."
   npm run build
+  # Log resulting manifest head to ensure new bundle names are present
+  if [ -f public/build/manifest.json ]; then
+    echo "--- manifest head ---"
+    head -n 30 public/build/manifest.json || true
+    echo "---------------------"
+  fi
   cd - >/dev/null 2>&1 || cd /var/www/html
 fi
 
