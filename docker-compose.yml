@@ -29,7 +29,7 @@ services:
 
   # Servicio web (Nginx)
   web:
-    image: nginx:alpine
+    image: nginx:1.29.3-alpine
     container_name: laravel-web
     restart: unless-stopped
     depends_on:
@@ -42,7 +42,7 @@ services:
 
   # Servicio de la base de datos (PostgreSQL)
   db:
-    image: postgres:14-alpine
+    image: postgres:18.1-alpine
     container_name: laravel-pg
     restart: unless-stopped
     environment:
@@ -56,7 +56,7 @@ services:
 
   # Servicio de Redis
   redis:
-    image: redis:alpine
+    image: redis:8.4.0-alpine
     container_name: laravel-redis
     restart: unless-stopped
 
