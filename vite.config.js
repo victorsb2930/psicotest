@@ -25,6 +25,10 @@ export default defineConfig(({ mode }) => ({
 	define: {
 		global: {},
 	},
+	server: {
+		host: '0.0.0.0',
+		port: 5173,
+	},
 	// Drop all console.* and debugger in production builds to keep console clean
 	esbuild: mode === 'production' ? { drop: ['console', 'debugger'] } : {},
 	build: {
